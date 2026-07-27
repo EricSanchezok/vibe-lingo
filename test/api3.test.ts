@@ -15,10 +15,12 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.1.0",
+      version: "0.2.0",
       capabilities: [
         { id: "session.read" },
         { id: "settings.read" },
+        { id: "settings.write" },
+        { id: "ui.hostActions" },
         {
           id: "agent.call",
           constraints: {
@@ -30,6 +32,8 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       ],
     })
     expect(plugin.contributions.map(({ kind, id }) => `${kind}:${id}`)).toEqual([
+      "operation:learning-summary",
+      "operation:clear-learning-data",
       "agent:language-analyzer",
       "hook:coach-system",
       "hook:analyze-user-message",
@@ -38,11 +42,34 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       "lifecycle.uninstall:cleanup-data",
     ])
     expect(plugin.handlerIds).toEqual([
+      "operation:learning-summary",
+      "operation:clear-learning-data",
       "hook:coach-system",
       "hook:analyze-user-message",
       "tool:progress",
       "lifecycle.uninstall:cleanup-data",
     ])
+  })
+
+  test("ships trusted settings UI with a declarative fallback and UI-only operations", () => {
+    expect(contribution("ui.settings", "settings")).toMatchObject({
+      component: { source: "./src/ui/settings.tsx" },
+      formSchema: {
+        properties: {
+          nativeLanguage: { default: "" },
+          targetLanguage: { default: "" },
+          proficiency: { default: "intermediate" },
+        },
+      },
+    })
+    expect(contribution("operation", "learning-summary")).toMatchObject({
+      type: "query",
+      expose: ["ui"],
+    })
+    expect(contribution("operation", "clear-learning-data")).toMatchObject({
+      type: "command",
+      expose: ["ui"],
+    })
   })
 
   test("keeps the analyzer private and bounds the progress tool surface", () => {
@@ -86,6 +113,9 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       settings: {
         async get() {
           return {
+            nativeLanguage: "zh-Hans",
+            targetLanguage: "en",
+            proficiency: "intermediate",
             correctionMode: "focused",
             trackingEnabled: true,
             recurringFocusEnabled: false,

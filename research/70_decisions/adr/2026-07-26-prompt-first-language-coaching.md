@@ -4,6 +4,8 @@
 
 Accepted
 
+Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md`. The prompt-first work-first model remains the core; v0.2 generalizes its learner profile, analysis, storage, and settings surface beyond the original Chinese-to-English assumption.
+
 ## Context
 
 Earlier VibeLingo designs treated Help, Polish, Explain, Composer completion, decorations, and pre-submit review as separate product interactions. Those designs were partly responses to older Synergy platform constraints.

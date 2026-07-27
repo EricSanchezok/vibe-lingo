@@ -1,10 +1,30 @@
-import { describe, expect, test } from "bun:test"
-import { renderProgress } from "../src/progress"
+import { afterEach, describe, expect, test } from "bun:test"
+import fs from "fs"
+import os from "os"
+import path from "path"
+import { progressTool, renderProgress } from "../src/progress"
+import { VibeLingoStore } from "../src/storage"
+import { invocationContext } from "./helpers"
+
+const temporaryDirectories: string[] = []
+
+function store(): VibeLingoStore {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-lingo-progress-"))
+  temporaryDirectories.push(directory)
+  return new VibeLingoStore(path.join(directory, "vibe-lingo.sqlite"))
+}
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
 
 describe("progress output", () => {
   test("renders evidence-backed counts and optional provenance without proficiency claims", () => {
     const output = renderProgress(
       {
+        targetLanguage: "en",
         analyzedMessages: 12,
         findingsLast30Days: 4,
         patterns: [
@@ -44,6 +64,7 @@ describe("progress output", () => {
   test("keeps stored fragments inside a single safe Markdown line", () => {
     const output = renderProgress(
       {
+        targetLanguage: "en",
         analyzedMessages: 1,
         findingsLast30Days: 1,
         patterns: [
@@ -73,5 +94,64 @@ describe("progress output", () => {
       true,
     )
     expect(output).toContain("`one ˋtwoˋ` → `one two`")
+  })
+
+  test("requires setup and defaults queries to the active target language", async () => {
+    const database = store()
+    const unconfigured = await progressTool(
+      {},
+      invocationContext({
+        settings: {
+          async get() {
+            return {}
+          },
+        },
+      }),
+      database,
+    )
+    expect(unconfigured.metadata).toMatchObject({ setupRequired: true })
+
+    database.recordAnalysis(
+      {
+        messageId: "message-es",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: Date.now(),
+      },
+      "es",
+      [
+        {
+          patternKey: "missing_article",
+          category: "grammar",
+          severity: "high_value",
+          label: "Missing article",
+          rule: "Use an article with a singular countable noun.",
+          originalFragment: "añade botón",
+          correctedFragment: "añade un botón",
+          confidence: 0.95,
+          sensitive: false,
+        },
+      ],
+    )
+    const configured = await progressTool(
+      {},
+      invocationContext({
+        settings: {
+          async get() {
+            return {
+              nativeLanguage: "en",
+              targetLanguage: "es",
+              proficiency: "intermediate",
+              correctionMode: "focused",
+              trackingEnabled: true,
+              recurringFocusEnabled: true,
+            }
+          },
+        },
+      }),
+      database,
+    )
+    expect(configured.title).toContain("Spanish")
+    expect(configured.metadata).toMatchObject({ language: "es", analyzedMessages: 1 })
   })
 })

@@ -4,11 +4,12 @@ import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 import {
   MAX_STORED_EXAMPLES,
-  TARGET_LANGUAGE,
   type AnalysisFinding,
+  type ClearLearningDataResult,
   type ErrorCategory,
   type ErrorSeverity,
   type KnownPattern,
+  type LearningSummary,
   type ProgressExample,
   type ProgressPattern,
   type ProgressSnapshot,
@@ -85,35 +86,47 @@ export class VibeLingoStore {
     fs.rmSync(path.dirname(this.filename), { recursive: true, force: true })
   }
 
-  isAnalyzed(messageId: string): boolean {
+  isAnalyzed(messageId: string, targetLanguage: string): boolean {
     const row = this.#connection()
-      .query<{ present: number }, [string]>("SELECT 1 AS present FROM analyzed_messages WHERE message_id = ? LIMIT 1")
-      .get(messageId)
+      .query<{ present: number }, [string, string]>(
+        `SELECT 1 AS present
+         FROM analyzed_messages
+         WHERE message_id = ? AND target_language = ?
+         LIMIT 1`,
+      )
+      .get(messageId, targetLanguage)
     return Boolean(row?.present)
   }
 
-  recordSkipped(identity: MessageIdentity): boolean {
+  recordSkipped(identity: MessageIdentity, targetLanguage: string): boolean {
     const result = this.#connection()
       .query(
         `INSERT OR IGNORE INTO analyzed_messages
-          (message_id, scope_id, session_id, analyzed_at, result)
-         VALUES (?, ?, ?, ?, 'skipped')`,
+          (message_id, target_language, scope_id, session_id, analyzed_at, result)
+         VALUES (?, ?, ?, ?, ?, 'skipped')`,
       )
-      .run(identity.messageId, identity.scopeId, identity.sessionId, identity.observedAt)
+      .run(
+        identity.messageId,
+        targetLanguage,
+        identity.scopeId,
+        identity.sessionId,
+        identity.observedAt,
+      )
     return numberValue(result.changes) > 0
   }
 
-  recordAnalysis(identity: MessageIdentity, findings: StoredFinding[]): boolean {
+  recordAnalysis(identity: MessageIdentity, targetLanguage: string, findings: StoredFinding[]): boolean {
     const database = this.#connection()
     const transaction = database.transaction(() => {
       const messageInsert = database
         .query(
           `INSERT OR IGNORE INTO analyzed_messages
-            (message_id, scope_id, session_id, analyzed_at, result)
-           VALUES (?, ?, ?, ?, ?)`,
+            (message_id, target_language, scope_id, session_id, analyzed_at, result)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run(
           identity.messageId,
+          targetLanguage,
           identity.scopeId,
           identity.sessionId,
           identity.observedAt,
@@ -133,7 +146,7 @@ export class VibeLingoStore {
                rule = excluded.rule`,
           )
           .run(
-            TARGET_LANGUAGE,
+            targetLanguage,
             finding.patternKey,
             finding.category,
             finding.label,
@@ -151,7 +164,7 @@ export class VibeLingoStore {
           )
           .run(
             crypto.randomUUID(),
-            TARGET_LANGUAGE,
+            targetLanguage,
             finding.patternKey,
             identity.scopeId,
             identity.sessionId,
@@ -172,7 +185,7 @@ export class VibeLingoStore {
                  last_seen_at = MAX(last_seen_at, ?)
              WHERE target_language = ? AND pattern_key = ?`,
           )
-          .run(identity.observedAt, identity.observedAt, TARGET_LANGUAGE, finding.patternKey)
+          .run(identity.observedAt, identity.observedAt, targetLanguage, finding.patternKey)
 
         database
           .query(
@@ -187,14 +200,14 @@ export class VibeLingoStore {
                LIMIT -1 OFFSET ?
              )`,
           )
-          .run(TARGET_LANGUAGE, finding.patternKey, MAX_STORED_EXAMPLES)
+          .run(targetLanguage, finding.patternKey, MAX_STORED_EXAMPLES)
       }
       return true
     })
     return transaction()
   }
 
-  knownPatterns(limit = 30): KnownPattern[] {
+  knownPatterns(targetLanguage: string, limit = 30): KnownPattern[] {
     const rows = this.#connection()
       .query<
         { pattern_key: string; category: ErrorCategory; label: string; rule: string },
@@ -206,7 +219,7 @@ export class VibeLingoStore {
          ORDER BY last_seen_at DESC
          LIMIT ?`,
       )
-      .all(TARGET_LANGUAGE, limit)
+      .all(targetLanguage, limit)
     return rows.map((row) => ({
       patternKey: row.pattern_key,
       category: row.category,
@@ -215,7 +228,7 @@ export class VibeLingoStore {
     }))
   }
 
-  recurringPatterns(limit = 3): RecurringPattern[] {
+  recurringPatterns(targetLanguage: string, limit = 3): RecurringPattern[] {
     const rows = this.#connection()
       .query<PatternRow, [string, number]>(
         `SELECT
@@ -240,11 +253,12 @@ export class VibeLingoStore {
          ORDER BY severity_rank DESC, p.occurrence_count DESC, p.last_seen_at DESC
          LIMIT ?`,
       )
-      .all(TARGET_LANGUAGE, limit)
+      .all(targetLanguage, limit)
     return rows.map((row) => this.#recurringFromRow(row))
   }
 
   progress(input: {
+    targetLanguage: string
     scopeId?: string
     limit: number
     includeExamples: boolean
@@ -254,29 +268,37 @@ export class VibeLingoStore {
     const since = (input.now ?? Date.now()) - 30 * 24 * 60 * 60 * 1_000
     const analyzed = input.scopeId
       ? database
-          .query<{ count: number }, [string]>(
-            "SELECT COUNT(*) AS count FROM analyzed_messages WHERE scope_id = ? AND result != 'skipped'",
+          .query<{ count: number }, [string, string]>(
+            `SELECT COUNT(*) AS count
+             FROM analyzed_messages
+             WHERE target_language = ? AND scope_id = ? AND result != 'skipped'`,
           )
-          .get(input.scopeId)
+          .get(input.targetLanguage, input.scopeId)
       : database
-          .query<{ count: number }, []>(
-            "SELECT COUNT(*) AS count FROM analyzed_messages WHERE result != 'skipped'",
+          .query<{ count: number }, [string]>(
+            `SELECT COUNT(*) AS count
+             FROM analyzed_messages
+             WHERE target_language = ? AND result != 'skipped'`,
           )
-          .get()
+          .get(input.targetLanguage)
     const recent = input.scopeId
       ? database
-          .query<{ count: number }, [number, string]>(
-            "SELECT COUNT(*) AS count FROM error_occurrences WHERE observed_at >= ? AND scope_id = ?",
+          .query<{ count: number }, [string, number, string]>(
+            `SELECT COUNT(*) AS count
+             FROM error_occurrences
+             WHERE target_language = ? AND observed_at >= ? AND scope_id = ?`,
           )
-          .get(since, input.scopeId)
+          .get(input.targetLanguage, since, input.scopeId)
       : database
-          .query<{ count: number }, [number]>(
-            "SELECT COUNT(*) AS count FROM error_occurrences WHERE observed_at >= ?",
+          .query<{ count: number }, [string, number]>(
+            `SELECT COUNT(*) AS count
+             FROM error_occurrences
+             WHERE target_language = ? AND observed_at >= ?`,
           )
-          .get(since)
+          .get(input.targetLanguage, since)
 
     const scopeClause = input.scopeId ? "AND o.scope_id = ?" : ""
-    const bindings: Array<string | number> = [TARGET_LANGUAGE]
+    const bindings: Array<string | number> = [input.targetLanguage]
     if (input.scopeId) bindings.push(input.scopeId)
     bindings.push(input.limit)
     const rows = database
@@ -308,19 +330,84 @@ export class VibeLingoStore {
     const patterns: ProgressPattern[] = rows.map((row) => ({
       ...this.#recurringFromRow(row),
       firstSeenAt: numberValue(row.first_seen_at),
-      examples: input.includeExamples ? this.#examples(row.pattern_key, input.scopeId) : [],
+      examples: input.includeExamples
+        ? this.#examples(input.targetLanguage, row.pattern_key, input.scopeId)
+        : [],
     }))
 
     return {
+      targetLanguage: input.targetLanguage,
       analyzedMessages: numberValue(analyzed?.count),
       findingsLast30Days: numberValue(recent?.count),
       patterns,
     }
   }
 
-  #examples(patternKey: string, scopeId?: string): ProgressExample[] {
+  learningSummary(targetLanguage: string, now = Date.now()): LearningSummary {
+    const snapshot = this.progress({
+      targetLanguage,
+      limit: 10_000,
+      includeExamples: false,
+      now,
+    })
+    const total = this.#connection()
+      .query<{ count: number }, [string]>(
+        "SELECT COUNT(*) AS count FROM error_patterns WHERE target_language = ?",
+      )
+      .get(targetLanguage)
+    const recurring = this.#connection()
+      .query<{ count: number }, [string]>(
+        `SELECT COUNT(*) AS count
+         FROM (
+           SELECT p.pattern_key
+           FROM error_patterns p
+           JOIN error_occurrences o
+             ON o.target_language = p.target_language AND o.pattern_key = p.pattern_key
+           WHERE p.target_language = ? AND p.occurrence_count >= 3
+           GROUP BY p.pattern_key
+           HAVING COUNT(DISTINCT o.session_id) >= 2
+         )`,
+      )
+      .get(targetLanguage)
+    return {
+      analyzedMessages: snapshot.analyzedMessages,
+      findingsLast30Days: snapshot.findingsLast30Days,
+      totalPatternCount: numberValue(total?.count),
+      recurringPatternCount: numberValue(recurring?.count),
+    }
+  }
+
+  clearLearningData(input: { scope: "target"; targetLanguage: string } | { scope: "all" }): ClearLearningDataResult {
+    const database = this.#connection()
+    const where = input.scope === "target" ? " WHERE target_language = ?" : ""
+    const bindings = input.scope === "target" ? [input.targetLanguage] : []
+    const transaction = database.transaction(() => {
+      const deletedMessages = numberValue(
+        database
+          .query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM analyzed_messages${where}`)
+          .get(...bindings)?.count,
+      )
+      const deletedOccurrences = numberValue(
+        database
+          .query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM error_occurrences${where}`)
+          .get(...bindings)?.count,
+      )
+      const deletedPatterns = numberValue(
+        database
+          .query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM error_patterns${where}`)
+          .get(...bindings)?.count,
+      )
+      database.query(`DELETE FROM analyzed_messages${where}`).run(...bindings)
+      database.query(`DELETE FROM error_occurrences${where}`).run(...bindings)
+      database.query(`DELETE FROM error_patterns${where}`).run(...bindings)
+      return { deletedMessages, deletedOccurrences, deletedPatterns }
+    })
+    return transaction()
+  }
+
+  #examples(targetLanguage: string, patternKey: string, scopeId?: string): ProgressExample[] {
     const scopeClause = scopeId ? "AND scope_id = ?" : ""
-    const bindings: Array<string | number> = [TARGET_LANGUAGE, patternKey]
+    const bindings: Array<string | number> = [targetLanguage, patternKey]
     if (scopeId) bindings.push(scopeId)
     bindings.push(3)
     const rows = this.#connection()
@@ -371,18 +458,26 @@ export class VibeLingoStore {
   #migrate(database: Database): void {
     const row = database.query<{ user_version: number }, []>("PRAGMA user_version").get()
     const version = numberValue(row?.user_version)
-    if (version >= 1) return
+    if (version === 0) this.#createVersionTwo(database)
+    if (version === 1) this.#migrateVersionOneToTwo(database)
+  }
+
+  #createVersionTwo(database: Database): void {
     const migrate = database.transaction(() => {
+      const current = this.#connectionVersion(database)
+      if (current !== 0) return
       database.exec(`
-        CREATE TABLE IF NOT EXISTS analyzed_messages (
-          message_id TEXT PRIMARY KEY,
+        CREATE TABLE analyzed_messages (
+          message_id TEXT NOT NULL,
+          target_language TEXT NOT NULL,
           scope_id TEXT NOT NULL,
           session_id TEXT NOT NULL,
           analyzed_at INTEGER NOT NULL,
-          result TEXT NOT NULL CHECK(result IN ('findings', 'no_findings', 'skipped'))
+          result TEXT NOT NULL CHECK(result IN ('findings', 'no_findings', 'skipped')),
+          PRIMARY KEY (message_id, target_language)
         );
 
-        CREATE TABLE IF NOT EXISTS error_patterns (
+        CREATE TABLE error_patterns (
           target_language TEXT NOT NULL,
           pattern_key TEXT NOT NULL,
           category TEXT NOT NULL,
@@ -394,7 +489,7 @@ export class VibeLingoStore {
           PRIMARY KEY (target_language, pattern_key)
         );
 
-        CREATE TABLE IF NOT EXISTS error_occurrences (
+        CREATE TABLE error_occurrences (
           id TEXT PRIMARY KEY,
           target_language TEXT NOT NULL,
           pattern_key TEXT NOT NULL,
@@ -406,23 +501,95 @@ export class VibeLingoStore {
           confidence REAL NOT NULL,
           original_fragment TEXT,
           corrected_fragment TEXT,
-          UNIQUE (message_id, pattern_key),
+          UNIQUE (message_id, target_language, pattern_key),
           FOREIGN KEY (target_language, pattern_key)
             REFERENCES error_patterns(target_language, pattern_key)
             ON DELETE CASCADE
         );
 
-        CREATE INDEX IF NOT EXISTS error_occurrences_pattern_time
+        CREATE INDEX error_occurrences_pattern_time
           ON error_occurrences(target_language, pattern_key, observed_at DESC);
-        CREATE INDEX IF NOT EXISTS error_occurrences_scope_time
+        CREATE INDEX error_occurrences_scope_time
           ON error_occurrences(scope_id, observed_at DESC);
-        CREATE INDEX IF NOT EXISTS error_occurrences_session_message
+        CREATE INDEX error_occurrences_session_message
           ON error_occurrences(session_id, message_id);
+        CREATE INDEX analyzed_messages_target_scope
+          ON analyzed_messages(target_language, scope_id, analyzed_at DESC);
 
-        PRAGMA user_version = 1;
+        PRAGMA user_version = 2;
       `)
     })
-    migrate()
+    migrate.immediate()
+  }
+
+  #migrateVersionOneToTwo(database: Database): void {
+    const migrate = database.transaction(() => {
+      const current = this.#connectionVersion(database)
+      if (current !== 1) return
+      database.exec(`
+        CREATE TABLE analyzed_messages_v2 (
+          message_id TEXT NOT NULL,
+          target_language TEXT NOT NULL,
+          scope_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          analyzed_at INTEGER NOT NULL,
+          result TEXT NOT NULL CHECK(result IN ('findings', 'no_findings', 'skipped')),
+          PRIMARY KEY (message_id, target_language)
+        );
+
+        INSERT INTO analyzed_messages_v2
+          (message_id, target_language, scope_id, session_id, analyzed_at, result)
+        SELECT message_id, 'en', scope_id, session_id, analyzed_at, result
+        FROM analyzed_messages;
+
+        CREATE TABLE error_occurrences_v2 (
+          id TEXT PRIMARY KEY,
+          target_language TEXT NOT NULL,
+          pattern_key TEXT NOT NULL,
+          scope_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          message_id TEXT NOT NULL,
+          observed_at INTEGER NOT NULL,
+          severity TEXT NOT NULL,
+          confidence REAL NOT NULL,
+          original_fragment TEXT,
+          corrected_fragment TEXT,
+          UNIQUE (message_id, target_language, pattern_key),
+          FOREIGN KEY (target_language, pattern_key)
+            REFERENCES error_patterns(target_language, pattern_key)
+            ON DELETE CASCADE
+        );
+
+        INSERT INTO error_occurrences_v2
+          (id, target_language, pattern_key, scope_id, session_id, message_id, observed_at,
+           severity, confidence, original_fragment, corrected_fragment)
+        SELECT id, target_language, pattern_key, scope_id, session_id, message_id, observed_at,
+               severity, confidence, original_fragment, corrected_fragment
+        FROM error_occurrences;
+
+        DROP TABLE error_occurrences;
+        DROP TABLE analyzed_messages;
+        ALTER TABLE error_occurrences_v2 RENAME TO error_occurrences;
+        ALTER TABLE analyzed_messages_v2 RENAME TO analyzed_messages;
+
+        CREATE INDEX error_occurrences_pattern_time
+          ON error_occurrences(target_language, pattern_key, observed_at DESC);
+        CREATE INDEX error_occurrences_scope_time
+          ON error_occurrences(scope_id, observed_at DESC);
+        CREATE INDEX error_occurrences_session_message
+          ON error_occurrences(session_id, message_id);
+        CREATE INDEX analyzed_messages_target_scope
+          ON analyzed_messages(target_language, scope_id, analyzed_at DESC);
+
+        PRAGMA user_version = 2;
+      `)
+    })
+    migrate.immediate()
+  }
+
+  #connectionVersion(database: Database): number {
+    const row = database.query<{ user_version: number }, []>("PRAGMA user_version").get()
+    return numberValue(row?.user_version)
   }
 }
 

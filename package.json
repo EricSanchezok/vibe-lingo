@@ -1,7 +1,7 @@
 {
   "name": "vibe-lingo",
-  "version": "0.1.0",
-  "description": "Work-first English coaching for Synergy agent sessions",
+  "version": "0.2.0",
+  "description": "Work-first multilingual coaching for Synergy agent sessions",
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ericsanchezok/synergy-plugin": "^3.0.0",
+    "solid-js": "^1.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

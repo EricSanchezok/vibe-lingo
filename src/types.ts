@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-export const TARGET_LANGUAGE = "en"
 export const MAX_MESSAGE_CHARS = 4_000
 export const MAX_FRAGMENT_CODEPOINTS = 160
 export const MAX_STORED_EXAMPLES = 5
@@ -33,7 +32,7 @@ export const AnalysisFindingSchema = z
 
 export const AnalysisResultSchema = z
   .object({
-    isEnglishAttempt: z.boolean(),
+    isTargetLanguageAttempt: z.boolean(),
     findings: z.array(AnalysisFindingSchema).max(2),
   })
   .strict()
@@ -76,7 +75,21 @@ export type ProgressPattern = RecurringPattern & {
 }
 
 export type ProgressSnapshot = {
+  targetLanguage: string
   analyzedMessages: number
   findingsLast30Days: number
   patterns: ProgressPattern[]
+}
+
+export type LearningSummary = {
+  analyzedMessages: number
+  findingsLast30Days: number
+  totalPatternCount: number
+  recurringPatternCount: number
+}
+
+export type ClearLearningDataResult = {
+  deletedMessages: number
+  deletedOccurrences: number
+  deletedPatterns: number
 }

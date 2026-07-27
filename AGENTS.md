@@ -2,24 +2,23 @@
 
 ## Project Intent
 
-VibeLingo is an early-stage Synergy plugin research project. The goal is to study, design, and eventually build a plugin that helps users learn languages naturally while they use Synergy for vibe coding, vibe research, writing, planning, and other agent-native workflows.
+VibeLingo is a Synergy plugin that helps users learn languages naturally while they use Synergy for vibe coding, vibe research, writing, planning, and other agent-native workflows.
 
-This repository is currently in the **research and product-thinking phase**. Do not jump into plugin implementation, API design, or production code unless the user explicitly asks to move from research into design or engineering.
+The repository has moved past pure research: `src/` contains the first working implementation (v0.1.0), a prompt-first English coaching plugin. The `research/` knowledge base remains the record of why the design looks the way it does; keep feeding durable findings back into it.
 
 The Synergy source tree is located at:
 
 ```txt
-C:\Eric\projects\synergy
+/Users/eric/projects/synergy
 ```
 
-Use that source tree only for platform understanding, plugin-interface research, and integration feasibility analysis during the current phase.
+Use that source tree for platform understanding and for verifying plugin-interface behavior against the actual host implementation.
 
 ## Current Phase Rules
 
-- Prioritize research, literature review, product reasoning, and integration strategy.
-- Do not create concrete code directories, plugin manifests, runtime hooks, or implementation files yet.
-- Do not assume the first feature, teaching model, storage model, or user experience before research supports it.
-- Prefer small, well-sourced research notes over large speculative documents.
+- The plugin is implemented; behavior changes happen in `src/` with tests in `test/`.
+- Keep the implementation aligned with the research base. When a design decision changes behavior, update the relevant note or ADR in the same change.
+- Verify plugin-interface assumptions against the Synergy source tree before relying on them; do not design around undocumented host behavior.
 - Every important claim about language learning, memory, motivation, agent workflows, or Synergy integration should be traceable to a source, observation, or decision record.
 - When uncertainty remains, preserve it explicitly rather than prematurely resolving it.
 
@@ -370,7 +369,7 @@ Do not skip directly from reading a source to making a product decision unless t
 
 - Prefer primary sources: academic papers, official documentation, source code, and first-party product docs.
 - For language learning claims, distinguish established findings from disputed or context-dependent findings.
-- For Synergy integration claims, verify against `C:\Eric\projects\synergy` source or official project documentation.
+- For Synergy integration claims, verify against `/Users/eric/projects/synergy` source or official project documentation.
 - For market or competitor claims, record date captured because product behavior changes quickly.
 - Do not overfit VibeLingo to English learning. The plugin should be conceptually multilingual unless research justifies narrowing scope.
 - Always consider user interruption cost: language learning should support the main workflow, not hijack it.
@@ -412,7 +411,7 @@ Maintain and refine these in `research/00_index/open-questions.md`.
 
 ## Working With the Synergy Source Tree
 
-When researching `C:\Eric\projects\synergy`:
+When researching `/Users/eric/projects/synergy`:
 
 - Treat it as a separate source of evidence, not as this project’s implementation directory.
 - Do not modify Synergy source unless the user explicitly asks.
@@ -420,15 +419,21 @@ When researching `C:\Eric\projects\synergy`:
 - Record exact file paths and relevant line ranges when documenting plugin architecture or runtime behavior.
 - Separate observations from design decisions. Example: “Synergy has X mechanism” belongs in source-map; “VibeLingo should use X mechanism” belongs in integration synthesis or ADR.
 
-## What Not To Do Yet
+## Implementation Rules
 
-- Do not scaffold the plugin.
-- Do not create `src/`, `plugin/`, `package.json`, manifest files, or runtime code.
-- Do not lock in a UI, command set, database schema, or memory model.
-- Do not write implementation tasks as if the teaching strategy is already known.
-- Do not optimize for a demo before the learning and integration model is credible.
+- Source lives in `src/` and builds with plugin-kit: `bun run build`, `bun run test`, `bun run typecheck`, `bun run validate`, `bun run pack`. The generated `dist/plugin.json` must not be edited by hand.
+- Keep the public contract in `definePlugin()` as the single source of identity, capabilities, and contributions.
+- Do not widen the scope of v0.1.0 silently. Composer completion, submission interception, inline decorations, dashboards, vocabulary review, and spaced repetition are deliberately out of scope; adding any of them requires an ADR first.
+- Privacy invariants are binding: never persist full user messages or agent responses, store only normalized pattern metadata plus bounded sanitized fragments, and keep the escape-hatch behavior working.
+- A normal plugin uninstall must delete the VibeLingo data directory; keep the lifecycle cleanup handler intact.
 
 ## Definition of Done for Current Phase Work
+
+An implementation change is complete when it:
+
+- Passes `bun run typecheck`, `bun run test`, `bun run build`, and `bun run validate`.
+- Adds or updates tests for the behavior it changes.
+- Updates the README and any affected research note or ADR in the same change.
 
 A research task is complete when it produces at least one of:
 
@@ -438,10 +443,4 @@ A research task is complete when it produces at least one of:
 - A synthesis note with evidence-backed recommendations.
 - A decision record with context, rationale, consequences, evidence, and revisit trigger.
 
-The project is ready to move toward design only when there is enough synthesis to answer:
-
-- What learning behavior VibeLingo should encourage.
-- Where it fits into Synergy sessions.
-- What data it must or must not store.
-- What the first MVP should do.
-- Which integration points in Synergy are feasible and appropriate.
+The initial implementation shipped as v0.1.0 (prompt-first coaching contract + background analyzer + local SQLite tracking, per `research/70_decisions/adr/2026-07-26-prompt-first-language-coaching.md`). New design questions that go beyond that ADR still need synthesis before implementation.

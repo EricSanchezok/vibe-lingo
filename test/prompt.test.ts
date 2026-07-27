@@ -11,6 +11,12 @@ import { isUserFacingRootSession } from "../src/session"
 import type { RecurringPattern } from "../src/types"
 import { invocationContext } from "./helpers"
 
+const profile = {
+  nativeLanguage: "zh-Hans",
+  targetLanguage: "en",
+  proficiency: "intermediate" as const,
+}
+
 const input: PluginSystemTransformInput = {
   phase: "budget",
   sessionID: "session-test",
@@ -36,6 +42,7 @@ function dependencies(
   return {
     async readSettings() {
       return {
+        ...profile,
         correctionMode: "focused",
         trackingEnabled: true,
         recurringFocusEnabled: true,
@@ -53,19 +60,29 @@ function dependencies(
 
 describe("coaching contract", () => {
   test("encodes focused, strict, ambiguity, escape, and recurring behavior", () => {
-    const focused = buildCoachingContract("focused", [recurring])
-    const strict = buildCoachingContract("strict", [])
+    const focused = buildCoachingContract("focused", profile, [recurring])
+    const strict = buildCoachingContract("strict", profile, [])
     expect(focused).toContain(COACHING_MARKER)
     expect(focused).toContain("ignore isolated minor slips")
-    expect(focused).toContain("offer 2–3 correctly phrased interpretations")
+    expect(focused).toContain("offer 2–3 correctly phrased target-language interpretations")
     expect(focused).toContain('"just do it"')
     expect(focused).toContain("missing_article")
-    expect(strict).toContain("every certain, genuine English error")
+    expect(strict).toContain("every certain, genuine target-language error")
     expect(strict).toContain("no more than two")
+    expect(focused).toContain("Chinese")
+    expect(focused).toContain("English (en)")
+    expect(focused).toContain("intermediate")
   })
 
-  test("removes every prior contract entry", () => {
-    expect(stripCoachingContract(["one", `${COACHING_MARKER}\nold`, "two"])).toEqual(["one", "two"])
+  test("removes every V1 and V2 contract entry", () => {
+    expect(
+      stripCoachingContract([
+        "one",
+        "[VIBE_LINGO_CONTRACT_V1]\nlegacy",
+        `${COACHING_MARKER}\nold`,
+        "two",
+      ]),
+    ).toEqual(["one", "two"])
   })
 
   test("stays idempotent across repeated transform phases", async () => {
@@ -96,6 +113,7 @@ describe("coaching contract", () => {
       invocationContext(),
       dependencies({
         readSettings: async () => ({
+          ...profile,
           correctionMode: "off",
           trackingEnabled: true,
           recurringFocusEnabled: true,
@@ -105,6 +123,40 @@ describe("coaching contract", () => {
     expect(small.system).toEqual(["Base"])
     expect(child.system).toEqual(["Base"])
     expect(off.system).toEqual(["Base"])
+  })
+
+  test("does not coach until the language profile is complete", async () => {
+    const result = await transformSystemPrompt(
+      input,
+      invocationContext(),
+      dependencies({
+        readSettings: async () => ({
+          ...profile,
+          nativeLanguage: "",
+          correctionMode: "focused",
+          trackingEnabled: true,
+          recurringFocusEnabled: true,
+        }),
+      }),
+    )
+    expect(result.system).toEqual(["Base system"])
+  })
+
+  test("adapts the contract to proficiency and target language", () => {
+    const beginner = buildCoachingContract(
+      "focused",
+      { nativeLanguage: "en", targetLanguage: "es", proficiency: "beginner" },
+      [],
+    )
+    const advanced = buildCoachingContract(
+      "strict",
+      { nativeLanguage: "zh-Hans", targetLanguage: "ja", proficiency: "advanced" },
+      [],
+    )
+    expect(beginner).toContain("Spanish (es)")
+    expect(beginner).toContain("simple, usable target-language phrasing")
+    expect(advanced).toContain("Japanese (ja)")
+    expect(advanced).toContain("nuance, collocation, register")
   })
 
   test("preserves original input when a host read fails", async () => {

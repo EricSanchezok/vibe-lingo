@@ -5,6 +5,8 @@
     "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
     "types": ["bun"]
   },
   "include": ["src", "test"]

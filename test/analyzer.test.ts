@@ -7,6 +7,7 @@ import {
   deterministicSkipReason,
   findingsForStorage,
   hasEscapeHatch,
+  analyzerRequest,
   parseAnalysisResult,
   processUserMessage,
 } from "../src/analyzer"
@@ -29,7 +30,7 @@ afterEach(() => {
 })
 
 const validResult: AnalysisResult = {
-  isEnglishAttempt: true,
+  isTargetLanguageAttempt: true,
   findings: [
     {
       patternKey: "missing_infinitive_to",
@@ -49,9 +50,23 @@ describe("background prefilter and output validation", () => {
   test("recognizes escape hatches and deterministic skip cases", () => {
     expect(hasEscapeHatch("Please just do it this time")).toBe(true)
     expect(hasEscapeHatch("跳过纠正，直接运行")).toBe(true)
-    expect(deterministicSkipReason("fix it")).toBe("too_little_english")
+    expect(deterministicSkipReason("fix it")).toBe("too_little_target_language")
     expect(deterministicSkipReason("```ts\nconst value = 1\n```")).toBe("mostly_code")
     expect(deterministicSkipReason("Please add a button to settings.")).toBeUndefined()
+    expect(deterministicSkipReason("请帮我修改这个页面", "ja")).toBe("too_little_target_language")
+    expect(deterministicSkipReason("ボタンを追加してください", "ja")).toBeUndefined()
+    expect(deterministicSkipReason("Añade un botón a la página", "es")).toBeUndefined()
+  })
+
+  test("includes the configured language pair and proficiency in the analyzer request", () => {
+    const request = analyzerRequest(
+      "Quiero añadir botón",
+      { nativeLanguage: "en", targetLanguage: "es", proficiency: "advanced" },
+      [],
+    )
+    expect(request).toContain("Support language: English (en)")
+    expect(request).toContain("Target language: Spanish (es)")
+    expect(request).toContain("Self-reported level: advanced")
   })
 
   test("accepts strict JSON and rejects Markdown-wrapped JSON", () => {
@@ -77,6 +92,7 @@ describe("background prefilter and output validation", () => {
     })
     expect(sensitive[0]).not.toHaveProperty("originalFragment")
     expect(sensitive[0]).not.toHaveProperty("correctedFragment")
+    expect(findingsForStorage(validResult, "ja")).toEqual([])
   })
 
   test("deduplicates synonymous output that reuses the same stable key", () => {
@@ -114,6 +130,9 @@ describe("background observer behavior", () => {
         store: database,
         async readSettings() {
           return {
+            nativeLanguage: "zh-Hans",
+            targetLanguage: "en",
+            proficiency: "intermediate",
             correctionMode: "focused",
             trackingEnabled: true,
             recurringFocusEnabled: true,
@@ -125,8 +144,13 @@ describe("background observer behavior", () => {
       },
     )
     expect(calls).toHaveLength(1)
-    expect(database.isAnalyzed("message-one")).toBe(true)
-    const snapshot = database.progress({ limit: 5, includeExamples: true, now: 100 })
+    expect(database.isAnalyzed("message-one", "en")).toBe(true)
+    const snapshot = database.progress({
+      targetLanguage: "en",
+      limit: 5,
+      includeExamples: true,
+      now: 100,
+    })
     expect(snapshot.analyzedMessages).toBe(1)
     expect(snapshot.patterns[0]).toMatchObject({
       patternKey: "missing_infinitive_to",
@@ -141,6 +165,9 @@ describe("background observer behavior", () => {
       store: database,
       async readSettings() {
         return {
+          nativeLanguage: "zh-Hans",
+          targetLanguage: "en",
+          proficiency: "intermediate" as const,
           correctionMode: "focused" as const,
           trackingEnabled: true,
           recurringFocusEnabled: true,
@@ -178,7 +205,47 @@ describe("background observer behavior", () => {
       }),
       dependency,
     )
-    expect(database.isAnalyzed("message-escape")).toBe(false)
-    expect(database.isAnalyzed("message-invalid")).toBe(false)
+    expect(database.isAnalyzed("message-escape", "en")).toBe(false)
+    expect(database.isAnalyzed("message-invalid", "en")).toBe(false)
+  })
+
+  test("does nothing when the profile is incomplete", async () => {
+    const database = store()
+    let calls = 0
+    await processUserMessage(
+      {
+        message: {
+          id: "message-unconfigured",
+          text: "I want add a button.",
+          createdAt: 100,
+        },
+      },
+      invocationContext({
+        agent: {
+          async call() {
+            calls += 1
+            return { text: JSON.stringify(validResult) }
+          },
+        },
+      }),
+      {
+        store: database,
+        async readSettings() {
+          return {
+            nativeLanguage: "",
+            targetLanguage: "",
+            proficiency: "intermediate",
+            correctionMode: "focused",
+            trackingEnabled: true,
+            recurringFocusEnabled: true,
+          }
+        },
+        async hasEligibleSession() {
+          return true
+        },
+      },
+    )
+    expect(calls).toBe(0)
+    expect(database.isAnalyzed("message-unconfigured", "en")).toBe(false)
   })
 })

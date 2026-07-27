@@ -1,6 +1,6 @@
 # Research Map
 
-Last updated: 2026-07-26
+Last updated: 2026-07-27
 
 ## Overview
 
@@ -55,7 +55,7 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Inline input assistance | 🔄 Redesign proposed | Move from `lingo_help` as a required chat turn to high-confidence Composer completion plus an explicit draft action. |
 | Expression polish | 🔄 Redesign proposed | Separate communication-risk preflight from learning-oriented post-send reflection. |
 | Comprehension support | 🔄 Redesign proposed | Start from exact selected text; validate a result surface before choosing a permanent UI. |
-| Prompt-first interaction model | Proposed, leading MVP hypothesis | Inject a work-first correction contract into the primary Agent, then extract learner patterns asynchronously. See `research/70_decisions/adr/2026-07-26-prompt-first-language-coaching.md`. |
+| Prompt-first interaction model | ✅ Accepted and implemented | Inject a work-first correction contract into the primary Agent, then extract learner patterns asynchronously. V0.2 adds an explicit multilingual profile, per-target namespace, and trusted settings experience. See `research/70_decisions/adr/2026-07-26-prompt-first-language-coaching.md` and `research/70_decisions/adr/2026-07-27-multilingual-profile-and-trusted-settings.md`. |
 | Composer-native interaction model | Deferred experiment | Completion, decorations, preflight, and selection UI remain available if prompt-only coaching fails specific interaction needs. See `research/80_synthesis/integration-summaries/2026-07-26-composer-native-redesign.md`. |
 | Vocabulary capture & review | ✅ Complete | session.turn.after → extract → score → prioritize → write. FSRS-scheduled micro-reviews. Context-aware skip. |
 | Progress tracking | ✅ Complete | Word book data model: D/S/R FSRS state + encounters + context. Error pattern tracking. |
@@ -66,8 +66,8 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Sub-area | Status | Key Notes |
 |---|---|---|
 | Competitive landscape | ✅ Complete | 6 analyses: Duolingo, Anki, Grammarly, LanguageTool, LingQ + 4 adjacent. Unique position: agent-native, work-as-learning. |
-| Learner personas | ✅ Complete | Primary: Synergy users A2-B2, Chinese→English initial focus |
-| MVP definition | 🔄 Reopened | Leading hypothesis: compact system-context coaching + async pattern extraction + minimal learner memory. Advanced Composer UI is deferred. |
+| Learner personas | 🔄 Expanded | Chinese→English remains the first QA path; v0.2 supports explicit support/target BCP-47 profiles and three self-reported levels. |
+| MVP definition | ✅ Implemented | Compact system-context coaching + async pattern extraction + minimal per-target learner memory + trusted first-run settings. Advanced Composer UI remains deferred. |
 | Success metrics | ✅ Complete | Retention ≥70% with review, ≥60% polish acceptance, ≥1 tool use per 3 sessions. Warning signals defined. |
 
 ## Evidence Bank Summary
