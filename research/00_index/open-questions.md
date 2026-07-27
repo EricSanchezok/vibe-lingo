@@ -1,6 +1,6 @@
 # Open Questions
 
-Last updated: 2026-07-07
+Last updated: 2026-07-26
 
 These questions drive our research. Each question should eventually be answered by one or more source notes, concept notes, or synthesis notes. When a question is resolved, move it to an "Answered" section with a link to the evidence.
 
@@ -48,6 +48,8 @@ These questions drive our research. Each question should eventually be answered 
 - Should learning interventions happen inline (mid-conversation), at task boundaries, or in separate review sessions?
 - What signals indicate the user is receptive to a learning nudge vs. deep in flow?
 - How do we avoid the plugin becoming "spam"?
+- Which findings are communication risks that justify pre-submit interruption, versus learning opportunities that should wait until after send?
+- What latency can users tolerate for ghost completion, explicit draft checking, and submission preflight?
 
 ### Proactive vs. Reactive
 - When (if ever) should the plugin proactively offer language help without being asked?
@@ -60,11 +62,17 @@ These questions drive our research. Each question should eventually be answered 
 - What hooks/APIs does Synergy expose for plugins to intercept or augment conversation?
 - Can a plugin access the current conversation context (user message, agent response) in real time?
 - How does plugin tool registration work? Can tools be invoked mid-conversation?
+- Can `composer.above` plus plugin operations/events provide an accessible, revision-bound suggestion card without a Synergy host change?
+- Does selected-text Explain require a new host-owned result popover or can an existing plugin surface remain in flow?
+- How should system-context injection identify user-facing root Agent work and exclude small, internal, or delegated calls?
+- How should the transform remain idempotent across Synergy's `budget` and `final` prompt phases?
 
 ### Storage & Persistence
 - Where should VibeLingo store: user preferences, vocabulary lists, error patterns, review schedules?
 - Can it use Synergy memory (semantic) for vocabulary? Notes (document) for progress? Agenda for review scheduling?
 - What are the privacy implications of storing conversation excerpts?
+- Where should Plugin API 3 business data live when Synergy does not provide a generic plugin data store or data-directory Host Service?
+- What minimum fragment and provenance data is required to answer “where have I made this mistake?” without storing full messages?
 
 ### Agent Interaction
 - Can a plugin interact with Synergy subagents (e.g., ask a subagent to generate a vocabulary quiz)?
@@ -75,6 +83,7 @@ These questions drive our research. Each question should eventually be answered 
 - What permissions does a plugin need to read conversation content?
 - How does the user opt in/out of data collection for learning purposes?
 - Can VibeLingo work without storing any conversation data (stateless mode)?
+- How should a progressive opt-in product request capabilities when manifest approval is static?
 
 ## Product Questions
 
@@ -82,6 +91,7 @@ These questions drive our research. Each question should eventually be answered 
 - What is the smallest feature set that delivers real value?
 - Should MVP focus on one use case (e.g., input assistance only) or cover all three?
 - Is a CLI/tool-based interface (@vibe-lingo ...) sufficient for MVP?
+- Should submission-blocking preflight remain a later experiment until completion and post-send notes prove useful?
 
 ### Differentiation
 - What does VibeLingo offer that Duolingo, Anki, Grammarly, LanguageTool, or ChatGPT don't?
