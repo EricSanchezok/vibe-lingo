@@ -23,6 +23,7 @@ import {
 } from "../settings"
 import type { ClearLearningDataResult, LearningSummary } from "../types"
 import { createSettingsController } from "./settings-controller"
+import { createSettingsPopoverMount } from "./settings-popover"
 
 type SurfaceInput = PluginSurfaceContext | { context: PluginSurfaceContext }
 type UiLocale = "en" | "zh-CN"
@@ -238,6 +239,7 @@ const styles = `
 .vl-combobox:focus-visible{border-color:var(--border-strong-base);box-shadow:0 0 0 3px color-mix(in srgb,var(--text-strong) 8%,transparent)}
 .vl-combobox:disabled{cursor:not-allowed;opacity:.5}
 .vl-combobox-icon{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-weaker);pointer-events:none}
+.vl-language-portal{pointer-events:auto}
 .vl-language-popover{position:fixed;z-index:90;max-height:248px;overflow:auto;border:1px solid var(--border-base);border-radius:10px;background:var(--surface-raised-stronger-non-alpha);box-shadow:0 6px 8px color-mix(in srgb,var(--surface-overlay) 35%,transparent);padding:5px}
 .vl-language-option{display:flex;width:100%;min-height:42px;align-items:center;justify-content:space-between;gap:12px;border:0;border-radius:7px;background:transparent;color:var(--text-base);padding:8px 9px;text-align:left;font:inherit;cursor:pointer}
 .vl-language-option:hover,.vl-language-option[data-active=true]{background:var(--surface-hover-base)}
@@ -317,6 +319,7 @@ const LanguageCombobox: Component<{
   const [open, setOpen] = createSignal(false)
   const [activeIndex, setActiveIndex] = createSignal(0)
   const [position, setPosition] = createSignal({ left: 0, top: 0, width: 280 })
+  const [popoverMount, setPopoverMount] = createSignal<HTMLElement>()
 
   const common = createMemo<LanguageOption[]>(() =>
     COMMON_LANGUAGE_TAGS.map((tag) => ({
@@ -417,12 +420,14 @@ const LanguageCombobox: Component<{
 
   const reposition = () => open() && updatePosition()
   onMount(() => {
+    if (inputElement) setPopoverMount(createSettingsPopoverMount(inputElement, document.body))
     window.addEventListener("resize", reposition)
     window.addEventListener("scroll", reposition, true)
   })
   onCleanup(() => {
     window.removeEventListener("resize", reposition)
     window.removeEventListener("scroll", reposition, true)
+    popoverMount()?.remove()
   })
 
   return (
@@ -453,8 +458,8 @@ const LanguageCombobox: Component<{
         onBlur={() => window.setTimeout(commitQuery, 120)}
       />
       <span class="vl-combobox-icon" aria-hidden="true">⌄</span>
-      <Show when={open() && options().length > 0}>
-        <Portal>
+      <Show when={open() && options().length > 0 && popoverMount()}>
+        <Portal mount={popoverMount()}>
           <div
             id={`${props.id}-listbox`}
             class="vl-language-popover"
