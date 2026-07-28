@@ -15,7 +15,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.4.0",
+      version: "0.4.1",
       capabilities: [
         { id: "session.read" },
         { id: "settings.read" },

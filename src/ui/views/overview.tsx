@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, type Component } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Component } from "solid-js"
 import type {
   LearningJourneyOutput,
   LearningPatternsOutput,
@@ -78,7 +78,7 @@ export const OverviewView: Component = () => {
   const reviewBatch = createMemo(() => {
     const current = queue()
     if (!current) return []
-    return [...current.due, ...current.upcoming].slice(0, 3)
+    return current.due.slice(0, 3)
   })
   createEffect(() => {
     const keys = [
@@ -99,21 +99,29 @@ export const OverviewView: Component = () => {
     if (!profile || reviewBatch().length === 0 || starting()) return
     setStarting(true)
     setStartError("")
+    let alive = true
+    onCleanup(() => { alive = false })
+    const fromRoute = dashboard.route()
+    const fromLanguage = profile.targetLanguage
     try {
       const result = await dashboard.context.operations.command<CommandResult<ReviewState>>(
         "review-start",
         {
-          targetLanguage: profile.targetLanguage,
+          targetLanguage: fromLanguage,
           patternKeys: reviewBatch().map((item) => item.patternKey),
           limit: reviewBatch().length,
         },
       )
+      if (!alive) return
       if (!result.ok) {
         setStartError(result.error.message)
         return
       }
+      if (dashboard.route() !== fromRoute) return
+      if (dashboard.profile()?.targetLanguage !== fromLanguage) return
       dashboard.navigate({ view: "review", reviewId: result.data.id })
     } catch (error) {
+      if (!alive) return
       setStartError(error instanceof Error ? error.message : copy(dashboard.locale(), "generationFailed"))
     } finally {
       setStarting(false)

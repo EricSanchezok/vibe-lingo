@@ -50,42 +50,362 @@ function identity(index: number, overrides: Partial<MessageIdentity> = {}): Mess
   }
 }
 
-describe("vNext learning repository", () => {
-  test("destructively replaces a legacy schema instead of carrying migration code", () => {
+const v1Schema = `
+  CREATE TABLE analyzed_messages (
+    message_id TEXT PRIMARY KEY,
+    scope_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    analyzed_at INTEGER NOT NULL,
+    result TEXT NOT NULL
+  );
+
+  CREATE TABLE error_patterns (
+    target_language TEXT NOT NULL,
+    pattern_key TEXT NOT NULL,
+    category TEXT NOT NULL,
+    label TEXT NOT NULL,
+    rule TEXT NOT NULL,
+    first_seen_at INTEGER NOT NULL,
+    last_seen_at INTEGER NOT NULL,
+    occurrence_count INTEGER NOT NULL,
+    PRIMARY KEY (target_language, pattern_key)
+  );
+
+  CREATE TABLE error_occurrences (
+    id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    pattern_key TEXT NOT NULL,
+    target_language TEXT NOT NULL,
+    observed_at INTEGER NOT NULL,
+    original_fragment TEXT,
+    corrected_fragment TEXT,
+    confidence REAL NOT NULL,
+    scope_id TEXT,
+    session_id TEXT,
+    severity TEXT NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (message_id, pattern_key)
+  );
+`
+
+const v2Schema = `
+  CREATE TABLE analyzed_messages (
+    target_language TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    analyzed_at INTEGER NOT NULL,
+    result TEXT NOT NULL,
+    PRIMARY KEY (target_language, message_id)
+  );
+
+  CREATE TABLE error_patterns (
+    target_language TEXT NOT NULL,
+    pattern_key TEXT NOT NULL,
+    category TEXT NOT NULL,
+    label TEXT NOT NULL,
+    rule TEXT NOT NULL,
+    first_seen_at INTEGER NOT NULL,
+    last_seen_at INTEGER NOT NULL,
+    occurrence_count INTEGER NOT NULL,
+    PRIMARY KEY (target_language, pattern_key)
+  );
+
+  CREATE TABLE error_occurrences (
+    id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    pattern_key TEXT NOT NULL,
+    target_language TEXT NOT NULL,
+    observed_at INTEGER NOT NULL,
+    original_fragment TEXT,
+    corrected_fragment TEXT,
+    confidence REAL NOT NULL,
+    scope_id TEXT,
+    session_id TEXT,
+    severity TEXT NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (message_id, pattern_key, target_language)
+  );
+`
+
+describe("schema migration", () => {
+  test("fresh empty database creates v5 schema", () => {
     const { learning, filename } = repository()
-    const legacy = new Database(filename, { create: true })
-    legacy.exec(`
-      CREATE TABLE error_patterns(pattern_key TEXT);
-      INSERT INTO error_patterns VALUES ('legacy');
-      PRAGMA user_version = 2;
-    `)
-    legacy.close()
     learning.initialize()
     const raw = new Database(filename, { readonly: true })
     expect(Number(raw.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)).toBe(
       SCHEMA_VERSION,
     )
-    expect(raw.query("SELECT name FROM sqlite_master WHERE name = 'error_patterns'").get()).toBeNull()
-    expect(raw.query("SELECT COUNT(*) AS count FROM learning_patterns").get()).toEqual({ count: 0 })
+    const tables = raw.query<{ name: string }, []>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    ).all().map((r) => r.name)
+    expect(tables).toContain("learning_profiles")
+    expect(tables).toContain("learning_patterns")
+    expect(tables).toContain("pattern_evidence")
+    expect(tables).toContain("review_sessions")
+    expect(tables).toContain("learning_events")
     raw.close()
   })
 
-  test("repairs an incomplete database even when its version marker looks current", () => {
-    const { learning, filename } = repository()
-    const malformed = new Database(filename, { create: true })
-    malformed.exec(`CREATE TABLE placeholder(value TEXT); PRAGMA user_version = ${SCHEMA_VERSION};`)
-    malformed.close()
+  test("migrates v1 schema preserving messages, patterns, and occurrences", () => {
+    const { filename } = repository()
+    const legacy = new Database(filename, { create: true })
+    legacy.exec(v1Schema)
+    legacy.exec(`
+      INSERT INTO analyzed_messages (message_id, scope_id, session_id, analyzed_at, result)
+      VALUES ('msg1', 's1', 'session1', 1000, 'findings'),
+             ('msg2', 's1', 'session1', 1100, 'no_findings'),
+             ('msg3', 's2', 'session2', 1200, 'skipped');
+      INSERT INTO error_patterns (target_language, pattern_key, category, label, rule,
+                                   first_seen_at, last_seen_at, occurrence_count)
+      VALUES ('en', 'missing_article', 'grammar', 'Missing article',
+              'Use a or the', 1000, 1000, 1),
+             ('en', 'spelling_error', 'spelling', 'Spelling',
+              'Check spelling', 1000, 1100, 2);
+      INSERT INTO error_occurrences (id, message_id, pattern_key, target_language,
+                                      observed_at, original_fragment, corrected_fragment,
+                                      confidence, severity, scope_id, session_id)
+      VALUES ('e1', 'msg1', 'missing_article', 'en', 1000, 'a cat', 'the cat', 0.95, 'high_value', 's1', 'session1'),
+             ('e2', 'msg1', 'spelling_error', 'en', 1000, 'recieve', 'receive', 0.99, 'high_value', 's1', 'session1'),
+             ('e3', 'msg2', 'spelling_error', 'en', 1100, 'wierd', 'weird', 0.97, 'high_value', 's1', 'session1');
+      PRAGMA user_version = 1;
+    `)
+    legacy.close()
+
+    const learning = new LearningRepository(new VibeLingoDatabase(filename))
     learning.initialize()
-    const tables = learning.database.connection()
+
+    const raw = new Database(filename, { readonly: true })
+    expect(Number(raw.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)).toBe(
+      SCHEMA_VERSION,
+    )
+    expect(raw.query("SELECT name FROM sqlite_master WHERE name = 'error_patterns'").get()).toBeNull()
+    expect(raw.query("SELECT name FROM sqlite_master WHERE name = 'error_occurrences'").get()).toBeNull()
+
+    const messages = raw.query<{
+      target_language: string
+      message_id: string
+      classification: string
+      finding_count: number
+    }, []>(
+      "SELECT target_language, message_id, classification, finding_count FROM analyzed_messages ORDER BY message_id",
+    ).all()
+    expect(messages).toHaveLength(3)
+    expect(messages[0]).toEqual({
+      target_language: "en", message_id: "msg1", classification: "target_attempt", finding_count: 2,
+    })
+    expect(messages[1]).toEqual({
+      target_language: "en", message_id: "msg2", classification: "target_attempt", finding_count: 1,
+    })
+    expect(messages[2]).toEqual({
+      target_language: "en", message_id: "msg3", classification: "skipped", finding_count: 0,
+    })
+
+    const patterns = raw.query<{
+      target_language: string
+      pattern_key: string
+      stage: string
+      revision: number
+    }, []>(
+      "SELECT target_language, pattern_key, stage, revision FROM learning_patterns ORDER BY pattern_key",
+    ).all()
+    expect(patterns).toHaveLength(2)
+    expect(patterns[0]).toMatchObject({
+      target_language: "en", pattern_key: "missing_article", stage: "candidate",
+    })
+    expect(patterns[1]).toMatchObject({
+      target_language: "en", pattern_key: "spelling_error", stage: "candidate",
+    })
+
+    const evidence = raw.query<{ kind: string; outcome: string; pattern_key: string; message_id: string }, []>(
+      "SELECT kind, outcome, pattern_key, message_id FROM pattern_evidence ORDER BY id",
+    ).all()
+    expect(evidence).toHaveLength(3)
+    expect(evidence.every((e) => e.kind === "error" && e.outcome === "incorrect")).toBe(true)
+    raw.close()
+    learning.close()
+  })
+
+  test("migrates v1 pattern that meets recurring threshold to practicing stage", () => {
+    const { filename } = repository()
+    const legacy = new Database(filename, { create: true })
+    legacy.exec(v1Schema)
+    legacy.exec(`
+      INSERT INTO analyzed_messages (message_id, scope_id, session_id, analyzed_at, result)
+      VALUES ('m1', 's1', 'sess1', 1000, 'findings'),
+             ('m2', 's2', 'sess2', 1100, 'findings'),
+             ('m3', 's3', 'sess3', 1200, 'findings');
+      INSERT INTO error_patterns (target_language, pattern_key, category, label, rule,
+                                   first_seen_at, last_seen_at, occurrence_count)
+      VALUES ('en', 'recurring_pat', 'grammar', 'Recurring', 'Rule', 1000, 1200, 3);
+      INSERT INTO error_occurrences (id, message_id, pattern_key, target_language,
+                                      observed_at, confidence, severity, scope_id, session_id)
+      VALUES ('e1', 'm1', 'recurring_pat', 'en', 1000, 0.95, 'high_value', 's1', 'sess1'),
+             ('e2', 'm2', 'recurring_pat', 'en', 1100, 0.95, 'high_value', 's2', 'sess2'),
+             ('e3', 'm3', 'recurring_pat', 'en', 1200, 0.95, 'high_value', 's3', 'sess3');
+      PRAGMA user_version = 1;
+    `)
+    legacy.close()
+
+    const learning = new LearningRepository(new VibeLingoDatabase(filename))
+    learning.initialize()
+
+    const raw = new Database(filename, { readonly: true })
+    const patterns = raw.query<{
+      pattern_key: string
+      stage: string
+      due_at: number | null
+    }, []>(
+      "SELECT pattern_key, stage, due_at FROM learning_patterns",
+    ).all()
+    expect(patterns).toHaveLength(1)
+    expect(patterns[0].pattern_key).toBe("recurring_pat")
+    expect(patterns[0].stage).toBe("practicing")
+    expect(patterns[0].due_at).not.toBeNull()
+    raw.close()
+    learning.close()
+  })
+
+  test("migrates v2 schema preserving target_language on messages and occurrences", () => {
+    const { filename } = repository()
+    const legacy = new Database(filename, { create: true })
+    legacy.exec(v2Schema)
+    legacy.exec(`
+      INSERT INTO analyzed_messages (target_language, message_id, scope_id, session_id, analyzed_at, result)
+      VALUES ('en', 'msg1', 's1', 'session1', 1000, 'findings'),
+             ('es', 'msg2', 's2', 'session2', 1100, 'findings');
+      INSERT INTO error_patterns (target_language, pattern_key, category, label, rule,
+                                   first_seen_at, last_seen_at, occurrence_count)
+      VALUES ('en', 'missing_article', 'grammar', 'Missing article', 'Use a or the', 1000, 1000, 1),
+             ('es', 'subjunctive', 'grammar', 'Subjunctive', 'Use que', 1100, 1100, 1);
+      INSERT INTO error_occurrences (id, message_id, pattern_key, target_language,
+                                      observed_at, original_fragment, corrected_fragment,
+                                      confidence, severity, scope_id, session_id)
+      VALUES ('e1', 'msg1', 'missing_article', 'en', 1000, 'a cat', 'the cat', 0.95, 'high_value', 's1', 'session1'),
+             ('e2', 'msg2', 'subjunctive', 'es', 1100, 'quiero que', 'quiero que tu', 0.90, 'high_value', 's2', 'session2');
+      PRAGMA user_version = 2;
+    `)
+    legacy.close()
+
+    const learning = new LearningRepository(new VibeLingoDatabase(filename))
+    learning.initialize()
+
+    const raw = new Database(filename, { readonly: true })
+    expect(Number(raw.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)).toBe(
+      SCHEMA_VERSION,
+    )
+
+    const messages = raw.query<{
+      target_language: string
+      message_id: string
+      classification: string
+    }, []>(
+      "SELECT target_language, message_id, classification FROM analyzed_messages ORDER BY message_id",
+    ).all()
+    expect(messages).toHaveLength(2)
+    expect(messages[0]).toEqual({ target_language: "en", message_id: "msg1", classification: "target_attempt" })
+    expect(messages[1]).toEqual({ target_language: "es", message_id: "msg2", classification: "target_attempt" })
+
+    const profiles = raw.query<{ target_language: string }, []>(
+      "SELECT target_language FROM learning_profiles ORDER BY target_language",
+    ).all()
+    expect(profiles).toEqual([])
+
+    const evidence = raw.query<{ target_language: string; pattern_key: string }, []>(
+      "SELECT target_language, pattern_key FROM pattern_evidence ORDER BY target_language",
+    ).all()
+    expect(evidence).toEqual([
+      { target_language: "en", pattern_key: "missing_article" },
+      { target_language: "es", pattern_key: "subjunctive" },
+    ])
+    raw.close()
+    learning.close()
+  })
+
+  test("idempotent migration does not duplicate data on repeated open", () => {
+    const { filename } = repository()
+    const legacy = new Database(filename, { create: true })
+    legacy.exec(v2Schema)
+    legacy.exec(`
+      INSERT INTO analyzed_messages (target_language, message_id, scope_id, session_id, analyzed_at, result)
+      VALUES ('en', 'msg1', 's1', 'session1', 1000, 'findings');
+      INSERT INTO error_patterns (target_language, pattern_key, category, label, rule,
+                                   first_seen_at, last_seen_at, occurrence_count)
+      VALUES ('en', 'p1', 'grammar', 'P1', 'R1', 1000, 1000, 1);
+      INSERT INTO error_occurrences (id, message_id, pattern_key, target_language,
+                                      observed_at, confidence, severity, scope_id, session_id)
+      VALUES ('e1', 'msg1', 'p1', 'en', 1000, 0.95, 'high_value', 's1', 'session1');
+      PRAGMA user_version = 2;
+    `)
+    legacy.close()
+
+    const first = new LearningRepository(new VibeLingoDatabase(filename))
+    first.initialize()
+    first.close()
+
+    const second = new LearningRepository(new VibeLingoDatabase(filename))
+    second.initialize()
+    const raw = second.database.connection()
+    const count = raw.query<{ count: number }, []>(
+      "SELECT COUNT(*) AS count FROM analyzed_messages",
+    ).get()
+    expect(Number(count?.count)).toBe(1)
+    expect(raw.query<{ count: number }, []>(
+      "SELECT COUNT(*) AS count FROM learning_patterns",
+    ).get()?.count).toBe(1)
+    expect(raw.query<{ count: number }, []>(
+      "SELECT COUNT(*) AS count FROM pattern_evidence",
+    ).get()?.count).toBe(1)
+    second.close()
+  })
+
+  test("repairs missing indexes on current-schema database preserving all data", () => {
+    const { learning, filename } = repository()
+    learning.rememberProfile(profile, 1_000)
+    learning.close()
+
+    const damaged = new Database(filename)
+    damaged.exec("DROP INDEX analyzed_scope_time")
+    damaged.exec("DROP INDEX events_language_time")
+    damaged.close()
+
+    const repaired = new LearningRepository(new VibeLingoDatabase(filename))
+    repaired.initialize()
+    expect(repaired.profileList()).toEqual([
+      expect.objectContaining({ targetLanguage: "en", firstUsedAt: 1_000 }),
+    ])
+    const indexes = repaired.database.connection()
       .query<{ name: string }, []>(
-        "SELECT name FROM sqlite_master WHERE type = 'table'",
+        "SELECT name FROM sqlite_master WHERE type = 'index'",
       )
       .all()
       .map((row) => row.name)
-    expect(tables).toContain("review_commands")
-    expect(tables).toContain("learning_events")
-    expect(tables).toContain("pattern_presentations")
-    expect(tables).not.toContain("placeholder")
+    expect(indexes).toContain("analyzed_scope_time")
+    expect(indexes).toContain("events_language_time")
+    repaired.close()
+  })
+
+  test("throws clear error and preserves data for malformed/unrecognized schema", () => {
+    const { filename } = repository()
+    const malformed = new Database(filename, { create: true })
+    malformed.exec(`
+      CREATE TABLE unrecognized_table(id TEXT PRIMARY KEY, value TEXT);
+      INSERT INTO unrecognized_table VALUES ('k1', 'v1');
+      PRAGMA user_version = 2;
+    `)
+    malformed.close()
+
+    expect(() => {
+      const db = new VibeLingoDatabase(filename)
+      db.initialize()
+    }).toThrow("Schema migration blocked")
+
+    const raw = new Database(filename, { readonly: true })
+    expect(raw.query("SELECT name FROM sqlite_master WHERE name = 'unrecognized_table'").get()).toBeTruthy()
+    expect(raw.query<{ value: string }, []>("SELECT value FROM unrecognized_table WHERE id = 'k1'").get()).toEqual({
+      value: "v1",
+    })
+    raw.close()
   })
 
   test("preserves current-schema data across overlapping generation initialization", () => {
@@ -99,28 +419,9 @@ describe("vNext learning repository", () => {
     ])
     overlapping.close()
   })
+})
 
-  test("rebuilds a current-version database when a required index is missing", () => {
-    const { learning, filename } = repository()
-    learning.rememberProfile(profile, 1_000)
-    learning.close()
-    const damaged = new Database(filename)
-    damaged.exec("DROP INDEX analyzed_scope_time")
-    damaged.close()
-
-    const repaired = new LearningRepository(new VibeLingoDatabase(filename))
-    repaired.initialize()
-    expect(repaired.profileList()).toEqual([])
-    const indexes = repaired.database.connection()
-      .query<{ name: string }, []>(
-        "SELECT name FROM sqlite_master WHERE type = 'index'",
-      )
-      .all()
-      .map((row) => row.name)
-    expect(indexes).toContain("analyzed_scope_time")
-    repaired.close()
-  })
-
+describe("vNext learning repository", () => {
   test("deduplicates messages and promotes only after three errors in two Sessions", () => {
     const { learning } = repository()
     expect(learning.recordAnalysis(identity(1), profile, true, [finding], [])).toBe(true)

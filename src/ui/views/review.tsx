@@ -1,4 +1,5 @@
 import {
+  onCleanup,
   For,
   Show,
   createEffect,
@@ -70,7 +71,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
   const state = () => stateOverride() ?? resource().data?.state
   const batch = createMemo(() => {
     const queue = resource().data?.queue
-    return queue ? [...queue.due, ...queue.upcoming].slice(0, 3) : []
+    return queue ? queue.due.slice(0, 3) : []
   })
 
   createEffect(() => {
@@ -107,19 +108,27 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
     if (!profile || batch().length === 0 || busy()) return
     setBusy(true)
     setError("")
+    let alive = true
+    onCleanup(() => { alive = false })
+    const fromRoute = dashboard.route()
+    const fromLanguage = profile.targetLanguage
     try {
       const result = await dashboard.context.operations.command<CommandResult<ReviewState>>(
         "review-start",
         {
-          targetLanguage: profile.targetLanguage,
+          targetLanguage: fromLanguage,
           patternKeys: batch().map((item) => item.patternKey),
           limit: batch().length,
         },
       )
+      if (!alive) return
       if (!result.ok) throw new Error(result.error.message)
+      if (dashboard.route() !== fromRoute) return
+      if (dashboard.profile()?.targetLanguage !== fromLanguage) return
       setStateOverride(result.data)
       dashboard.navigate({ view: "review", reviewId: result.data.id })
     } catch (failure) {
+      if (!alive) return
       setError(failure instanceof Error ? failure.message : copy(dashboard.locale(), "generationFailed"))
     } finally {
       setBusy(false)

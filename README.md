@@ -17,7 +17,7 @@ VibeLingo has three independent paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.4.0` adds a Synergy sidebar entry with overview, journey, pattern, review, and settings views. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
+VibeLingo `0.4.1` adds a Synergy sidebar entry with overview, journey, pattern, review, and settings views. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.4.0` adds the trusted learning workspace and a private pattern-presentation Agent. The plugin is still unreleased, so startup deliberately replaces any older dogfood database rather than carrying migration code.
+Version `0.4.1` adds the trusted learning workspace and a private pattern-presentation Agent. Existing local learning history is preserved when upgrading from earlier versions.
 
 ## First-Time Setup
 

@@ -366,6 +366,7 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
   }
 
   async function confirmMerge(targetKey: string) {
+    setMergeOpen(false)
     const confirmed = await dashboard.context.host.confirm({
       title: dashboard.locale() === "zh-CN" ? "合并这两个学习模式？" : "Merge these learning patterns?",
       message: dashboard.locale() === "zh-CN"

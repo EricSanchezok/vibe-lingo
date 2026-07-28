@@ -7,47 +7,133 @@ export const SCHEMA_VERSION = 5
 
 const REQUIRED_COLUMNS = {
   learning_profiles: [
-    "target_language", "native_language", "proficiency", "first_used_at", "last_used_at", "revision",
+    "target_language",
+    "native_language",
+    "proficiency",
+    "first_used_at",
+    "last_used_at",
+    "revision",
   ],
   analyzed_messages: [
-    "target_language", "message_id", "scope_id", "session_id", "analyzed_at",
-    "classification", "finding_count", "demonstration_count",
+    "target_language",
+    "message_id",
+    "scope_id",
+    "session_id",
+    "analyzed_at",
+    "classification",
+    "finding_count",
+    "demonstration_count",
   ],
   learning_patterns: [
-    "target_language", "pattern_key", "category", "severity", "label", "rule", "stage",
-    "disposition", "first_seen_at", "last_seen_at", "due_at", "schedule_step",
-    "lapse_count", "last_lapsed_at", "verified_at", "revision",
+    "target_language",
+    "pattern_key",
+    "category",
+    "severity",
+    "label",
+    "rule",
+    "stage",
+    "disposition",
+    "first_seen_at",
+    "last_seen_at",
+    "due_at",
+    "schedule_step",
+    "lapse_count",
+    "last_lapsed_at",
+    "verified_at",
+    "revision",
   ],
   pattern_aliases: ["target_language", "alias_key", "canonical_key"],
   pattern_presentations: [
-    "target_language", "pattern_key", "native_language", "source_label", "source_rule",
-    "display_label", "display_rule", "generated_at",
+    "target_language",
+    "pattern_key",
+    "native_language",
+    "source_label",
+    "source_rule",
+    "display_label",
+    "display_rule",
+    "generated_at",
   ],
   pattern_evidence: [
-    "id", "target_language", "pattern_key", "kind", "outcome", "severity", "confidence",
-    "scope_id", "session_id", "message_id", "review_item_id", "observed_at",
-    "original_fragment", "corrected_fragment",
+    "id",
+    "target_language",
+    "pattern_key",
+    "kind",
+    "outcome",
+    "severity",
+    "confidence",
+    "scope_id",
+    "session_id",
+    "message_id",
+    "review_item_id",
+    "observed_at",
+    "original_fragment",
+    "corrected_fragment",
   ],
   review_sessions: [
-    "id", "target_language", "scope_id", "status", "current_index", "revision",
-    "started_at", "updated_at", "completed_at",
+    "id",
+    "target_language",
+    "scope_id",
+    "status",
+    "current_index",
+    "revision",
+    "started_at",
+    "updated_at",
+    "completed_at",
   ],
   review_items: [
-    "id", "review_id", "target_language", "pattern_key", "ordinal", "stage", "hint_level",
-    "challenge", "hint_one", "hint_two", "explanation", "reference_answer",
-    "transfer_challenge", "rubric", "initial_correct", "transfer_correct", "outcome",
-    "created_at", "completed_at",
+    "id",
+    "review_id",
+    "target_language",
+    "pattern_key",
+    "ordinal",
+    "stage",
+    "hint_level",
+    "challenge",
+    "hint_one",
+    "hint_two",
+    "explanation",
+    "reference_answer",
+    "transfer_challenge",
+    "rubric",
+    "initial_correct",
+    "transfer_correct",
+    "outcome",
+    "created_at",
+    "completed_at",
   ],
   review_attempts: [
-    "id", "request_id", "review_id", "item_id", "phase", "answer", "verdict", "feedback",
-    "natural_answer", "confidence", "hint_count", "created_at",
+    "id",
+    "request_id",
+    "review_id",
+    "item_id",
+    "phase",
+    "answer",
+    "verdict",
+    "feedback",
+    "natural_answer",
+    "confidence",
+    "hint_count",
+    "created_at",
   ],
   review_commands: [
-    "request_id", "review_id", "command", "revision_after", "state_json", "created_at",
+    "request_id",
+    "review_id",
+    "command",
+    "revision_after",
+    "state_json",
+    "created_at",
   ],
   learning_events: [
-    "id", "target_language", "event_type", "occurred_at", "scope_id", "session_id",
-    "message_id", "pattern_key", "review_id", "review_item_id",
+    "id",
+    "target_language",
+    "event_type",
+    "occurred_at",
+    "scope_id",
+    "session_id",
+    "message_id",
+    "pattern_key",
+    "review_id",
+    "review_item_id",
   ],
 } as const satisfies Record<string, readonly string[]>
 
@@ -77,7 +163,7 @@ export class VibeLingoDatabase {
 
   connection(): Database {
     if (this.#database) return this.#database
-    fs.mkdirSync(path.dirname(this.filename), { recursive: true })
+    fs.mkdirSync(path.dirname(this.filename), { recursive: true });
     const database = new Database(this.filename, { create: true })
     database.exec("PRAGMA journal_mode = WAL")
     database.exec("PRAGMA foreign_keys = ON")
@@ -88,7 +174,7 @@ export class VibeLingoDatabase {
   }
 
   initialize(): void {
-    this.connection()
+    this.connection();
   }
 
   close(): void {
@@ -97,14 +183,15 @@ export class VibeLingoDatabase {
   }
 
   deleteData(): void {
-    this.close()
-    fs.rmSync(path.dirname(this.filename), { recursive: true, force: true })
+    this.close();
+    fs.rmSync(path.dirname(this.filename), { recursive: true, force: true });
   }
 
   #ensureSchema(database: Database): void {
     const current = Number(
-      database.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version ?? 0,
-    )
+      database.query<{ user_version: number }, []>("PRAGMA user_version").get()
+        ?.user_version ?? 0,
+    );
     if (current === SCHEMA_VERSION && this.#hasCurrentSchema(database)) return
 
     database.exec("PRAGMA foreign_keys = OFF")
@@ -113,21 +200,143 @@ export class VibeLingoDatabase {
       database.exec("BEGIN EXCLUSIVE")
       transactionOpen = true
       const lockedVersion = Number(
-        database.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version ?? 0,
-      )
-      if (lockedVersion === SCHEMA_VERSION && this.#hasCurrentSchema(database)) {
+        database
+          .query<{ user_version: number }, []>("PRAGMA user_version")
+          .get()?.user_version ?? 0,
+      );
+      if (
+        lockedVersion === SCHEMA_VERSION &&
+        this.#hasCurrentSchema(database)
+      ) {
         database.exec("COMMIT")
         transactionOpen = false
         return
       }
-      for (const { name } of database
-        .query<{ name: string }, []>(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-        )
-        .all()) {
-        database.exec(`DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}"`)
+      switch (this.#detectSchema(database)) {
+        case "fresh":
+          this.#createV5Schema(database)
+          break
+        case "v5_tables":
+          this.#repairIndexes(database)
+          break
+        case "v1":
+          this.#migrateLegacy(database, "v1")
+          break
+        case "v2":
+          this.#migrateLegacy(database, "v2")
+          break
+        case "malformed":
+          throw new Error(
+            "Schema migration blocked: the database contains unrecognized tables. " +
+              "Preserving all existing data. Report this error to continue.",
+          );
       }
-      database.exec(`
+      if (!this.#hasCurrentSchema(database)) {
+        throw new Error(
+          "Schema verification failed after migration. All changes have been rolled back.",
+        );
+      }
+      database.exec("COMMIT")
+      transactionOpen = false
+    } catch (error) {
+      if (transactionOpen) database.exec("ROLLBACK")
+      throw error
+    } finally {
+      database.exec("PRAGMA foreign_keys = ON")
+    }
+  }
+
+  #detectSchema(
+    database: Database,
+  ): "fresh" | "v5_tables" | "v1" | "v2" | "malformed" {
+    const tableRows = database
+      .query<
+        { name: string },
+        []
+      >("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all();
+    if (tableRows.length === 0) return "fresh"
+
+    const tableSet = new Set(tableRows.map((r) => r.name))
+    const v5TableNames = new Set(Object.keys(REQUIRED_COLUMNS))
+
+    if ([...v5TableNames].every((t) => tableSet.has(t))) {
+      for (const [table, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
+        const presentColumns = new Set(
+          database
+            .query<{ name: string }, []>(`PRAGMA table_info("${table}")`)
+            .all()
+            .map((r) => r.name),
+        );
+        if (requiredColumns.some((c) => !presentColumns.has(c)))
+          return "malformed"
+      }
+      return "v5_tables"
+    }
+
+    if (
+      tableSet.has("error_patterns") &&
+      tableSet.has("error_occurrences") &&
+      tableSet.has("analyzed_messages")
+    ) {
+      const occurrenceCols = new Set(
+        database
+          .query<{ name: string }, []>("PRAGMA table_info('error_occurrences')")
+          .all()
+          .map((r) => r.name),
+      );
+      if (!occurrenceCols.has("severity")) return "malformed"
+      const requiredLegacyOccurrenceCols = [
+        "id",
+        "message_id",
+        "pattern_key",
+        "target_language",
+        "observed_at",
+        "confidence",
+      ]
+      if (requiredLegacyOccurrenceCols.some((c) => !occurrenceCols.has(c)))
+        return "malformed"
+
+      const patternCols = new Set(
+        database
+          .query<{ name: string }, []>("PRAGMA table_info('error_patterns')")
+          .all()
+          .map((r) => r.name),
+      );
+      const requiredPatternCols = [
+        "target_language",
+        "pattern_key",
+        "category",
+        "label",
+        "rule",
+        "first_seen_at",
+        "last_seen_at",
+        "occurrence_count",
+      ]
+      if (requiredPatternCols.some((c) => !patternCols.has(c)))
+        return "malformed"
+
+      const analyzedCols = database
+        .query<{ name: string }, []>("PRAGMA table_info('analyzed_messages')")
+        .all()
+        .map((r) => r.name);
+      if (analyzedCols.includes("target_language")) return "v2"
+      return "v1"
+    }
+
+    return "malformed"
+  }
+
+  #createV5Schema(database: Database): void {
+    for (const { name } of database
+      .query<
+        { name: string },
+        []
+      >("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all()) {
+      database.exec(`DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}"`)
+    }
+    database.exec(`
         CREATE TABLE learning_profiles (
           target_language TEXT PRIMARY KEY,
           native_language TEXT NOT NULL,
@@ -339,16 +548,232 @@ export class VibeLingoDatabase {
         CREATE INDEX review_language_time
           ON review_sessions(target_language, started_at DESC);
 
-        PRAGMA user_version = 5;
-      `)
-      database.exec("COMMIT")
-      transactionOpen = false
-    } catch (error) {
-      if (transactionOpen) database.exec("ROLLBACK")
-      throw error
-    } finally {
-      database.exec("PRAGMA foreign_keys = ON")
+        PRAGMA user_version = 5
+      `);
+  }
+
+  #repairIndexes(database: Database): void {
+    const existingIndexes = new Set(
+      database
+        .query<{ name: string }, []>(
+          "SELECT name FROM sqlite_master WHERE type = 'index'",
+        )
+        .all()
+        .map((r) => r.name),
+    );
+    if (!existingIndexes.has("one_open_review_per_language")) {
+      database.exec(`
+        CREATE UNIQUE INDEX one_open_review_per_language
+          ON review_sessions(target_language)
+          WHERE status IN ('active', 'paused')
+      `);
     }
+    if (!existingIndexes.has("analyzed_language_time")) {
+      database.exec(
+        "CREATE INDEX analyzed_language_time ON analyzed_messages(target_language, analyzed_at DESC)",
+      );
+    }
+    if (!existingIndexes.has("analyzed_scope_time")) {
+      database.exec(
+        "CREATE INDEX analyzed_scope_time ON analyzed_messages(target_language, scope_id, analyzed_at DESC)",
+      );
+    }
+    if (!existingIndexes.has("pattern_stage_due")) {
+      database.exec(
+        "CREATE INDEX pattern_stage_due ON learning_patterns(target_language, disposition, stage, due_at)",
+      );
+    }
+    if (!existingIndexes.has("evidence_pattern_time")) {
+      database.exec(
+        "CREATE INDEX evidence_pattern_time ON pattern_evidence(target_language, pattern_key, observed_at DESC)",
+      );
+    }
+    if (!existingIndexes.has("evidence_scope_time")) {
+      database.exec(
+        "CREATE INDEX evidence_scope_time ON pattern_evidence(target_language, scope_id, observed_at DESC)",
+      );
+    }
+    if (!existingIndexes.has("events_language_time")) {
+      database.exec(
+        "CREATE INDEX events_language_time ON learning_events(target_language, occurred_at DESC, id DESC)",
+      );
+    }
+    if (!existingIndexes.has("review_language_time")) {
+      database.exec(
+        "CREATE INDEX review_language_time ON review_sessions(target_language, started_at DESC)",
+      );
+    }
+    database.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`)
+  }
+
+  #migrateLegacy(database: Database, kind: "v1" | "v2"): void {
+    const defaultTL = "en"
+
+    type LegacyMessage = {
+      message_id: string
+      scope_id: string
+      session_id: string
+      analyzed_at: number
+      result: string
+    }
+    type LegacyMessageV2 = LegacyMessage & { target_language: string }
+    type LegacyPattern = {
+      target_language: string
+      pattern_key: string
+      category: string
+      label: string
+      rule: string
+      first_seen_at: number
+      last_seen_at: number
+      occurrence_count: number
+    }
+    type LegacyOccurrence = {
+      id: string
+      message_id: string
+      pattern_key: string
+      target_language: string
+      observed_at: number
+      original_fragment: string | null
+      corrected_fragment: string | null
+      confidence: number
+      severity: string
+      scope_id: string | null
+      session_id: string | null
+    }
+
+    const legacyMessages =
+      kind === "v1"
+        ? database
+            .query<LegacyMessage, []>("SELECT * FROM analyzed_messages")
+            .all()
+        : database
+            .query<LegacyMessageV2, []>("SELECT * FROM analyzed_messages")
+            .all();
+    const legacyPatterns = database
+      .query<LegacyPattern, []>("SELECT * FROM error_patterns")
+      .all();
+    const legacyOccurrences = database
+      .query<LegacyOccurrence, []>("SELECT * FROM error_occurrences")
+      .all();
+
+    const findingCount = new Map<string, number>()
+    const sessionsByPattern = new Map<string, Set<string>>()
+    const patternSeverities = new Map<string, number>()
+    for (const occ of legacyOccurrences) {
+      const tl = kind === "v1" ? defaultTL : occ.target_language
+      findingCount.set(
+        `${tl}:${occ.message_id}`,
+        (findingCount.get(`${tl}:${occ.message_id}`) ?? 0) + 1,
+      );
+      const pk = `${tl}:${occ.pattern_key}`
+      if (!sessionsByPattern.has(pk)) sessionsByPattern.set(pk, new Set())
+      if (occ.session_id) sessionsByPattern.get(pk)!.add(occ.session_id)
+      const sevRank =
+        occ.severity === "meaning_affecting"
+          ? 3
+          : occ.severity === "high_value"
+            ? 2
+            : 1
+      patternSeverities.set(
+        pk,
+        Math.max(patternSeverities.get(pk) ?? 0, sevRank),
+      );
+    }
+
+    for (const { name } of database
+      .query<
+        { name: string },
+        []
+      >("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all()) {
+      database.exec(`DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}"`)
+    }
+
+    this.#createV5Schema(database)
+
+    for (const msg of legacyMessages) {
+      const tl =
+        kind === "v1"
+          ? defaultTL
+          : ((msg as LegacyMessageV2).target_language ?? defaultTL);
+      const classification =
+        msg.result === "skipped" ? "skipped" : "target_attempt"
+      const fc = findingCount.get(`${tl}:${msg.message_id}`) ?? 0
+      database
+        .query(
+          `INSERT INTO analyzed_messages
+           (target_language, message_id, scope_id, session_id, analyzed_at, classification, finding_count, demonstration_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+        )
+        .run(
+          tl,
+          msg.message_id,
+          msg.scope_id,
+          msg.session_id,
+          msg.analyzed_at,
+          classification,
+          fc,
+        );
+    }
+
+    for (const pat of legacyPatterns) {
+      const tl = kind === "v1" ? defaultTL : pat.target_language
+      const sessionCount =
+        sessionsByPattern.get(`${tl}:${pat.pattern_key}`)?.size ?? 0
+      const isRecurring = pat.occurrence_count >= 3 && sessionCount >= 2
+      const sevRank = patternSeverities.get(`${tl}:${pat.pattern_key}`) ?? 1
+      const severity =
+        sevRank >= 3
+          ? "meaning_affecting"
+          : sevRank >= 2
+            ? "high_value"
+            : "minor"
+      database
+        .query(
+          `INSERT INTO learning_patterns
+           (target_language, pattern_key, category, severity, label, rule, stage, disposition,
+            first_seen_at, last_seen_at, due_at, schedule_step, lapse_count, revision)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, 0, 0)`,
+        )
+        .run(
+          tl,
+          pat.pattern_key,
+          pat.category,
+          severity,
+          pat.label,
+          pat.rule,
+          isRecurring ? "practicing" : "candidate",
+          pat.first_seen_at,
+          pat.last_seen_at,
+          isRecurring ? 0 : null,
+        );
+    }
+
+    for (const occ of legacyOccurrences) {
+      const tl = kind === "v1" ? defaultTL : occ.target_language
+      database
+        .query(
+          `INSERT OR IGNORE INTO pattern_evidence
+           (id, target_language, pattern_key, kind, outcome, severity, confidence,
+            scope_id, session_id, message_id, observed_at, original_fragment, corrected_fragment)
+           VALUES (?, ?, ?, 'error', 'incorrect', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          occ.id,
+          tl,
+          occ.pattern_key,
+          occ.severity,
+          occ.confidence,
+          occ.scope_id ?? null,
+          occ.session_id ?? null,
+          occ.message_id,
+          occ.observed_at,
+          occ.original_fragment ?? null,
+          occ.corrected_fragment ?? null,
+        );
+    }
+
+    database.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`)
   }
 
   #hasCurrentSchema(database: Database): boolean {
@@ -359,7 +784,7 @@ export class VibeLingoDatabase {
         )
         .all()
         .map((row) => row.name),
-    )
+    );
     for (const [table, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
       if (!tables.has(table)) return false
       const presentColumns = new Set(
@@ -367,8 +792,9 @@ export class VibeLingoDatabase {
           .query<{ name: string }, []>(`PRAGMA table_info("${table}")`)
           .all()
           .map((row) => row.name),
-      )
-      if (requiredColumns.some((column) => !presentColumns.has(column))) return false
+      );
+      if (requiredColumns.some((column) => !presentColumns.has(column)))
+        return false
     }
     const indexes = new Set(
       database
@@ -377,13 +803,14 @@ export class VibeLingoDatabase {
         )
         .all()
         .map((row) => row.name),
-    )
+    );
     if (REQUIRED_INDEXES.some((index) => !indexes.has(index))) return false
     const eventTable = database
-      .query<{ sql: string | null }, [string]>(
-        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
-      )
-      .get("learning_events")
+      .query<
+        { sql: string | null },
+        [string]
+      >("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get("learning_events");
     return Boolean(eventTable?.sql?.includes("review_item_completed"))
   }
 }
@@ -391,15 +818,15 @@ export class VibeLingoDatabase {
 let singleton: VibeLingoDatabase | undefined
 
 export function defaultDatabase(): VibeLingoDatabase {
-  singleton ??= new VibeLingoDatabase()
+  singleton ??= new VibeLingoDatabase();
   return singleton
 }
 
 export function deleteDefaultData(): void {
   if (singleton) {
-    singleton.deleteData()
+    singleton.deleteData();
     singleton = undefined
     return
   }
-  fs.rmSync(defaultDataDirectory(), { recursive: true, force: true })
+  fs.rmSync(defaultDataDirectory(), { recursive: true, force: true });
 }
