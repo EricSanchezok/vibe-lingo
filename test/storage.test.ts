@@ -84,6 +84,7 @@ describe("vNext learning repository", () => {
       .map((row) => row.name)
     expect(tables).toContain("review_commands")
     expect(tables).toContain("learning_events")
+    expect(tables).toContain("pattern_presentations")
     expect(tables).not.toContain("placeholder")
   })
 

@@ -279,6 +279,7 @@ export type ReviewState = {
   startedAt: number
   updatedAt: number
   completedAt?: number
+  completionEventId?: string
 }
 
 export type CommandErrorCode =

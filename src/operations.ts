@@ -4,18 +4,20 @@ import { z } from "zod"
 import {
   CommandErrorSchema,
   EMPTY_LEARNING_SUMMARY,
-  JourneyEventSchema,
   LearningSummaryOutputSchema,
+  LearningProfilesOutputSchema,
+  LearningJourneyOutputSchema,
+  LearningRecordOutputSchema,
+  LearningPatternsOutputSchema,
+  PatternDetailOutputSchema,
+  ReviewQueueOutputSchema,
+  ReviewStateOutputSchema,
+  PatternPresentationsOutputSchema,
   OptionalLanguageSchema,
-  PatternEvidenceSchema,
-  PatternReviewHistorySchema,
   PatternSchema,
-  PatternTrendSchema,
   QueryBaseSchema,
   ReviewAnswerSchema,
   ReviewCommandResultSchema,
-  ReviewQueueItemSchema,
-  ReviewStateSchema,
 } from "./application/dashboard-contracts"
 import { defaultServices } from "./application/services"
 import { LearningEventTypeSchema, PatternDisplayStatusSchema } from "./domain/types"
@@ -67,20 +69,7 @@ const learningProfilesOperation = operation({
   type: "query",
   expose: ["ui"],
   input: z.object({}),
-  output: z.object({
-    current: z.object({
-      nativeLanguage: z.string(),
-      targetLanguage: z.string(),
-      proficiency: z.string(),
-    }).optional(),
-    profiles: z.array(z.object({
-      nativeLanguage: z.string(),
-      targetLanguage: z.string(),
-      proficiency: z.string(),
-      firstUsedAt: z.number(),
-      lastUsedAt: z.number(),
-    })),
-  }),
+  output: LearningProfilesOutputSchema,
   async handler(_input, context) {
     const current = configuredProfile(await readSettings(context))
     return {
@@ -124,11 +113,7 @@ const learningJourneyOperation = operation({
     (input) => input.from == null || input.to == null || input.from <= input.to,
     { message: "from must be earlier than or equal to to" },
   ),
-  output: z.object({
-    setupRequired: z.boolean().optional(),
-    items: z.array(JourneyEventSchema),
-    nextCursor: z.string().optional(),
-  }),
+  output: LearningJourneyOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
     if (!profile) return { setupRequired: true, items: [] }
@@ -152,37 +137,7 @@ const learningRecordOperation = operation({
     targetLanguage: OptionalLanguageSchema,
     eventId: z.string().uuid(),
   }),
-  output: z.object({
-    setupRequired: z.boolean().optional(),
-    found: z.boolean().optional(),
-    event: JourneyEventSchema.optional(),
-    pattern: PatternSchema.optional(),
-    patterns: z.array(PatternSchema).optional(),
-    evidence: z.array(PatternEvidenceSchema.extend({
-      patternKey: z.string(),
-      label: z.string(),
-    })).optional(),
-    review: ReviewStateSchema.optional(),
-    sessionSummary: z.object({
-      analyzedMessages: z.number().int().nonnegative(),
-      targetAttempts: z.number().int().nonnegative(),
-      findings: z.number().int().nonnegative(),
-      demonstrations: z.number().int().nonnegative(),
-      discoveredPatterns: z.number().int().nonnegative(),
-      activityStartedAt: z.number().optional(),
-      activityLastSeenAt: z.number().optional(),
-    }).optional(),
-    sessionTitle: z.string().optional(),
-    sessionTitleAvailable: z.boolean().optional(),
-    sourceSession: z.object({
-      id: z.string(),
-      title: z.string().optional(),
-      category: z.string().optional(),
-      createdAt: z.number().optional(),
-      updatedAt: z.number().optional(),
-      durationMs: z.number().int().nonnegative().optional(),
-    }).optional(),
-  }),
+  output: LearningRecordOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
     if (!profile) return { setupRequired: true }
@@ -260,11 +215,7 @@ const learningPatternsOperation = operation({
     cursor: z.string().max(500).optional(),
     limit: z.number().int().min(1).max(100).default(20),
   }),
-  output: z.object({
-    setupRequired: z.boolean().optional(),
-    items: z.array(PatternSchema),
-    nextCursor: z.string().optional(),
-  }),
+  output: LearningPatternsOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
     if (!profile) return { setupRequired: true, items: [] }
@@ -288,23 +239,7 @@ const learningPatternDetailOperation = operation({
     patternKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
     days: z.number().int().min(1).max(365).default(30),
   }),
-  output: z.object({
-    setupRequired: z.boolean().optional(),
-    found: z.boolean(),
-    pattern: PatternSchema.optional(),
-    evidenceTimeline: z.array(PatternEvidenceSchema),
-    reviewHistory: z.array(PatternReviewHistorySchema),
-    trend: z.array(PatternTrendSchema),
-    contexts: z.array(z.object({
-      scopeId: z.string(),
-      sessionCount: z.number().int().nonnegative(),
-      evidenceCount: z.number().int().nonnegative(),
-      errorCount: z.number().int().nonnegative(),
-      naturalCorrectCount: z.number().int().nonnegative(),
-      reviewCount: z.number().int().nonnegative(),
-      lastSeenAt: z.number(),
-    })),
-  }),
+  output: PatternDetailOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
     if (!profile) {
@@ -359,6 +294,42 @@ const learningPatternDetailOperation = operation({
   },
 })
 
+const patternPresentationsOperation = operation({
+  id: "pattern-presentations",
+  type: "command",
+  expose: ["ui"],
+  input: z.object({
+    targetLanguage: OptionalLanguageSchema,
+    patternKeys: z.array(
+      z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
+    ).min(1).max(20),
+  }),
+  output: PatternPresentationsOutputSchema,
+  async handler(input, context) {
+    const profile = await activeProfile(context, input.targetLanguage)
+    if (!profile) return { items: [] }
+    const services = defaultServices()
+    try {
+      return {
+        items: await services.presentationService.present(
+          profile,
+          input.patternKeys,
+          context,
+        ),
+      }
+    } catch (error) {
+      context.log.debug("VibeLingo pattern presentation fell back to canonical metadata", {
+        reason: error instanceof Error ? error.message : String(error),
+      })
+      return {
+        items: services.learning
+          .presentationSources(profile.targetLanguage, input.patternKeys)
+          .map((source) => ({ ...source, source: "canonical_fallback" as const })),
+      }
+    }
+  },
+})
+
 const reviewQueueOperation = operation({
   id: "review-queue",
   type: "query",
@@ -366,12 +337,7 @@ const reviewQueueOperation = operation({
   input: QueryBaseSchema.extend({
     limit: z.number().int().min(1).max(10).default(3),
   }),
-  output: z.object({
-    setupRequired: z.boolean().optional(),
-    due: z.array(ReviewQueueItemSchema),
-    upcoming: z.array(ReviewQueueItemSchema),
-    activeReview: ReviewStateSchema.optional(),
-  }),
+  output: ReviewQueueOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
     if (!profile) return { setupRequired: true, due: [], upcoming: [] }
@@ -394,10 +360,7 @@ const reviewStateOperation = operation({
     targetLanguage: OptionalLanguageSchema,
     reviewId: z.string().uuid().optional(),
   }),
-  output: z.object({
-    setupRequired: z.boolean().optional(),
-    state: ReviewStateSchema.optional(),
-  }),
+  output: ReviewStateOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
     if (!profile) return { setupRequired: true }
@@ -609,6 +572,7 @@ export const dashboardOperations = [
   learningRecordOperation,
   learningPatternsOperation,
   learningPatternDetailOperation,
+  patternPresentationsOperation,
   reviewQueueOperation,
   reviewStateOperation,
   reviewStartOperation,

@@ -3,7 +3,7 @@ import fs from "fs"
 import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 const REQUIRED_COLUMNS = {
   learning_profiles: [
@@ -19,6 +19,10 @@ const REQUIRED_COLUMNS = {
     "lapse_count", "last_lapsed_at", "verified_at", "revision",
   ],
   pattern_aliases: ["target_language", "alias_key", "canonical_key"],
+  pattern_presentations: [
+    "target_language", "pattern_key", "native_language", "source_label", "source_rule",
+    "display_label", "display_rule", "generated_at",
+  ],
   pattern_evidence: [
     "id", "target_language", "pattern_key", "kind", "outcome", "severity", "confidence",
     "scope_id", "session_id", "message_id", "review_item_id", "observed_at",
@@ -178,6 +182,21 @@ export class VibeLingoDatabase {
             ON DELETE CASCADE
         );
 
+        CREATE TABLE pattern_presentations (
+          target_language TEXT NOT NULL,
+          pattern_key TEXT NOT NULL,
+          native_language TEXT NOT NULL,
+          source_label TEXT NOT NULL,
+          source_rule TEXT NOT NULL,
+          display_label TEXT NOT NULL,
+          display_rule TEXT NOT NULL,
+          generated_at INTEGER NOT NULL,
+          PRIMARY KEY (target_language, pattern_key, native_language),
+          FOREIGN KEY (target_language, pattern_key)
+            REFERENCES learning_patterns(target_language, pattern_key)
+            ON DELETE CASCADE
+        );
+
         CREATE TABLE pattern_evidence (
           id TEXT PRIMARY KEY,
           target_language TEXT NOT NULL,
@@ -320,7 +339,7 @@ export class VibeLingoDatabase {
         CREATE INDEX review_language_time
           ON review_sessions(target_language, started_at DESC);
 
-        PRAGMA user_version = 4;
+        PRAGMA user_version = 5;
       `)
       database.exec("COMMIT")
       transactionOpen = false

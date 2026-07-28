@@ -15,7 +15,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.3.0",
+      version: "0.4.0",
       capabilities: [
         { id: "session.read" },
         { id: "settings.read" },
@@ -26,7 +26,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
           constraints: {
             maxRuntimeMs: 15_000,
             maxInputChars: 8_000,
-            maxOutputChars: 5_000,
+            maxOutputChars: 8_000,
           },
         },
       ],
@@ -38,15 +38,18 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       "operation:learning-record",
       "operation:learning-patterns",
       "operation:learning-pattern-detail",
+      "operation:pattern-presentations",
       "operation:review-queue",
       "operation:review-state",
       "operation:review-start",
       "operation:review-command",
       "operation:pattern-command",
       "operation:clear-learning-data",
+      "ui.navigationItem:learning",
       "agent:language-analyzer",
       "agent:review-builder",
       "agent:review-evaluator",
+      "agent:pattern-presenter",
       "hook:coach-system",
       "hook:analyze-user-message",
       "tool:progress",
@@ -60,6 +63,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       "operation:learning-record",
       "operation:learning-patterns",
       "operation:learning-pattern-detail",
+      "operation:pattern-presentations",
       "operation:review-queue",
       "operation:review-state",
       "operation:review-start",
@@ -92,7 +96,16 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       type: "command",
       expose: ["ui"],
     })
-    expect(plugin.contributions.some((candidate) => candidate.kind === "ui.navigationItem")).toBe(false)
+    expect(contribution("ui.navigationItem", "learning")).toMatchObject({
+      label: "VibeLingo",
+      icon: "book-open",
+      placement: "sidebar",
+      component: { source: "./src/ui/app.tsx" },
+    })
+    expect(contribution("operation", "pattern-presentations")).toMatchObject({
+      type: "command",
+      expose: ["ui"],
+    })
   })
 
   test("keeps the analyzer private and bounds the progress tool surface", () => {
@@ -117,6 +130,13 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(contribution("agent", "review-evaluator")).toMatchObject({
       agent: {
         name: "vibe-lingo-review-evaluator",
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    })
+    expect(contribution("agent", "pattern-presenter")).toMatchObject({
+      agent: {
+        name: "vibe-lingo-pattern-presenter",
         hidden: true,
         permission: { "*": "deny" },
       },

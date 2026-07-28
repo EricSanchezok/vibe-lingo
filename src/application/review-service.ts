@@ -53,9 +53,15 @@ export class ReviewService {
     if (existing) return { ok: true, revision: existing.revision, data: existing }
     const limit = Math.max(1, Math.min(10, Math.trunc(input.limit ?? 3)))
     const due = this.learning.reviewQueue(input.profile.targetLanguage, 10, input.now)
+    const upcoming = this.learning.upcomingReviewQueue(
+      input.profile.targetLanguage,
+      10,
+      input.now,
+    )
+    const eligible = [...due, ...upcoming]
     const selected = input.patternKeys?.length
       ? [...new Set(input.patternKeys)]
-          .map((key) => due.find((item) => item.patternKey === key))
+          .map((key) => eligible.find((item) => item.patternKey === key))
           .filter((item): item is NonNullable<typeof item> => Boolean(item))
           .slice(0, limit)
       : due.slice(0, limit)

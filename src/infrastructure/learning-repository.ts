@@ -757,6 +757,35 @@ export class LearningRepository {
     }
   }
 
+  presentationSources(
+    targetLanguage: string,
+    patternKeys: string[],
+  ): Array<{ patternKey: string; label: string; rule: string }> {
+    const canonicalKeys = [...new Set(
+      patternKeys
+        .filter((key) => PATTERN_KEY.test(key))
+        .map((key) => this.resolveCanonical(targetLanguage, key)),
+    )]
+    if (canonicalKeys.length === 0) return []
+    const placeholders = canonicalKeys.map(() => "?").join(",")
+    const rows = this.db().query<{
+      pattern_key: string
+      label: string
+      rule: string
+    }, string[]>(
+      `SELECT pattern_key, label, rule
+       FROM learning_patterns
+       WHERE target_language = ? AND pattern_key IN (${placeholders})`,
+    ).all(targetLanguage, ...canonicalKeys)
+    const byKey = new Map(rows.map((row) => [row.pattern_key, row]))
+    return canonicalKeys.flatMap((key) => {
+      const row = byKey.get(key)
+      return row
+        ? [{ patternKey: row.pattern_key, label: row.label, rule: row.rule }]
+        : []
+    })
+  }
+
   reviewQueue(targetLanguage: string, limit = 3, now = Date.now()): ReviewQueueItem[] {
     return this.queueRows(targetLanguage, limit, now, false)
   }
@@ -1442,7 +1471,7 @@ export class LearningRepository {
         deletedReviews: tableCount("review_sessions"),
         deletedEvents: tableCount("learning_events"),
       }
-      for (const table of ["review_sessions", "pattern_aliases", "pattern_evidence", "learning_events", "learning_patterns", "analyzed_messages", "learning_profiles"]) {
+      for (const table of ["review_sessions", "pattern_presentations", "pattern_aliases", "pattern_evidence", "learning_events", "learning_patterns", "analyzed_messages", "learning_profiles"]) {
         db.query(`DELETE FROM ${table}${where}`).run(...bindings)
       }
       return result

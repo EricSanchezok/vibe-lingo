@@ -72,6 +72,42 @@ describe("deterministic review scheduling", () => {
 })
 
 describe("review state machine", () => {
+  test("starts explicitly selected upcoming patterns without silently adding them by default", async () => {
+    const service = services()
+    seedPracticing(service)
+    const now = 10_000
+    service.database.connection().query(
+      "UPDATE learning_patterns SET due_at = ? WHERE target_language = ? AND pattern_key = ?",
+    ).run(now + DAY_MS, "en", "missing_article")
+    const context = invocationContext({
+      agent: {
+        async call() {
+          return { text: JSON.stringify(content) }
+        },
+      },
+    })
+    const dueOnly = await service.reviewService.start({
+      profile,
+      scopeId: "scope-a",
+      now,
+    }, context)
+    expect(dueOnly).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } })
+
+    const selected = await service.reviewService.start({
+      profile,
+      scopeId: "scope-a",
+      patternKeys: ["missing_article"],
+      now,
+    }, context)
+    expect(selected).toMatchObject({
+      ok: true,
+      data: {
+        totalItems: 1,
+        currentItem: { patternKey: "missing_article" },
+      },
+    })
+  })
+
   test("keeps answers hidden, evaluates recall and transfer, and completes idempotently", async () => {
     const service = services()
     seedPracticing(service)

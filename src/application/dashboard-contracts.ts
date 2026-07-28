@@ -222,6 +222,7 @@ export const ReviewStateSchema = z.object({
   startedAt: z.number(),
   updatedAt: z.number(),
   completedAt: z.number().optional(),
+  completionEventId: z.string().uuid().optional(),
 })
 
 export const CommandErrorSchema = z.object({
@@ -242,3 +243,111 @@ export const ReviewCommandResultSchema = z.union([
   z.object({ ok: z.literal(true), revision: z.number().int().nonnegative(), data: ReviewStateSchema }),
   z.object({ ok: z.literal(false), error: CommandErrorSchema }),
 ])
+
+export const LearningProfilesOutputSchema = z.object({
+  current: z.object({
+    nativeLanguage: z.string(),
+    targetLanguage: z.string(),
+    proficiency: z.string(),
+  }).optional(),
+  profiles: z.array(z.object({
+    nativeLanguage: z.string(),
+    targetLanguage: z.string(),
+    proficiency: z.string(),
+    firstUsedAt: z.number(),
+    lastUsedAt: z.number(),
+  })),
+})
+
+export const LearningJourneyOutputSchema = z.object({
+  setupRequired: z.boolean().optional(),
+  items: z.array(JourneyEventSchema),
+  nextCursor: z.string().optional(),
+})
+
+export const LearningPatternsOutputSchema = z.object({
+  setupRequired: z.boolean().optional(),
+  items: z.array(PatternSchema),
+  nextCursor: z.string().optional(),
+})
+
+export const PatternDetailOutputSchema = z.object({
+  setupRequired: z.boolean().optional(),
+  found: z.boolean(),
+  pattern: PatternSchema.optional(),
+  evidenceTimeline: z.array(PatternEvidenceSchema),
+  reviewHistory: z.array(PatternReviewHistorySchema),
+  trend: z.array(PatternTrendSchema),
+  contexts: z.array(z.object({
+    scopeId: z.string(),
+    sessionCount: z.number().int().nonnegative(),
+    evidenceCount: z.number().int().nonnegative(),
+    errorCount: z.number().int().nonnegative(),
+    naturalCorrectCount: z.number().int().nonnegative(),
+    reviewCount: z.number().int().nonnegative(),
+    lastSeenAt: z.number(),
+  })),
+})
+
+export const ReviewQueueOutputSchema = z.object({
+  setupRequired: z.boolean().optional(),
+  due: z.array(ReviewQueueItemSchema),
+  upcoming: z.array(ReviewQueueItemSchema),
+  activeReview: ReviewStateSchema.optional(),
+})
+
+export const ReviewStateOutputSchema = z.object({
+  setupRequired: z.boolean().optional(),
+  state: ReviewStateSchema.optional(),
+})
+
+export const LearningRecordOutputSchema = z.object({
+  setupRequired: z.boolean().optional(),
+  found: z.boolean().optional(),
+  event: JourneyEventSchema.optional(),
+  pattern: PatternSchema.optional(),
+  patterns: z.array(PatternSchema).optional(),
+  evidence: z.array(PatternEvidenceSchema.extend({
+    patternKey: z.string(),
+    label: z.string(),
+  })).optional(),
+  review: ReviewStateSchema.optional(),
+  sessionSummary: z.object({
+    analyzedMessages: z.number().int().nonnegative(),
+    targetAttempts: z.number().int().nonnegative(),
+    findings: z.number().int().nonnegative(),
+    demonstrations: z.number().int().nonnegative(),
+    discoveredPatterns: z.number().int().nonnegative(),
+    activityStartedAt: z.number().optional(),
+    activityLastSeenAt: z.number().optional(),
+  }).optional(),
+  sessionTitle: z.string().optional(),
+  sessionTitleAvailable: z.boolean().optional(),
+  sourceSession: z.object({
+    id: z.string(),
+    title: z.string().optional(),
+    category: z.string().optional(),
+    createdAt: z.number().optional(),
+    updatedAt: z.number().optional(),
+    durationMs: z.number().int().nonnegative().optional(),
+  }).optional(),
+})
+
+export const PatternPresentationsOutputSchema = z.object({
+  items: z.array(z.object({
+    patternKey: z.string(),
+    label: z.string(),
+    rule: z.string(),
+    source: z.enum(["localized", "canonical_fallback"]),
+  })),
+})
+
+export type LearningProfilesOutput = z.infer<typeof LearningProfilesOutputSchema>
+export type LearningSummaryOutput = z.infer<typeof LearningSummaryOutputSchema>
+export type LearningJourneyOutput = z.infer<typeof LearningJourneyOutputSchema>
+export type LearningRecordOutput = z.infer<typeof LearningRecordOutputSchema>
+export type LearningPatternsOutput = z.infer<typeof LearningPatternsOutputSchema>
+export type PatternDetailOutput = z.infer<typeof PatternDetailOutputSchema>
+export type ReviewQueueOutput = z.infer<typeof ReviewQueueOutputSchema>
+export type ReviewStateOutput = z.infer<typeof ReviewStateOutputSchema>
+export type PatternPresentationsOutput = z.infer<typeof PatternPresentationsOutputSchema>

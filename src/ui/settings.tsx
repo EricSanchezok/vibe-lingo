@@ -22,12 +22,13 @@ import {
   type VibeLingoSettings,
 } from "../settings"
 import type { ClearLearningDataResult, LearningSummary } from "../domain/types"
+import { localeForSettings, type UiLocale } from "./i18n"
 import { createSettingsController } from "./settings-controller"
 import { createSettingsPopoverMount } from "./settings-popover"
 
-type SurfaceInput = PluginSurfaceContext | { context: PluginSurfaceContext }
-type UiLocale = "en" | "zh-CN"
-
+type SurfaceInput = (PluginSurfaceContext | { context: PluginSurfaceContext }) & {
+  embedded?: boolean
+}
 type Copy = {
   subtitle: string
   setupRequired: string
@@ -216,6 +217,7 @@ const COPY: Record<UiLocale, Copy> = {
 
 const styles = `
 .vl-settings{box-sizing:border-box;width:min(100%,720px);padding:36px 48px 52px;color:var(--text-base);font-family:var(--font-family-sans,system-ui,sans-serif);font-size:var(--type-ui-body-size,.875rem);line-height:var(--type-ui-body-line-height,1.5)}
+.vl-settings[data-embedded=true] .vl-header{display:none}
 .vl-settings *{box-sizing:border-box}
 .vl-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:20px;border-bottom:1px solid color-mix(in srgb,var(--border-base) 42%,transparent)}
 .vl-title{margin:0;color:var(--text-strong);font-size:var(--type-ui-page-title-size,1.5rem);line-height:var(--type-ui-page-title-line-height,1.25);font-weight:var(--font-weight-semibold,600)}
@@ -287,18 +289,6 @@ const styles = `
 
 function resolveContext(input: SurfaceInput): PluginSurfaceContext {
   return "context" in input ? input.context : input
-}
-
-function initialLocale(): UiLocale {
-  return typeof document !== "undefined" && document.documentElement.lang.toLowerCase().startsWith("zh")
-    ? "zh-CN"
-    : "en"
-}
-
-function localeForSettings(settings: VibeLingoSettings): UiLocale {
-  const profile = configuredProfile(settings)
-  if (!profile) return initialLocale()
-  return profile.nativeLanguage.toLowerCase().startsWith("zh") ? "zh-CN" : "en"
 }
 
 type LanguageOption = { tag: string; name: string; custom?: boolean }
@@ -567,7 +557,7 @@ const SettingSwitch: Component<{
   </div>
 )
 
-const SettingsView: Component<SurfaceInput> = (input) => {
+export const SettingsView: Component<SurfaceInput> = (input) => {
   const context = resolveContext(input)
   const [settings, setSettings] = createSignal<VibeLingoSettings>(DEFAULT_SETTINGS)
   const [draftNative, setDraftNative] = createSignal("")
@@ -716,7 +706,7 @@ const SettingsView: Component<SurfaceInput> = (input) => {
   })
 
   return (
-    <main class="vl-settings" aria-busy={loading()}>
+    <main class="vl-settings" data-embedded={Boolean(input.embedded)} aria-busy={loading()}>
       <style>{styles}</style>
       <header class="vl-header">
         <div>

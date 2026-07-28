@@ -632,6 +632,13 @@ export class ReviewRepository {
         scheduleStep: numberValue(item.schedule_step),
         completedAt: numberValue(item.completed_at),
       }))
+    const completionEventId = row.status === "completed"
+      ? this.db().query<{ id: string }, [string]>(
+          `SELECT id FROM learning_events
+           WHERE review_id = ? AND event_type = 'review_completed'
+           ORDER BY occurred_at DESC, id DESC LIMIT 1`,
+        ).get(row.id)?.id
+      : undefined
     return {
       id: row.id,
       targetLanguage: row.target_language,
@@ -671,6 +678,7 @@ export class ReviewRepository {
       startedAt: numberValue(row.started_at),
       updatedAt: numberValue(row.updated_at),
       completedAt: row.completed_at == null ? undefined : numberValue(row.completed_at),
+      completionEventId,
     }
   }
 

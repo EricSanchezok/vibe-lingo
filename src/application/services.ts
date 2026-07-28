@@ -1,6 +1,8 @@
 import { VibeLingoDatabase, defaultDatabase } from "../infrastructure/database"
 import { LearningRepository } from "../infrastructure/learning-repository"
 import { ReviewRepository } from "../infrastructure/review-repository"
+import { PatternPresentationRepository } from "../infrastructure/pattern-presentation-repository"
+import { PatternPresentationService } from "./presentation-service"
 import { ReviewService } from "./review-service"
 
 export type VibeLingoServices = {
@@ -8,6 +10,8 @@ export type VibeLingoServices = {
   learning: LearningRepository
   reviews: ReviewRepository
   reviewService: ReviewService
+  presentations: PatternPresentationRepository
+  presentationService: PatternPresentationService
 }
 
 let singleton: VibeLingoServices | undefined
@@ -15,11 +19,14 @@ let singleton: VibeLingoServices | undefined
 export function createServices(database: VibeLingoDatabase): VibeLingoServices {
   const learning = new LearningRepository(database)
   const reviews = new ReviewRepository(database, learning)
+  const presentations = new PatternPresentationRepository(database)
   return {
     database,
     learning,
     reviews,
     reviewService: new ReviewService(learning, reviews),
+    presentations,
+    presentationService: new PatternPresentationService(learning, presentations),
   }
 }
 
@@ -32,4 +39,3 @@ export function closeDefaultServices(): void {
   singleton?.database.close()
   singleton = undefined
 }
-

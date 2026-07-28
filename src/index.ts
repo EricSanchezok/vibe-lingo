@@ -6,6 +6,7 @@ import {
   lifecycleUninstall,
   settings,
   tool,
+  navigationItem,
 } from "@ericsanchezok/synergy-plugin"
 import { ANALYZER_AGENT_NAME, ANALYZER_PROMPT, processUserMessage } from "./analyzer"
 import { dashboardOperations } from "./operations"
@@ -19,6 +20,10 @@ import {
   REVIEW_EVALUATOR_AGENT_NAME,
   REVIEW_EVALUATOR_PROMPT,
 } from "./application/review-contracts"
+import {
+  PATTERN_PRESENTER_AGENT_NAME,
+  PATTERN_PRESENTER_PROMPT,
+} from "./application/presentation-contracts"
 import { deleteDefaultData } from "./infrastructure/database"
 
 const ProgressInputJsonSchema: Record<string, unknown> = {
@@ -52,7 +57,7 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.3.0",
+  version: "0.4.0",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   capabilities: [
     capability("session.read"),
@@ -62,11 +67,19 @@ export default definePlugin({
     capability("agent.call", {
       maxRuntimeMs: 15_000,
       maxInputChars: 8_000,
-      maxOutputChars: 5_000,
+      maxOutputChars: 8_000,
     }),
   ],
   contributions: [
     ...dashboardOperations,
+    navigationItem({
+      id: "learning",
+      label: "VibeLingo",
+      icon: "book-open",
+      placement: "sidebar",
+      order: 45,
+      component: { source: "./src/ui/app.tsx" },
+    }),
     agent({
       id: "language-analyzer",
       agent: {
@@ -101,6 +114,20 @@ export default definePlugin({
         name: REVIEW_EVALUATOR_AGENT_NAME,
         description: "Private structured evaluator for VibeLingo review responses",
         prompt: REVIEW_EVALUATOR_PROMPT,
+        mode: "subagent",
+        modelRole: "mini",
+        temperature: 0,
+        steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    }),
+    agent({
+      id: "pattern-presenter",
+      agent: {
+        name: PATTERN_PRESENTER_AGENT_NAME,
+        description: "Private localized presentation generator for VibeLingo learning patterns",
+        prompt: PATTERN_PRESENTER_PROMPT,
         mode: "subagent",
         modelRole: "mini",
         temperature: 0,
