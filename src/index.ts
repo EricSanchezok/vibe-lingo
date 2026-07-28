@@ -8,11 +8,18 @@ import {
   tool,
 } from "@ericsanchezok/synergy-plugin"
 import { ANALYZER_AGENT_NAME, ANALYZER_PROMPT, processUserMessage } from "./analyzer"
-import { clearLearningDataOperation, learningSummaryOperation } from "./operations"
+import { dashboardOperations } from "./operations"
 import { defaultPromptDependencies, transformSystemPrompt } from "./prompt"
 import { progressTool } from "./progress"
 import type { ProgressInput } from "./progress"
-import { closeDefaultStore, defaultStore, deleteDefaultData } from "./storage"
+import { closeDefaultServices, defaultServices } from "./application/services"
+import {
+  REVIEW_BUILDER_AGENT_NAME,
+  REVIEW_BUILDER_PROMPT,
+  REVIEW_EVALUATOR_AGENT_NAME,
+  REVIEW_EVALUATOR_PROMPT,
+} from "./application/review-contracts"
+import { deleteDefaultData } from "./infrastructure/database"
 
 const ProgressInputJsonSchema: Record<string, unknown> = {
   type: "object",
@@ -45,28 +52,55 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.2.1",
-  description: "Work-first multilingual coaching and private recurring-pattern tracking for Synergy sessions",
+  version: "0.3.0",
+  description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   capabilities: [
     capability("session.read"),
     capability("settings.read"),
     capability("settings.write"),
     capability("ui.hostActions"),
     capability("agent.call", {
-      maxRuntimeMs: 12_000,
-      maxInputChars: 6_000,
-      maxOutputChars: 3_000,
+      maxRuntimeMs: 15_000,
+      maxInputChars: 8_000,
+      maxOutputChars: 5_000,
     }),
   ],
   contributions: [
-    learningSummaryOperation,
-    clearLearningDataOperation,
+    ...dashboardOperations,
     agent({
       id: "language-analyzer",
       agent: {
         name: ANALYZER_AGENT_NAME,
         description: "Private structured target-language learning signal classifier for VibeLingo",
         prompt: ANALYZER_PROMPT,
+        mode: "subagent",
+        modelRole: "mini",
+        temperature: 0,
+        steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    }),
+    agent({
+      id: "review-builder",
+      agent: {
+        name: REVIEW_BUILDER_AGENT_NAME,
+        description: "Private work-oriented retrieval-practice generator for VibeLingo",
+        prompt: REVIEW_BUILDER_PROMPT,
+        mode: "subagent",
+        modelRole: "mini",
+        temperature: 0.2,
+        steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    }),
+    agent({
+      id: "review-evaluator",
+      agent: {
+        name: REVIEW_EVALUATOR_AGENT_NAME,
+        description: "Private structured evaluator for VibeLingo review responses",
+        prompt: REVIEW_EVALUATOR_PROMPT,
         mode: "subagent",
         modelRole: "mini",
         temperature: 0,
@@ -84,7 +118,7 @@ export default definePlugin({
           input,
           context,
           defaultPromptDependencies((targetLanguage, limit) =>
-            defaultStore().recurringPatterns(targetLanguage, limit),
+            defaultServices().learning.recurringPatterns(targetLanguage, limit),
           ),
         )
       },
@@ -100,7 +134,7 @@ export default definePlugin({
     tool<ProgressInput>({
       id: "progress",
       description:
-        "Show the user's stored VibeLingo target-language error patterns and provenance. Use only when the user explicitly asks about language progress, recurring mistakes, or historical examples.",
+        "Show the user's evidence-backed VibeLingo learning progress, review status, recurring patterns, and provenance. Use only when the user explicitly asks about language progress, recurring mistakes, reviews, or historical examples.",
       exposure: {
         mode: "search",
         title: "VibeLingo progress",
@@ -172,6 +206,6 @@ export default definePlugin({
     }),
   ],
   async deactivate() {
-    closeDefaultStore()
+    closeDefaultServices()
   },
 })

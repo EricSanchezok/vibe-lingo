@@ -1,5 +1,20 @@
 # Review Scheduling Design
 
+## Current Decision (2026-07-28)
+
+The Agenda/FSRS/vocabulary design below is retained as an earlier product hypothesis, not the current implementation contract.
+
+VibeLingo v0.3 instead:
+
+- reviews recurring language patterns rather than a vocabulary word book;
+- keeps a local due queue and never automatically interrupts a Session;
+- starts review only through an explicit future Dashboard operation;
+- uses active recall, progressive hints, repair, and transfer production;
+- schedules with a transparent `1 → 3 → 7 → 14 → 30` day ladder during cold start;
+- stores state in plugin-owned SQLite rather than Notes, Memory, or Agenda.
+
+The binding decision is `research/70_decisions/adr/2026-07-28-evidence-learning-loop-and-review-backend.md`. Reconsider FSRS or Agenda only after real review data or a suitable host trigger exists.
+
 ## User Intent
 
 "I want the vocabulary I've learned to stick. Review should happen at the right time — when I'm receptive, not when I'm deep in work. And it shouldn't feel like homework."

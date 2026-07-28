@@ -21,7 +21,7 @@ import {
   configuredProfile,
   type VibeLingoSettings,
 } from "../settings"
-import type { ClearLearningDataResult, LearningSummary } from "../types"
+import type { ClearLearningDataResult, LearningSummary } from "../domain/types"
 import { createSettingsController } from "./settings-controller"
 import { createSettingsPopoverMount } from "./settings-popover"
 

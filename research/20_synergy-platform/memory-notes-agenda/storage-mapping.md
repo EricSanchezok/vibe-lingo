@@ -1,5 +1,13 @@
 # Memory, Notes & Agenda — Storage Mapping
 
+## Status Update (2026-07-28)
+
+This is a historical candidate mapping, not current Plugin API guidance for VibeLingo.
+
+V0.3 does not use Notes, Memory, Agenda, automatic review tasks, or FSRS. The current verified integration is plugin-owned SQLite plus UI-only operations. The backend prepares a due queue and waits for an explicit future Dashboard action; it does not claim that Agenda can infer a safe task boundary or user receptivity.
+
+See `research/70_decisions/adr/2026-07-28-evidence-learning-loop-and-review-backend.md` and `/Users/eric/projects/synergy/packages/synergy/src/plugin/hook-points.ts`.
+
 ## Summary
 
 Synergy provides three persistence mechanisms accessible to plugins: **Notes** (structured documents), **Memory** (semantic key-value), and **Agenda** (scheduled tasks). VibeLingo maps naturally to all three: vocabulary data and error patterns to Notes, user preferences to Memory, and review scheduling to Agenda. The Notes system's hook coverage (before/after for create, update, and search) is particularly well-suited for VibeLingo's word book.

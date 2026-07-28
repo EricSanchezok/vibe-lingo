@@ -1,8 +1,9 @@
 import type { PluginInvocationContext, ToolResult } from "@ericsanchezok/synergy-plugin"
 import { canonicalLanguageTag, languageDisplayName } from "./language"
 import { configuredProfile, readSettings } from "./settings"
-import { defaultStore, type VibeLingoStore } from "./storage"
-import type { ProgressSnapshot } from "./types"
+import { defaultServices } from "./application/services"
+import type { LearningRepository } from "./infrastructure/learning-repository"
+import type { ProgressSnapshot } from "./domain/types"
 
 export type ProgressInput = {
   scope?: "all" | "current"
@@ -25,13 +26,18 @@ export function renderProgress(
   targetName = languageDisplayName(snapshot.targetLanguage, "en"),
 ): string {
   const lines = [
-    `## VibeLingo ${targetName} patterns`,
+    `## VibeLingo ${targetName} learning evidence`,
     "",
-    `- Analyzed messages: ${snapshot.analyzedMessages}`,
-    `- Findings in the last 30 days: ${snapshot.findingsLast30Days}`,
+    `- Target-language attempts: ${snapshot.summary.targetAttempts}`,
+    `- Active days: ${snapshot.summary.activeDays}`,
+    `- Due for review: ${snapshot.summary.duePatternCount}`,
+    `- Independent recall (last 30 days): ${snapshot.summary.independentRecallCountLast30Days} / ${snapshot.summary.reviewRecallCountLast30Days}`,
+    `- Successful transfer practice (last 30 days): ${snapshot.summary.successfulTransferCountLast30Days} across ${snapshot.summary.successfulTransferSessionCountLast30Days} session(s)`,
+    `- Completed review sessions: ${snapshot.summary.reviewCount}`,
+    `- Candidate / practicing / verified patterns: ${snapshot.summary.candidatePatternCount} / ${snapshot.summary.practicingPatternCount} / ${snapshot.summary.verifiedPatternCount}`,
   ]
   if (snapshot.patterns.length === 0) {
-    lines.push("", `No stored ${targetName} error patterns match this view yet.`)
+    lines.push("", `No stored ${targetName} learning patterns match this view yet.`)
     return lines.join("\n")
   }
 
@@ -41,7 +47,8 @@ export function renderProgress(
       "",
       `${index + 1}. **${pattern.label}** (\`${pattern.patternKey}\`)`,
       `   - ${pattern.rule}`,
-      `   - ${pattern.occurrenceCount} occurrence(s) across ${pattern.sessionCount} session(s)`,
+      `   - Stage: ${pattern.stage}; ${pattern.occurrenceCount} error evidence item(s) across ${pattern.sessionCount} session(s)`,
+      `   - ${pattern.naturalCorrectCount} natural correct use(s); ${pattern.independentReviewCount} independent review(s)`,
       `   - First seen ${day(pattern.firstSeenAt)}; last seen ${day(pattern.lastSeenAt)}`,
     )
     if (!includeExamples) return
@@ -58,7 +65,7 @@ export function renderProgress(
 export async function progressTool(
   input: ProgressInput,
   context: PluginInvocationContext,
-  store: VibeLingoStore = defaultStore(),
+  learning: LearningRepository = defaultServices().learning,
 ): Promise<ToolResult> {
   const settings = await readSettings(context)
   const profile = configuredProfile(settings)
@@ -82,7 +89,7 @@ export async function progressTool(
       metadata: { setupRequired: false },
     }
   }
-  const snapshot = store.progress({
+  const snapshot = learning.progress({
     targetLanguage,
     scopeId: scope === "current" ? context.scopeId : undefined,
     limit,
@@ -95,8 +102,12 @@ export async function progressTool(
     metadata: {
       scope,
       language: targetLanguage,
-      analyzedMessages: snapshot.analyzedMessages,
-      findingsLast30Days: snapshot.findingsLast30Days,
+      targetAttempts: snapshot.summary.targetAttempts,
+      activeDays: snapshot.summary.activeDays,
+      duePatternCount: snapshot.summary.duePatternCount,
+      independentRecallCountLast30Days: snapshot.summary.independentRecallCountLast30Days,
+      reviewRecallCountLast30Days: snapshot.summary.reviewRecallCountLast30Days,
+      successfulTransferCountLast30Days: snapshot.summary.successfulTransferCountLast30Days,
       patternCount: snapshot.patterns.length,
     },
   }

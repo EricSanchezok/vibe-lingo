@@ -5,7 +5,11 @@ import {
   configuredProfile,
   type VibeLingoSettings,
 } from "../settings"
-import type { ClearLearningDataResult, LearningSummary } from "../types"
+import type {
+  ClearLearningDataResult,
+  CommandResult,
+  LearningSummary,
+} from "../domain/types"
 
 export type SettingsControllerState = {
   settings: VibeLingoSettings
@@ -119,10 +123,12 @@ export function createSettingsController(
       if (!(await context.host.confirm(confirmation))) return false
       update({ clearing: true, error: undefined })
       try {
-        const result = await context.operations.command<ClearLearningDataResult>(
+        const response = await context.operations.command<CommandResult<ClearLearningDataResult>>(
           "clear-learning-data",
           input,
         )
+        if (!response.ok) throw new Error(response.error.message)
+        const result = response.data
         const profile = configuredProfile(state.settings)
         if (profile) await loadSummary(profile.targetLanguage)
         context.host.notify(copy.deleted(result), { kind: "success" })
@@ -145,5 +151,3 @@ export function createSettingsController(
     },
   }
 }
-
-export type SettingsController = ReturnType<typeof createSettingsController>

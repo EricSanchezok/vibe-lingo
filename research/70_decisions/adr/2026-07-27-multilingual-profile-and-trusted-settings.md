@@ -4,6 +4,8 @@
 
 Accepted
 
+Extended by `2026-07-28-evidence-learning-loop-and-review-backend.md`. V0.3 keeps target-language global aggregation while replacing the migration-era occurrence model with an evidence lifecycle and review queue.
+
 ## Context
 
 VibeLingo `0.1.0` proved the prompt-first foreground/background workflow, but it exposed only correction and tracking switches. The implementation hard-coded English as the target language and implicitly treated Chinese as the learner's support language.
@@ -80,9 +82,9 @@ The component accepts both the actual flat `PluginSurfaceContext` and a `{ conte
 
 ### Upgrade and migration
 
-- SQLite schema version 1 migrates to version 2; existing messages are assigned to `en`, and existing English patterns, provenance, and retained examples remain intact.
-- Existing installations remain inactive until the user explicitly chooses a valid language pair.
-- The added `settings.write` and `ui.hostActions` capabilities plus the trusted UI bundle change approval and integrity hashes, so the plugin requires reapproval.
+- The v0.2 migration described here was valid for that implementation.
+- Because the product remained unreleased, v0.3 deliberately supersedes it with a destructive schema reset and removes legacy migration code.
+- Users still must explicitly choose a valid language pair before coaching or tracking starts.
 
 ## Evidence
 

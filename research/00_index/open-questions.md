@@ -1,6 +1,6 @@
 # Open Questions
 
-Last updated: 2026-07-26
+Last updated: 2026-07-28
 
 These questions drive our research. Each question should eventually be answered by one or more source notes, concept notes, or synthesis notes. When a question is resolved, move it to an "Answered" section with a link to the evidence.
 
@@ -24,8 +24,8 @@ These questions drive our research. Each question should eventually be answered 
 
 ### Memory & Review
 - What's the evidence that spaced repetition works for vocabulary acquired incidentally (vs. intentionally studied)?
-- How should review prompts be timed relative to agent sessions? During? Between? At session start?
-- Can retrieval practice happen naturally within agent conversations, or does it need dedicated review moments?
+- After enough real review history exists, does FSRS outperform the v0.3 deterministic ladder for language patterns?
+- What Dashboard entry and review-session size produce useful practice without review-pile anxiety?
 
 ### Proficiency & Adaptation
 - How should the plugin adapt its behavior for beginner vs. intermediate vs. advanced learners?
@@ -68,8 +68,6 @@ These questions drive our research. Each question should eventually be answered 
 - How should the transform remain idempotent across Synergy's `budget` and `final` prompt phases?
 
 ### Storage & Persistence
-- Where should VibeLingo store: user preferences, vocabulary lists, error patterns, review schedules?
-- Can it use Synergy memory (semantic) for vocabulary? Notes (document) for progress? Agenda for review scheduling?
 - What are the privacy implications of storing conversation excerpts?
 - Where should Plugin API 3 business data live when Synergy does not provide a generic plugin data store or data-directory Host Service?
 - What minimum fragment and provenance data is required to answer “where have I made this mistake?” without storing full messages?
@@ -106,3 +104,10 @@ These questions drive our research. Each question should eventually be answered 
 - What if the plugin makes users more dependent on assistance rather than more independent?
 - What if incorrect AI suggestions reinforce errors rather than correct them?
 - What if the plugin feels like surveillance, making users self-conscious about their language use?
+
+## Answered
+
+- **Where does Plugin API 3 learning data live?** Plugin-owned SQLite under the Synergy data root; settings remain host-managed. See `research/70_decisions/adr/2026-07-28-evidence-learning-loop-and-review-backend.md`.
+- **How is review triggered in v0.3?** The backend prepares a due queue. Review starts only by explicit operation; no Agenda task, task-boundary guess, or chat invitation.
+- **What counts as stable evidence?** Two independent recall+transfer reviews, later natural correct use, at least two Session identities, and seven elapsed days. A later error records a lapse.
+- **Should proficiency be assessed?** V0.3 continues to use a self-declared beginner/intermediate/advanced setting and does not infer CEFR.

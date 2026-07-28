@@ -1,7 +1,7 @@
 {
   "name": "vibe-lingo",
-  "version": "0.2.1",
-  "description": "Work-first multilingual coaching for Synergy agent sessions",
+  "version": "0.3.0",
+  "description": "Work-first multilingual coaching and evidence-based review scheduling for Synergy agent sessions",
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {

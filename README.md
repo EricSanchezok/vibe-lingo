@@ -1,6 +1,6 @@
 # VibeLingo
 
-VibeLingo is a prompt-first multilingual coaching plugin for Synergy. It keeps the primary Agent focused on real work, adds brief language feedback when useful, and privately tracks recurring patterns by target language.
+VibeLingo is a prompt-first multilingual coaching plugin for Synergy. It keeps the primary Agent focused on real work, adds brief language feedback when useful, and privately turns recurring patterns into an evidence-backed review queue.
 
 ## Requirements
 
@@ -9,14 +9,15 @@ VibeLingo is a prompt-first multilingual coaching plugin for Synergy. It keeps t
 
 ## How It Works
 
-VibeLingo has two independent paths:
+VibeLingo has three independent paths:
 
 1. A system-transform hook gives the primary Agent a compact, work-first coaching contract for the configured language pair and proficiency.
-2. A continuing user-message observer asks a private hidden Agent to extract structured target-language signals after the message has already been submitted.
+2. A continuing user-message observer asks a private hidden Agent to extract structured errors and natural correct uses after the message has already been submitted.
+3. A local learning engine promotes recurring patterns, schedules review, and exposes typed operations for the future Dashboard. Reviews use active recall, progressive hints, repair, and transfer practice.
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo does not provide Composer completion, submission interception, inline editor decorations, a full dashboard, vocabulary review, or spaced repetition.
+VibeLingo `0.3.0` does not yet provide the Figma Dashboard, a sidebar entry, automatic review invitations, notifications, Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The backend prepares the due queue but never interrupts a work Session.
 
 ## Install for Local Development
 
@@ -34,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.2.0` adds `settings.write`, `ui.hostActions`, two UI-only operations, and a trusted UI bundle. Its manifest, permission hash, and trusted UI hash differ from `0.1.0`, so an existing installation must be approved again.
+Version `0.3.0` adds two private review Agents and a larger typed operation surface. The plugin is still unreleased, so startup deliberately replaces any v0.1/v0.2 dogfood database rather than carrying migration code.
 
 ## First-Time Setup
 
@@ -92,9 +93,22 @@ When the user explicitly asks about language progress, recurring mistakes, or hi
 plugin__vibe-lingo__progress
 ```
 
-The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It can report global or current-Scope counts and show up to three sanitized examples with Scope, Session, and message provenance. It does not estimate proficiency or claim that a pattern has been mastered.
+The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It reports target-language attempts, active days, due reviews, candidate/practicing/verified patterns, natural correct uses, independent reviews, and up to three sanitized examples when explicitly requested. It does not estimate proficiency or claim permanent mastery.
 
 The settings page intentionally shows only a compact summary for the active target language. It can clear that language's records or all VibeLingo learning records through a Synergy host confirmation. Clearing data does not change settings.
+
+## Learning and Review Model
+
+A pattern starts as `candidate`. Three confident errors across at least two Sessions promote it to `practicing` and place it in the due queue. Review intervals follow a transparent `1 → 3 → 7 → 14 → 30` day ladder:
+
+- failed, abandoned, or assisted review returns in one day;
+- an independent review requires both unaided recall and a correct transfer task;
+- a pattern becomes `verified` only after two independent reviews, a later natural correct use, evidence across two Sessions, and at least seven elapsed days;
+- a later confident error records a lapse, returns the pattern to `practicing`, and schedules it for the next day.
+
+`verified` is an evidence state, not a language level or a permanent mastery claim.
+
+The backend exposes UI-only operations for profiles, summary curves, journey records, pattern lists and details, due queue, resumable reviews, pattern controls, and cleanup. Review state includes per-item outcomes, independent-recall and transfer totals, and each pattern's next due time so the designed completion screen does not have to reconstruct learning state. No Dashboard component or navigation contribution ships in this version.
 
 ## Data and Privacy
 
@@ -112,18 +126,19 @@ The default is:
 
 `synergyRoot()` follows `SYNERGY_HOME` and `SYNERGY_TEST_HOME`.
 
-The plugin never persists complete user messages or Agent responses. It stores:
+The plugin never persists complete user messages, Agent responses, or Session titles. It stores:
 
 - normalized pattern metadata grouped by target-language tag;
-- occurrence counts and timestamps;
+- error, natural-use, and review evidence with timestamps;
 - Scope, Session, and message IDs;
-- at most five recent sanitized fragment pairs per pattern.
+- deterministic review state and due timestamps;
+- at most five recent sanitized fragment/review-content records per pattern.
 
-Fragments that appear to contain URLs, email addresses, private absolute paths, credentials, long tokens, or code blocks are omitted while aggregate provenance is retained.
+Analyzer fragments are limited to 160 Unicode code points and review answers to 300. Generated review content is also bounded. Values that appear to contain URLs, email addresses, private absolute paths, credentials, long tokens, or code blocks are omitted while aggregate provenance is retained.
 
-Learning records aggregate across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Cross-Scope fragments are never injected into the coaching prompt.
+Learning records aggregate by target language across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Scope filters change the evidence view, not the global learning state or schedule. Cross-Scope fragments are never injected into the coaching prompt. A Session title is resolved only on demand in its current Scope; it is never copied into SQLite.
 
-The `0.1.0` database migrates in place to schema version 2. Existing records are retained under target language `en`. Upgraded users must still explicitly choose their language pair before coaching and new tracking resume.
+SQLite schema version 4 is intentionally destructive during this unreleased development phase. VibeLingo validates its required tables, columns, indexes, and current event contract under an exclusive initialization lock. If the version or shape is not current, it recreates its owned tables and discards earlier dogfood statistics. A second plugin generation that starts after the first one has initialized the schema reuses the new database rather than resetting it again.
 
 A normal plugin uninstall deletes the VibeLingo data directory. Synergy force uninstall skips lifecycle cleanup and may leave the directory behind.
 
@@ -138,6 +153,8 @@ bun run pack
 ```
 
 The built `dist/plugin.json` is generated by plugin-kit and must not be maintained by hand.
+
+The backend-to-Figma capability and robustness audit is recorded in [`research/80_synthesis/product-briefs/2026-07-28-backend-capability-and-robustness-audit.md`](./research/80_synthesis/product-briefs/2026-07-28-backend-capability-and-robustness-audit.md).
 
 ## Research
 

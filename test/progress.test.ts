@@ -3,15 +3,16 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import { progressTool, renderProgress } from "../src/progress"
-import { VibeLingoStore } from "../src/storage"
+import { VibeLingoDatabase } from "../src/infrastructure/database"
+import { LearningRepository } from "../src/infrastructure/learning-repository"
 import { invocationContext } from "./helpers"
 
 const temporaryDirectories: string[] = []
 
-function store(): VibeLingoStore {
+function store(): LearningRepository {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-lingo-progress-"))
   temporaryDirectories.push(directory)
-  return new VibeLingoStore(path.join(directory, "vibe-lingo.sqlite"))
+  return new LearningRepository(new VibeLingoDatabase(path.join(directory, "vibe-lingo.sqlite")))
 }
 
 afterEach(() => {
@@ -25,8 +26,28 @@ describe("progress output", () => {
     const output = renderProgress(
       {
         targetLanguage: "en",
-        analyzedMessages: 12,
-        findingsLast30Days: 4,
+        summary: {
+          analyzedMessages: 12,
+          findingsLast30Days: 4,
+          totalPatternCount: 1,
+          recurringPatternCount: 1,
+          candidatePatternCount: 0,
+          practicingPatternCount: 1,
+          targetAttempts: 10,
+          activeDays: 3,
+          sessionCount: 2,
+          duePatternCount: 1,
+          reviewCount: 0,
+          reviewRecallCountLast30Days: 0,
+          independentRecallCountLast30Days: 0,
+          successfulTransferCountLast30Days: 0,
+          successfulTransferSessionCountLast30Days: 0,
+          awaitingVerificationCount: 0,
+          verifiedPatternCount: 0,
+          currentStreakDays: 2,
+          learningWeek: 1,
+          trends: { "7": [], "30": [], "90": [] },
+        },
         patterns: [
           {
             patternKey: "missing_article",
@@ -38,6 +59,13 @@ describe("progress output", () => {
             firstSeenAt: Date.UTC(2026, 0, 1),
             lastSeenAt: Date.UTC(2026, 0, 3),
             severity: "high_value",
+            stage: "practicing",
+            disposition: "active",
+            displayStatus: "focus",
+            scheduleStep: 0,
+            lapseCount: 0,
+            naturalCorrectCount: 1,
+            independentReviewCount: 0,
             examples: [
               {
                 observedAt: Date.UTC(2026, 0, 3),
@@ -53,8 +81,8 @@ describe("progress output", () => {
       },
       true,
     )
-    expect(output).toContain("Analyzed messages: 12")
-    expect(output).toContain("4 occurrence(s) across 2 session(s)")
+    expect(output).toContain("Target-language attempts: 10")
+    expect(output).toContain("4 error evidence item(s) across 2 session(s)")
     expect(output).toContain("`add button` → `add a button`")
     expect(output).toContain("session `session-a`")
     expect(output).not.toContain("proficiency")
@@ -65,8 +93,28 @@ describe("progress output", () => {
     const output = renderProgress(
       {
         targetLanguage: "en",
-        analyzedMessages: 1,
-        findingsLast30Days: 1,
+        summary: {
+          analyzedMessages: 1,
+          findingsLast30Days: 1,
+          totalPatternCount: 1,
+          recurringPatternCount: 0,
+          candidatePatternCount: 1,
+          practicingPatternCount: 0,
+          targetAttempts: 1,
+          activeDays: 1,
+          sessionCount: 1,
+          duePatternCount: 0,
+          reviewCount: 0,
+          reviewRecallCountLast30Days: 0,
+          independentRecallCountLast30Days: 0,
+          successfulTransferCountLast30Days: 0,
+          successfulTransferSessionCountLast30Days: 0,
+          awaitingVerificationCount: 0,
+          verifiedPatternCount: 0,
+          currentStreakDays: 1,
+          learningWeek: 1,
+          trends: { "7": [], "30": [], "90": [] },
+        },
         patterns: [
           {
             patternKey: "word_choice",
@@ -78,6 +126,13 @@ describe("progress output", () => {
             firstSeenAt: 1,
             lastSeenAt: 1,
             severity: "minor",
+            stage: "candidate",
+            disposition: "active",
+            displayStatus: "new",
+            scheduleStep: 0,
+            lapseCount: 0,
+            naturalCorrectCount: 0,
+            independentReviewCount: 0,
             examples: [
               {
                 observedAt: 1,
@@ -118,7 +173,12 @@ describe("progress output", () => {
         sessionId: "session-test",
         observedAt: Date.now(),
       },
-      "es",
+      {
+        nativeLanguage: "en",
+        targetLanguage: "es",
+        proficiency: "intermediate",
+      },
+      true,
       [
         {
           patternKey: "missing_article",
@@ -132,6 +192,7 @@ describe("progress output", () => {
           sensitive: false,
         },
       ],
+      [],
     )
     const configured = await progressTool(
       {},
@@ -152,6 +213,6 @@ describe("progress output", () => {
       database,
     )
     expect(configured.title).toContain("Spanish")
-    expect(configured.metadata).toMatchObject({ language: "es", analyzedMessages: 1 })
+    expect(configured.metadata).toMatchObject({ language: "es", targetAttempts: 1 })
   })
 })

@@ -15,7 +15,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.2.1",
+      version: "0.3.0",
       capabilities: [
         { id: "session.read" },
         { id: "settings.read" },
@@ -24,17 +24,29 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
         {
           id: "agent.call",
           constraints: {
-            maxRuntimeMs: 12_000,
-            maxInputChars: 6_000,
-            maxOutputChars: 3_000,
+            maxRuntimeMs: 15_000,
+            maxInputChars: 8_000,
+            maxOutputChars: 5_000,
           },
         },
       ],
     })
     expect(plugin.contributions.map(({ kind, id }) => `${kind}:${id}`)).toEqual([
+      "operation:learning-profiles",
       "operation:learning-summary",
+      "operation:learning-journey",
+      "operation:learning-record",
+      "operation:learning-patterns",
+      "operation:learning-pattern-detail",
+      "operation:review-queue",
+      "operation:review-state",
+      "operation:review-start",
+      "operation:review-command",
+      "operation:pattern-command",
       "operation:clear-learning-data",
       "agent:language-analyzer",
+      "agent:review-builder",
+      "agent:review-evaluator",
       "hook:coach-system",
       "hook:analyze-user-message",
       "tool:progress",
@@ -42,7 +54,17 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       "lifecycle.uninstall:cleanup-data",
     ])
     expect(plugin.handlerIds).toEqual([
+      "operation:learning-profiles",
       "operation:learning-summary",
+      "operation:learning-journey",
+      "operation:learning-record",
+      "operation:learning-patterns",
+      "operation:learning-pattern-detail",
+      "operation:review-queue",
+      "operation:review-state",
+      "operation:review-start",
+      "operation:review-command",
+      "operation:pattern-command",
       "operation:clear-learning-data",
       "hook:coach-system",
       "hook:analyze-user-message",
@@ -70,6 +92,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       type: "command",
       expose: ["ui"],
     })
+    expect(plugin.contributions.some((candidate) => candidate.kind === "ui.navigationItem")).toBe(false)
   })
 
   test("keeps the analyzer private and bounds the progress tool surface", () => {
@@ -80,6 +103,20 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
         modelRole: "mini",
         temperature: 0,
         steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    })
+    expect(contribution("agent", "review-builder")).toMatchObject({
+      agent: {
+        name: "vibe-lingo-review-builder",
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    })
+    expect(contribution("agent", "review-evaluator")).toMatchObject({
+      agent: {
+        name: "vibe-lingo-review-evaluator",
         hidden: true,
         permission: { "*": "deny" },
       },

@@ -3,24 +3,26 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import {
-  containsSensitiveContent,
   deterministicSkipReason,
+  demonstrationsForStorage,
   findingsForStorage,
   hasEscapeHatch,
   analyzerRequest,
   parseAnalysisResult,
   processUserMessage,
 } from "../src/analyzer"
-import { VibeLingoStore } from "../src/storage"
-import type { AnalysisResult } from "../src/types"
+import { containsSensitiveContent } from "../src/domain/privacy"
+import { VibeLingoDatabase } from "../src/infrastructure/database"
+import { LearningRepository } from "../src/infrastructure/learning-repository"
+import type { AnalysisResult } from "../src/domain/types"
 import { invocationContext } from "./helpers"
 
 const temporaryDirectories: string[] = []
 
-function store(): VibeLingoStore {
+function store(): LearningRepository {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-lingo-analyzer-"))
   temporaryDirectories.push(directory)
-  return new VibeLingoStore(path.join(directory, "vibe-lingo.sqlite"))
+  return new LearningRepository(new VibeLingoDatabase(path.join(directory, "vibe-lingo.sqlite")))
 }
 
 afterEach(() => {
@@ -44,6 +46,7 @@ const validResult: AnalysisResult = {
       sensitive: false,
     },
   ],
+  demonstrations: [],
 }
 
 describe("background prefilter and output validation", () => {
@@ -95,6 +98,41 @@ describe("background prefilter and output validation", () => {
     expect(findingsForStorage(validResult, "ja")).toEqual([])
   })
 
+  test("accepts demonstrations only for supplied known patterns and lets errors win", () => {
+    const known = [{
+      patternKey: "missing_infinitive_to",
+      canonicalKey: "missing_infinitive_to",
+      category: "grammar" as const,
+      label: "Missing to",
+      rule: "Use want to.",
+      stage: "practicing" as const,
+    }]
+    expect(demonstrationsForStorage({
+      isTargetLanguageAttempt: true,
+      findings: [],
+      demonstrations: [{
+        patternKey: "missing_infinitive_to",
+        fragment: "I want to add a button",
+        confidence: 0.95,
+        sensitive: false,
+      }, {
+        patternKey: "invented_key",
+        fragment: "valid English",
+        confidence: 0.99,
+        sensitive: false,
+      }],
+    }, known)).toHaveLength(1)
+    expect(demonstrationsForStorage({
+      ...validResult,
+      demonstrations: [{
+        patternKey: "missing_infinitive_to",
+        fragment: "I want to add a button",
+        confidence: 0.99,
+        sensitive: false,
+      }],
+    }, known)).toEqual([])
+  })
+
   test("deduplicates synonymous output that reuses the same stable key", () => {
     expect(
       findingsForStorage({
@@ -127,7 +165,7 @@ describe("background observer behavior", () => {
       },
       context,
       {
-        store: database,
+        learning: database,
         async readSettings() {
           return {
             nativeLanguage: "zh-Hans",
@@ -151,7 +189,7 @@ describe("background observer behavior", () => {
       includeExamples: true,
       now: 100,
     })
-    expect(snapshot.analyzedMessages).toBe(1)
+    expect(snapshot.summary.analyzedMessages).toBe(1)
     expect(snapshot.patterns[0]).toMatchObject({
       patternKey: "missing_infinitive_to",
       occurrenceCount: 1,
@@ -162,7 +200,7 @@ describe("background observer behavior", () => {
   test("does not persist escape-hatch messages and swallows analyzer failures", async () => {
     const database = store()
     const dependency = {
-      store: database,
+      learning: database,
       async readSettings() {
         return {
           nativeLanguage: "zh-Hans",
@@ -229,7 +267,7 @@ describe("background observer behavior", () => {
         },
       }),
       {
-        store: database,
+        learning: database,
         async readSettings() {
           return {
             nativeLanguage: "",

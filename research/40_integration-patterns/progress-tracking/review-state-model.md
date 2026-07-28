@@ -1,5 +1,21 @@
 # Review State & Progress Model
 
+## Current Decision (2026-07-28)
+
+This document's Agenda, Notes, Memory, estimated-level, and vocabulary-retention structures are superseded for v0.3. They remain as historical exploration.
+
+The implemented backend uses:
+
+- plugin-owned SQLite;
+- target-language-global pattern evidence;
+- `candidate | practicing | verified` stages;
+- resumable `active | paused | completed | abandoned` review sessions;
+- `awaiting_response → awaiting_repair/awaiting_transfer → item_completed`;
+- deterministic intervals and a due queue with no automatic trigger;
+- attempts, active days, findings, natural correct uses, independent reviews, and verified patterns—without an estimated CEFR level or retention score.
+
+See `research/70_decisions/adr/2026-07-28-evidence-learning-loop-and-review-backend.md`.
+
 ## Overview
 
 This document defines: (1) the Agenda items that schedule VibeLingo reviews, (2) the progress statistics tracked per user, and (3) the engagement metrics used to adapt plugin behavior. All scheduling leverages Synergy's Agenda system; all stats are stored in Notes and Memory.

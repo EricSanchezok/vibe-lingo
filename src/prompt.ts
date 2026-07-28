@@ -6,10 +6,9 @@ import { languageDisplayName } from "./language"
 import type { LearningProfile, VibeLingoSettings } from "./settings"
 import { configuredProfile, readSettings } from "./settings"
 import { hasUserFacingRootSession } from "./session"
-import type { RecurringPattern } from "./types"
+import type { RecurringPattern } from "./domain/types"
 
-export const COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V2]"
-export const LEGACY_COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V1]"
+export const COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V3]"
 
 export type PromptDependencies = {
   readSettings(context: PluginInvocationContext): Promise<VibeLingoSettings>
@@ -18,9 +17,7 @@ export type PromptDependencies = {
 }
 
 export function stripCoachingContract(system: string[]): string[] {
-  return system.filter(
-    (entry) => !entry.includes(COACHING_MARKER) && !entry.includes(LEGACY_COACHING_MARKER),
-  )
+  return system.filter((entry) => !entry.includes(COACHING_MARKER))
 }
 
 function modeRule(mode: VibeLingoSettings["correctionMode"]): string {

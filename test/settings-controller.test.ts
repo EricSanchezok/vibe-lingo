@@ -37,7 +37,17 @@ function surface(options: { failSave?: boolean; confirm?: boolean } = {}) {
       },
       async command(_id: string, input: unknown) {
         calls.commands.push(input)
-        return { deletedMessages: 2, deletedOccurrences: 1, deletedPatterns: 1 }
+        return {
+          ok: true,
+          revision: 0,
+          data: {
+            deletedMessages: 2,
+            deletedOccurrences: 1,
+            deletedPatterns: 1,
+            deletedReviews: 0,
+            deletedEvents: 0,
+          },
+        }
       },
     },
     events: { subscribe: () => () => undefined },

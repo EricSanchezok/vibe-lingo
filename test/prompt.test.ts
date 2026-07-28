@@ -8,7 +8,7 @@ import {
   type PromptDependencies,
 } from "../src/prompt"
 import { isUserFacingRootSession } from "../src/session"
-import type { RecurringPattern } from "../src/types"
+import type { RecurringPattern } from "../src/domain/types"
 import { invocationContext } from "./helpers"
 
 const profile = {
@@ -74,11 +74,10 @@ describe("coaching contract", () => {
     expect(focused).toContain("intermediate")
   })
 
-  test("removes every V1 and V2 contract entry", () => {
+  test("removes only the current V3 contract entry", () => {
     expect(
       stripCoachingContract([
         "one",
-        "[VIBE_LINGO_CONTRACT_V1]\nlegacy",
         `${COACHING_MARKER}\nold`,
         "two",
       ]),

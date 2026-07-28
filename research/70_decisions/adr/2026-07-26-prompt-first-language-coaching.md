@@ -4,7 +4,7 @@
 
 Accepted
 
-Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md`. The prompt-first work-first model remains the core; v0.2 generalizes its learner profile, analysis, storage, and settings surface beyond the original Chinese-to-English assumption.
+Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md` and `2026-07-28-evidence-learning-loop-and-review-backend.md`. The prompt-first work-first model remains the core; v0.3 limits recurring focus to active practicing patterns from the evidence lifecycle.
 
 ## Context
 
@@ -89,7 +89,7 @@ Relevant source:
 
 ### Learner memory
 
-Tentative stored signal:
+The initial stored signal was:
 
 ```text
 scope_id
@@ -106,6 +106,8 @@ last_surfaced_at
 ```
 
 Do not store the complete user message by default. `original_fragment` and `suggested_fragment` should be minimal and subject to length and sensitivity filters.
+
+V0.3 replaces this tentative occurrence-only shape with typed error, natural-correct, recall, repair, and transfer evidence. See `2026-07-28-evidence-learning-loop-and-review-backend.md`.
 
 Synergy Plugin API 3 deliberately does not provide a generic business-data store. VibeLingo owns its SQLite schema and stores it under `<synergyRoot>/data/plugins/vibe-lingo/vibe-lingo.sqlite`. The path follows `SYNERGY_HOME` and `SYNERGY_TEST_HOME`. Normal uninstall deletes the owned directory; force uninstall may leave it behind.
 

@@ -3,14 +3,17 @@ import { Database } from "bun:sqlite"
 import fs from "fs"
 import os from "os"
 import path from "path"
-import { VibeLingoStore, type MessageIdentity, type StoredFinding } from "../src/storage"
+import { DAY_MS, type MessageIdentity, type StoredFinding } from "../src/domain/types"
+import { SCHEMA_VERSION, VibeLingoDatabase } from "../src/infrastructure/database"
+import { LearningRepository } from "../src/infrastructure/learning-repository"
 
 const temporaryDirectories: string[] = []
 
-function databasePath(): string {
+function repository(): { learning: LearningRepository; filename: string } {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-lingo-storage-"))
   temporaryDirectories.push(directory)
-  return path.join(directory, "vibe-lingo.sqlite")
+  const filename = path.join(directory, "vibe-lingo.sqlite")
+  return { learning: new LearningRepository(new VibeLingoDatabase(filename)), filename }
 }
 
 afterEach(() => {
@@ -18,6 +21,12 @@ afterEach(() => {
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })
+
+const profile = {
+  nativeLanguage: "zh-Hans",
+  targetLanguage: "en",
+  proficiency: "intermediate" as const,
+}
 
 const finding: StoredFinding = {
   patternKey: "missing_article",
@@ -34,204 +43,364 @@ const finding: StoredFinding = {
 function identity(index: number, overrides: Partial<MessageIdentity> = {}): MessageIdentity {
   return {
     messageId: `message-${index}`,
-    scopeId: index % 2 === 0 ? "scope-a" : "scope-b",
-    sessionId: index % 2 === 0 ? "session-a" : "session-b",
+    scopeId: index % 2 ? "scope-a" : "scope-b",
+    sessionId: index % 2 ? "session-a" : "session-b",
     observedAt: 1_000 + index,
     ...overrides,
   }
 }
 
-describe("VibeLingo SQLite store", () => {
-  test("deduplicates deliveries and promotes patterns only after distinct-session recurrence", () => {
-    const store = new VibeLingoStore(databasePath())
-    expect(store.recordAnalysis(identity(1), "en", [finding])).toBe(true)
-    expect(store.recordAnalysis(identity(1), "en", [finding])).toBe(false)
-    expect(store.recurringPatterns("en")).toEqual([])
-    store.recordAnalysis(identity(2), "en", [finding])
-    store.recordAnalysis(identity(3), "en", [finding])
-    const recurring = store.recurringPatterns("en")
-    expect(recurring).toHaveLength(1)
-    expect(recurring[0]).toMatchObject({
+describe("vNext learning repository", () => {
+  test("destructively replaces a legacy schema instead of carrying migration code", () => {
+    const { learning, filename } = repository()
+    const legacy = new Database(filename, { create: true })
+    legacy.exec(`
+      CREATE TABLE error_patterns(pattern_key TEXT);
+      INSERT INTO error_patterns VALUES ('legacy');
+      PRAGMA user_version = 2;
+    `)
+    legacy.close()
+    learning.initialize()
+    const raw = new Database(filename, { readonly: true })
+    expect(Number(raw.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)).toBe(
+      SCHEMA_VERSION,
+    )
+    expect(raw.query("SELECT name FROM sqlite_master WHERE name = 'error_patterns'").get()).toBeNull()
+    expect(raw.query("SELECT COUNT(*) AS count FROM learning_patterns").get()).toEqual({ count: 0 })
+    raw.close()
+  })
+
+  test("repairs an incomplete database even when its version marker looks current", () => {
+    const { learning, filename } = repository()
+    const malformed = new Database(filename, { create: true })
+    malformed.exec(`CREATE TABLE placeholder(value TEXT); PRAGMA user_version = ${SCHEMA_VERSION};`)
+    malformed.close()
+    learning.initialize()
+    const tables = learning.database.connection()
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      )
+      .all()
+      .map((row) => row.name)
+    expect(tables).toContain("review_commands")
+    expect(tables).toContain("learning_events")
+    expect(tables).not.toContain("placeholder")
+  })
+
+  test("preserves current-schema data across overlapping generation initialization", () => {
+    const { learning, filename } = repository()
+    learning.rememberProfile(profile, 1_000)
+
+    const overlapping = new LearningRepository(new VibeLingoDatabase(filename))
+    overlapping.initialize()
+    expect(overlapping.profileList()).toEqual([
+      expect.objectContaining({ targetLanguage: "en", firstUsedAt: 1_000 }),
+    ])
+    overlapping.close()
+  })
+
+  test("rebuilds a current-version database when a required index is missing", () => {
+    const { learning, filename } = repository()
+    learning.rememberProfile(profile, 1_000)
+    learning.close()
+    const damaged = new Database(filename)
+    damaged.exec("DROP INDEX analyzed_scope_time")
+    damaged.close()
+
+    const repaired = new LearningRepository(new VibeLingoDatabase(filename))
+    repaired.initialize()
+    expect(repaired.profileList()).toEqual([])
+    const indexes = repaired.database.connection()
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type = 'index'",
+      )
+      .all()
+      .map((row) => row.name)
+    expect(indexes).toContain("analyzed_scope_time")
+    repaired.close()
+  })
+
+  test("deduplicates messages and promotes only after three errors in two Sessions", () => {
+    const { learning } = repository()
+    expect(learning.recordAnalysis(identity(1), profile, true, [finding], [])).toBe(true)
+    expect(learning.recordAnalysis(identity(1), profile, true, [finding], [])).toBe(false)
+    expect(learning.recurringPatterns("en")).toEqual([])
+    learning.recordAnalysis(identity(2), profile, true, [finding], [])
+    learning.recordAnalysis(identity(3), profile, true, [finding], [])
+    expect(learning.recurringPatterns("en")[0]).toMatchObject({
       patternKey: "missing_article",
       occurrenceCount: 3,
       sessionCount: 2,
     })
+    expect(learning.reviewQueue("en", 3, 2_000)[0]).toMatchObject({
+      patternKey: "missing_article",
+    })
   })
 
-  test("retains only five fragment pairs while preserving all provenance and counts", () => {
-    const filename = databasePath()
-    const store = new VibeLingoStore(filename)
-    for (let index = 0; index < 7; index++) {
-      store.recordAnalysis(identity(index), "en", [
-        {
-          ...finding,
-          originalFragment: `add button ${index}`,
-          correctedFragment: `add a button ${index}`,
-        },
-      ])
-    }
-    const snapshot = store.progress({
-      targetLanguage: "en",
-      limit: 5,
-      includeExamples: true,
-      now: 2_000,
-    })
-    expect(snapshot.patterns[0].occurrenceCount).toBe(7)
-    expect(snapshot.patterns[0].examples).toHaveLength(3)
-    store.close()
+  test("records known-pattern demonstrations but rejects unknown or conflicting ones", () => {
+    const { learning } = repository()
+    learning.recordAnalysis(identity(1), profile, true, [finding], [])
+    learning.recordAnalysis(identity(2), profile, true, [], [
+      { patternKey: "missing_article", fragment: "add a button", confidence: 0.95, sensitive: false },
+      { patternKey: "unknown_pattern", fragment: "valid", confidence: 0.99, sensitive: false },
+    ])
+    learning.recordAnalysis(identity(3), profile, true, [finding], [
+      { patternKey: "missing_article", fragment: "add a card", confidence: 0.99, sensitive: false },
+    ])
+    const detail = learning.patternDetail("en", "missing_article")
+    expect(detail).toMatchObject({ occurrenceCount: 2, naturalCorrectCount: 1 })
+  })
+
+  test("enforces confidence, privacy, and target-attempt invariants at the repository boundary", () => {
+    const { learning, filename } = repository()
+    learning.recordAnalysis(identity(1), profile, false, [finding], [])
+    learning.recordAnalysis(identity(2), profile, true, [{ ...finding, confidence: 0.4 }], [])
+    learning.recordAnalysis(identity(3), profile, true, [{
+      ...finding,
+      originalFragment: "password=should-not-be-stored",
+      correctedFragment: "password=still-private",
+      sensitive: true,
+    }], [])
+    learning.recordAnalysis(identity(4), profile, true, [{
+      ...finding,
+      patternKey: "private_metadata",
+      label: "password=should-not-be-metadata",
+    }, {
+      ...finding,
+      patternKey: "INVALID KEY",
+    }], [])
+    expect(learning.patternDetail("en", "missing_article")?.occurrenceCount).toBe(1)
+    expect(learning.patternDetail("en", "private_metadata")).toBeUndefined()
+    learning.close()
     const raw = new Database(filename, { readonly: true })
-    const retained = raw
-      .query<{ count: number }, []>(
-        "SELECT COUNT(*) AS count FROM error_occurrences WHERE original_fragment IS NOT NULL",
-      )
-      .get()
-    expect(Number(retained?.count)).toBe(5)
+    expect(raw.query<{
+      original_fragment: string | null
+      corrected_fragment: string | null
+    }, []>(
+      "SELECT original_fragment, corrected_fragment FROM pattern_evidence",
+    ).get()).toEqual({ original_fragment: null, corrected_fragment: null })
     raw.close()
   })
 
-  test("supports global and current-Scope progress views", () => {
-    const store = new VibeLingoStore(databasePath())
-    store.recordAnalysis(identity(1, { scopeId: "scope-a" }), "en", [finding])
-    store.recordAnalysis(identity(2, { scopeId: "scope-a" }), "en", [finding])
-    store.recordAnalysis(identity(3, { scopeId: "scope-b" }), "en", [finding])
-    expect(
-      store.progress({ targetLanguage: "en", limit: 5, includeExamples: false }).patterns[0]
-        .occurrenceCount,
-    ).toBe(3)
-    expect(
-      store.progress({
-        targetLanguage: "en",
-        scopeId: "scope-a",
-        limit: 5,
-        includeExamples: false,
-      }).patterns[0].occurrenceCount,
-    ).toBe(2)
+  test("retains only five content-bearing evidence rows while preserving counts", () => {
+    const { learning, filename } = repository()
+    for (let index = 0; index < 7; index++) {
+      learning.recordAnalysis(identity(index), profile, true, [{
+        ...finding,
+        originalFragment: `add button ${index}`,
+        correctedFragment: `add a button ${index}`,
+      }], [])
+    }
+    expect(learning.patternDetail("en", "missing_article")?.occurrenceCount).toBe(7)
+    learning.close()
+    const raw = new Database(filename, { readonly: true })
+    expect(Number(raw.query<{ count: number }, []>(
+      "SELECT COUNT(*) AS count FROM pattern_evidence WHERE original_fragment IS NOT NULL",
+    ).get()?.count)).toBe(5)
+    raw.close()
   })
 
-  test("keeps the same message and pattern isolated by target language", () => {
-    const store = new VibeLingoStore(databasePath())
-    expect(store.recordAnalysis(identity(1), "en", [finding])).toBe(true)
-    expect(
-      store.recordAnalysis(identity(1), "es", [
-        {
-          ...finding,
-          patternKey: "missing_article",
-          originalFragment: "añade botón",
-          correctedFragment: "añade un botón",
-        },
-      ]),
-    ).toBe(true)
-    expect(
-      store.progress({ targetLanguage: "en", limit: 5, includeExamples: true }).patterns[0]
-        .examples[0].originalFragment,
-    ).toBe("add button")
-    expect(
-      store.progress({ targetLanguage: "es", limit: 5, includeExamples: true }).patterns[0]
-        .examples[0].originalFragment,
-    ).toBe("añade botón")
-  })
-
-  test("clears one target namespace or all learning data without touching the other language", () => {
-    const store = new VibeLingoStore(databasePath())
-    store.recordAnalysis(identity(1), "en", [finding])
-    store.recordAnalysis(identity(1), "es", [finding])
-    expect(store.clearLearningData({ scope: "target", targetLanguage: "es" })).toEqual({
+  test("keeps target languages isolated and supports target/all cleanup", () => {
+    const { learning } = repository()
+    learning.recordAnalysis(identity(1), profile, true, [finding], [])
+    learning.recordAnalysis(identity(1), { ...profile, nativeLanguage: "en", targetLanguage: "es" }, true, [{
+      ...finding,
+      originalFragment: "añade botón",
+      correctedFragment: "añade un botón",
+    }], [])
+    expect(learning.learningSummary("en").targetAttempts).toBe(1)
+    expect(learning.learningSummary("es").targetAttempts).toBe(1)
+    expect(learning.clearLearningData({ scope: "target", targetLanguage: "es" })).toMatchObject({
       deletedMessages: 1,
       deletedOccurrences: 1,
       deletedPatterns: 1,
     })
-    expect(store.learningSummary("es").analyzedMessages).toBe(0)
-    expect(store.learningSummary("en").analyzedMessages).toBe(1)
-    expect(store.clearLearningData({ scope: "target", targetLanguage: "es" })).toEqual({
-      deletedMessages: 0,
-      deletedOccurrences: 0,
-      deletedPatterns: 0,
-    })
-    expect(store.clearLearningData({ scope: "all" }).deletedMessages).toBe(1)
-    expect(store.learningSummary("en").totalPatternCount).toBe(0)
+    expect(learning.learningSummary("en").targetAttempts).toBe(1)
+    expect(learning.clearLearningData({ scope: "all" }).deletedMessages).toBe(1)
   })
 
-  test("allows overlapping generation connections and deletes its owned directory", () => {
-    const filename = databasePath()
-    const first = new VibeLingoStore(filename)
-    const second = new VibeLingoStore(filename)
-    first.recordAnalysis(identity(1), "en", [finding])
-    second.recordAnalysis(identity(2), "en", [finding])
-    expect(
-      first.progress({ targetLanguage: "en", limit: 5, includeExamples: false }).patterns[0]
-        .occurrenceCount,
-    ).toBe(2)
-    second.close()
-    first.deleteData()
-    expect(fs.existsSync(path.dirname(filename))).toBe(false)
+  test("uses evidence rather than error counts for active days and trend curves", () => {
+    const { learning } = repository()
+    const now = Date.UTC(2026, 6, 28, 12)
+    learning.recordAnalysis(identity(1, { observedAt: now - DAY_MS }), profile, true, [], [])
+    learning.recordAnalysis(identity(2, { observedAt: now }), profile, true, [finding], [])
+    learning.recordAnalysis(identity(3, { observedAt: now }), profile, false, [], [])
+    const summary = learning.learningSummary("en", { now, timeZone: "UTC" })
+    expect(summary).toMatchObject({
+      analyzedMessages: 3,
+      targetAttempts: 2,
+      activeDays: 2,
+      findingsLast30Days: 1,
+    })
+    expect(summary.trends["7"].reduce((sum, point) => sum + point.targetAttempts, 0)).toBe(2)
   })
 
-  test("migrates v1 English data to the v2 composite message namespace", () => {
-    const filename = databasePath()
-    const legacy = new Database(filename, { create: true })
-    legacy.exec(`
-      CREATE TABLE analyzed_messages (
-        message_id TEXT PRIMARY KEY,
-        scope_id TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        analyzed_at INTEGER NOT NULL,
-        result TEXT NOT NULL
-      );
-      CREATE TABLE error_patterns (
-        target_language TEXT NOT NULL,
-        pattern_key TEXT NOT NULL,
-        category TEXT NOT NULL,
-        label TEXT NOT NULL,
-        rule TEXT NOT NULL,
-        first_seen_at INTEGER NOT NULL,
-        last_seen_at INTEGER NOT NULL,
-        occurrence_count INTEGER NOT NULL,
-        PRIMARY KEY (target_language, pattern_key)
-      );
-      CREATE TABLE error_occurrences (
-        id TEXT PRIMARY KEY,
-        target_language TEXT NOT NULL,
-        pattern_key TEXT NOT NULL,
-        scope_id TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        message_id TEXT NOT NULL,
-        observed_at INTEGER NOT NULL,
-        severity TEXT NOT NULL,
-        confidence REAL NOT NULL,
-        original_fragment TEXT,
-        corrected_fragment TEXT,
-        UNIQUE (message_id, pattern_key),
-        FOREIGN KEY (target_language, pattern_key)
-          REFERENCES error_patterns(target_language, pattern_key)
-          ON DELETE CASCADE
-      );
-      INSERT INTO analyzed_messages VALUES
-        ('legacy-message', 'scope-a', 'session-a', 1000, 'findings');
-      INSERT INTO error_patterns VALUES
-        ('en', 'missing_article', 'grammar', 'Missing article', 'Use an article.', 1000, 1000, 1);
-      INSERT INTO error_occurrences VALUES
-        ('legacy-occurrence', 'en', 'missing_article', 'scope-a', 'session-a',
-         'legacy-message', 1000, 'high_value', 0.95, 'add button', 'add a button');
-      PRAGMA user_version = 1;
-    `)
-    legacy.close()
-
-    const store = new VibeLingoStore(filename)
-    expect(store.isAnalyzed("legacy-message", "en")).toBe(true)
-    expect(
-      store.progress({ targetLanguage: "en", limit: 5, includeExamples: true }).patterns[0],
-    ).toMatchObject({
-      occurrenceCount: 1,
-      examples: [{ originalFragment: "add button", correctedFragment: "add a button" }],
+  test("buckets activity by IANA timezone across a daylight-saving boundary", () => {
+    const { learning } = repository()
+    const beforeMidnight = Date.UTC(2026, 2, 8, 4, 30)
+    const afterMidnight = Date.UTC(2026, 2, 8, 5, 30)
+    learning.recordAnalysis(identity(1, { observedAt: beforeMidnight }), profile, true, [], [])
+    learning.recordAnalysis(identity(2, { observedAt: afterMidnight }), profile, true, [], [])
+    const summary = learning.learningSummary("en", {
+      now: Date.UTC(2026, 2, 10, 12),
+      timeZone: "America/New_York",
     })
-    expect(store.recordAnalysis(identity(9, { messageId: "legacy-message" }), "es", [finding])).toBe(
-      true,
-    )
-    store.close()
-    const migrated = new Database(filename, { readonly: true })
-    expect(migrated.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(
-      2,
-    )
-    migrated.close()
+    expect(summary.activeDays).toBe(2)
+    expect(summary.trends["7"].map((point) => point.date)).toHaveLength(7)
+    expect(new Set(summary.trends["7"].map((point) => point.date)).size).toBe(7)
+  })
+
+  test("keeps an unbroken streak active until the next local day is missed", () => {
+    const { learning } = repository()
+    const now = Date.UTC(2026, 6, 28, 12)
+    learning.recordAnalysis(identity(1, { observedAt: now - 2 * DAY_MS }), profile, true, [], [])
+    learning.recordAnalysis(identity(2, { observedAt: now - DAY_MS }), profile, true, [], [])
+    expect(learning.learningSummary("en", { now, timeZone: "UTC" }).currentStreakDays).toBe(2)
+    expect(learning.learningSummary("en", {
+      now: now + DAY_MS,
+      timeZone: "UTC",
+    }).currentStreakDays).toBe(0)
+  })
+
+  test("keeps journey practice events at Session granularity", () => {
+    const { learning } = repository()
+    learning.recordAnalysis(identity(1, {
+      scopeId: "scope-a",
+      sessionId: "shared-session",
+    }), profile, true, [], [])
+    learning.recordAnalysis(identity(2, {
+      scopeId: "scope-a",
+      sessionId: "shared-session",
+    }), profile, true, [], [])
+    learning.recordAnalysis(identity(3, {
+      scopeId: "scope-a",
+      sessionId: "other-session",
+    }), profile, true, [], [])
+    const journey = learning.journey({ targetLanguage: "en", limit: 20 })
+    expect(journey.items.filter((event) => event.type === "practice_started")).toHaveLength(2)
+    expect(learning.learningSummary("en").targetAttempts).toBe(3)
+  })
+
+  test("supports the journey filters and record detail required by the product screens", () => {
+    const { learning } = repository()
+    const first = identity(1, {
+      scopeId: "scope-a",
+      sessionId: "shared-session",
+      observedAt: 10_000,
+    })
+    learning.recordAnalysis(first, profile, true, [finding], [])
+    learning.recordAnalysis(identity(2, {
+      scopeId: "scope-a",
+      sessionId: "shared-session",
+      observedAt: 11_000,
+    }), profile, true, [], [])
+    const page = learning.journey({
+      targetLanguage: "en",
+      types: ["practice_started"],
+      from: 9_000,
+      to: 12_000,
+      limit: 20,
+    })
+    expect(page.items).toHaveLength(1)
+    const record = learning.learningRecord("en", page.items[0].id)
+    expect(record?.sessionSummary).toMatchObject({
+      analyzedMessages: 2,
+      targetAttempts: 2,
+      findings: 1,
+      discoveredPatterns: 1,
+    })
+    expect(record?.evidence).toHaveLength(1)
+    expect(record?.patterns[0]).toMatchObject({ patternKey: "missing_article" })
+    expect(learning.journey({
+      targetLanguage: "en",
+      types: ["pattern_verified"],
+      limit: 20,
+    }).items).toEqual([])
+  })
+
+  test("ignore, reject, delete, and merge follow distinct lifecycle semantics", () => {
+    const { learning } = repository()
+    learning.recordAnalysis(identity(1), profile, true, [finding], [])
+    learning.recordAnalysis(identity(2), profile, true, [{
+      ...finding,
+      patternKey: "article_alias",
+      label: "Article alias",
+    }], [])
+    expect(learning.patternCommand("en", { action: "ignore", patternKey: "missing_article" })?.pattern)
+      .toMatchObject({ disposition: "ignored" })
+    expect(learning.listPatterns({ targetLanguage: "en", limit: 20 }).items)
+      .not.toContainEqual(expect.objectContaining({ patternKey: "missing_article" }))
+    expect(learning.listPatterns({ targetLanguage: "en", status: "ignored", limit: 20 }).items)
+      .toContainEqual(expect.objectContaining({ patternKey: "missing_article" }))
+    expect(learning.patternCommand("en", { action: "restore", patternKey: "missing_article" })?.pattern)
+      .toMatchObject({ disposition: "active" })
+    learning.patternCommand("en", {
+      action: "merge",
+      sourceKey: "article_alias",
+      targetKey: "missing_article",
+    })
+    expect(learning.patternDetail("en", "article_alias")?.occurrenceCount).toBe(2)
+    learning.patternCommand("en", { action: "not_error", patternKey: "missing_article" })
+    expect(learning.suppressedKeys("en")).toContain("missing_article")
+    expect(learning.patternDetail("en", "missing_article")?.occurrenceCount).toBe(0)
+    learning.patternCommand("en", { action: "delete", patternKey: "missing_article" })
+    expect(learning.patternDetail("en", "missing_article")).toBeUndefined()
+  })
+
+  test("uses stable keyset cursors for every pattern sort and filters current Scope", () => {
+    const { learning } = repository()
+    const keys = ["alpha_pattern", "beta_pattern", "gamma_pattern", "delta_pattern"]
+    keys.forEach((patternKey, patternIndex) => {
+      for (let occurrence = 0; occurrence < 3; occurrence++) {
+        learning.recordAnalysis(identity(
+          100 + patternIndex * 10 + occurrence,
+          {
+            scopeId: patternKey === "delta_pattern" ? "scope-b" : "scope-a",
+            sessionId: occurrence === 1 ? `session-${patternKey}-b` : `session-${patternKey}-a`,
+            observedAt: 10_000 + patternIndex * 100 + occurrence,
+          },
+        ), profile, true, [{
+          ...finding,
+          patternKey,
+          label: patternKey,
+        }], [])
+      }
+    })
+
+    for (const sort of ["priority", "recent", "frequency", "due"] as const) {
+      const seen: string[] = []
+      let cursor: string | undefined
+      do {
+        const page = learning.listPatterns({
+          targetLanguage: "en",
+          sort,
+          cursor,
+          limit: 2,
+          now: 20_000,
+        })
+        seen.push(...page.items.map((item) => item.patternKey))
+        cursor = page.nextCursor
+      } while (cursor)
+      expect(new Set(seen).size).toBe(4)
+      expect(seen).toHaveLength(4)
+    }
+
+    const current = learning.listPatterns({
+      targetLanguage: "en",
+      scopeId: "scope-a",
+      limit: 20,
+    })
+    expect(current.items.map((item) => item.patternKey)).not.toContain("delta_pattern")
+    expect(learning.listPatterns({
+      targetLanguage: "en",
+      status: "focus",
+      limit: 20,
+      now: 20_000,
+    }).items).toHaveLength(4)
+    expect(() => learning.listPatterns({
+      targetLanguage: "en",
+      cursor: "not-a-cursor",
+      limit: 20,
+    })).toThrow("Invalid cursor")
   })
 })
