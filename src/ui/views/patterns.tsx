@@ -83,6 +83,10 @@ export const PatternsView: Component = () => {
       { signal },
     ),
   )
+  createEffect(() => {
+    const keys = resource().data?.items.map((item) => item.patternKey) ?? []
+    if (keys.length) void dashboard.present(keys)
+  })
 
   function nextPage() {
     const cursor = resource().data?.nextCursor
@@ -117,7 +121,7 @@ export const PatternsView: Component = () => {
           />
         </div>
         <div class="vld-filter-row" aria-label={copy(dashboard.locale(), "filters")}>
-          <select class="vld-select" value={status()} onChange={(event) => setStatus(event.currentTarget.value as StatusFilter)}>
+          <select aria-label={copy(dashboard.locale(), "allStatuses")} class="vld-select" value={status()} onChange={(event) => setStatus(event.currentTarget.value as StatusFilter)}>
             <option value="">{copy(dashboard.locale(), "allStatuses")}</option>
             <option value="new">{dashboard.locale() === "zh-CN" ? "新模式" : "New"}</option>
             <option value="focus">{dashboard.locale() === "zh-CN" ? "重点" : "Focus"}</option>
@@ -126,11 +130,11 @@ export const PatternsView: Component = () => {
             <option value="ignored">{dashboard.locale() === "zh-CN" ? "已忽略" : "Ignored"}</option>
             <option value="rejected">{dashboard.locale() === "zh-CN" ? "非错误" : "Not an error"}</option>
           </select>
-          <select class="vld-select" value={scope()} onChange={(event) => setScope(event.currentTarget.value as "all" | "current")}>
+          <select aria-label={copy(dashboard.locale(), "scope")} class="vld-select" value={scope()} onChange={(event) => setScope(event.currentTarget.value as "all" | "current")}>
             <option value="all">{copy(dashboard.locale(), "allScopes")}</option>
             <option value="current">{copy(dashboard.locale(), "currentScope")}</option>
           </select>
-          <select class="vld-select" value={sort()} onChange={(event) => setSort(event.currentTarget.value as PatternSort)}>
+          <select aria-label={dashboard.locale() === "zh-CN" ? "排序方式" : "Sort order"} class="vld-select" value={sort()} onChange={(event) => setSort(event.currentTarget.value as PatternSort)}>
             <option value="priority">{copy(dashboard.locale(), "priority")}</option>
             <option value="recent">{copy(dashboard.locale(), "recent")}</option>
             <option value="frequency">{copy(dashboard.locale(), "frequency")}</option>
@@ -579,6 +583,7 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
             type="search"
             value={mergeQuery()}
             placeholder={copy(dashboard.locale(), "searchPatterns")}
+            aria-label={copy(dashboard.locale(), "searchPatterns")}
             onInput={(event) => setMergeQuery(event.currentTarget.value)}
           />
           <div class="vld-action-list">

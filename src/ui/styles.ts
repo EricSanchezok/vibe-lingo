@@ -147,6 +147,7 @@ export const dashboardStyles = `
 .vld-menu-item-sub{display:block;margin-top:2px;color:var(--text-weak);font-size:12px}
 .vld-menu-divider{height:1px;margin:5px;background:var(--border-base)}
 .vld-review-layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:24px}
+.vld-review-layout[data-single=true]{grid-template-columns:minmax(0,760px);justify-content:center}
 .vld-review-stage{min-height:470px;padding:30px}
 .vld-progress-track{height:5px;border-radius:999px;background:var(--surface-inset-base);overflow:hidden}
 .vld-progress-fill{height:100%;border-radius:inherit;background:var(--surface-success-strong)}

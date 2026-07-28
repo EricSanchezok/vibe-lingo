@@ -4,7 +4,7 @@
 
 Accepted
 
-Extends the prompt-first and multilingual-profile ADRs. This decision governs VibeLingo `0.3.0`.
+Extends the prompt-first and multilingual-profile ADRs. This decision governs VibeLingo `0.3.0` and is extended by `2026-07-28-sidebar-learning-workspace-and-manual-review.md`.
 
 ## Context
 

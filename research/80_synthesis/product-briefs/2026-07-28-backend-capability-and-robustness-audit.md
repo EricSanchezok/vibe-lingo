@@ -1,5 +1,7 @@
 # VibeLingo v0.3 Backend Capability and Robustness Audit
 
+> Historical v0.3 backend audit. The Dashboard described as deferred here is implemented by v0.4; see `2026-07-28-v04-frontend-capability-and-quality-audit.md`.
+
 ## Bottom Line
 
 - Every functional state shown across the 14 final Figma screens has a backend query or command contract.

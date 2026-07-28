@@ -307,6 +307,7 @@ const screens: Array<[string, string, any?]> = [
   ["view=review", "本次复习完成", {
     ...reviewBase,
     status: "completed",
+    completionEventId: eventId,
     currentItem: undefined,
     completedItems: [{
       id: itemId,
@@ -339,6 +340,7 @@ for (const [route, expected, state] of screens) {
   context.host.openPluginPage("learning", Object.fromEntries(new URLSearchParams(route)))
   await new Promise((resolve) => setTimeout(resolve, 35))
   assertText(mounted.target, expected)
+  if (state?.status === "completed") assertText(mounted.target, "查看学习记录")
   if (route === "view=review") {
     context.host.openPluginPage("learning", { view: "overview" })
     await new Promise((resolve) => setTimeout(resolve, 10))

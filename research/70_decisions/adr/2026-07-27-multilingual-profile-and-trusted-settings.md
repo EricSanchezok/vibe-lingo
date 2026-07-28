@@ -4,7 +4,7 @@
 
 Accepted
 
-Extended by `2026-07-28-evidence-learning-loop-and-review-backend.md`. V0.3 keeps target-language global aggregation while replacing the migration-era occurrence model with an evidence lifecycle and review queue.
+Extended by `2026-07-28-evidence-learning-loop-and-review-backend.md` and `2026-07-28-sidebar-learning-workspace-and-manual-review.md`. V0.3 keeps target-language global aggregation while replacing the migration-era occurrence model with an evidence lifecycle and review queue; v0.4 adds a separate learning workspace while reusing this settings implementation.
 
 ## Context
 

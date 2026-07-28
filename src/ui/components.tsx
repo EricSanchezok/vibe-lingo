@@ -1,7 +1,6 @@
 import {
   For,
   Show,
-  createEffect,
   createMemo,
   createSignal,
   onCleanup,
@@ -78,7 +77,6 @@ export const PatternText: Component<{
   showRule?: boolean
 }> = (props) => {
   const dashboard = useDashboard()
-  createEffect(() => void dashboard.present([props.patternKey]))
   const localized = () => dashboard.presentation(props.patternKey)
   return (
     <>
@@ -156,6 +154,16 @@ export const EvidenceChart: Component<{ points: TrendPoint[] }> = (props) => {
       SERIES.map((series) => point[series.key]),
     ),
   ))
+  const ticks = createMemo(() => {
+    const max = maximum()
+    const step = Math.max(1, Math.ceil(max / 4))
+    const values = Array.from(
+      { length: Math.floor(max / step) + 1 },
+      (_, index) => index * step,
+    )
+    if (values.at(-1) !== max) values.push(max)
+    return values
+  })
   const x = (index: number) => inset.left
     + (props.points.length <= 1 ? 0 : index / (props.points.length - 1))
       * (width - inset.left - inset.right)
@@ -186,18 +194,18 @@ export const EvidenceChart: Component<{ points: TrendPoint[] }> = (props) => {
         role="img"
         aria-label={summary()}
       >
-        <For each={[0, .25, .5, .75, 1]}>
-          {(fraction) => (
+        <For each={ticks()}>
+          {(tick) => (
             <>
               <line
                 class="vld-chart-grid"
                 x1={inset.left}
                 x2={width - inset.right}
-                y1={y(maximum() * fraction)}
-                y2={y(maximum() * fraction)}
+                y1={y(tick)}
+                y2={y(tick)}
               />
-              <text class="vld-chart-label" x="0" y={y(maximum() * fraction) + 4}>
-                {Math.round(maximum() * fraction)}
+              <text class="vld-chart-label" x="0" y={y(tick) + 4}>
+                {tick}
               </text>
             </>
           )}
@@ -245,14 +253,34 @@ export const ProfileMenu: Component<{ anchor: HTMLButtonElement | undefined; onC
       event.preventDefault()
       props.onClose()
       props.anchor?.focus()
+      return
+    }
+    const items = [...(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])]
+    if (items.length === 0) return
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement)
+    let nextIndex: number | undefined
+    if (event.key === "ArrowDown") nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
+    if (event.key === "ArrowUp") nextIndex = currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length
+    if (event.key === "Home") nextIndex = 0
+    if (event.key === "End") nextIndex = items.length - 1
+    if (nextIndex !== undefined) {
+      event.preventDefault()
+      items[nextIndex]?.focus()
     }
   }
 
   onMount(() => {
     reposition()
-    menu?.focus()
+    menu?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (!menu?.contains(target) && !props.anchor?.contains(target)) props.onClose()
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer)
     window.addEventListener("resize", reposition)
     window.addEventListener("scroll", reposition, true)
+    onCleanup(() => document.removeEventListener("pointerdown", closeOnOutsidePointer))
   })
   onCleanup(() => {
     window.removeEventListener("resize", reposition)
@@ -332,7 +360,42 @@ export const Dialog: Component<{
   children: JSX.Element
 }> = (props) => {
   let dialog: HTMLDivElement | undefined
-  onMount(() => dialog?.focus())
+  let previouslyFocused: HTMLElement | null = null
+
+  function onKeyDown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      props.onClose()
+      return
+    }
+    if (event.key !== "Tab" || !dialog) return
+    const focusable = [...dialog.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    )]
+    if (focusable.length === 0) {
+      event.preventDefault()
+      dialog.focus()
+      return
+    }
+    const first = focusable[0]!
+    const last = focusable.at(-1)!
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  onMount(() => {
+    previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    dialog?.querySelector<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    )?.focus()
+    if (document.activeElement === previouslyFocused) dialog?.focus()
+  })
+  onCleanup(() => previouslyFocused?.focus())
   return (
     <Portal>
       <div
@@ -349,9 +412,7 @@ export const Dialog: Component<{
           aria-modal="true"
           aria-labelledby="vld-dialog-title"
           tabindex="-1"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") props.onClose()
-          }}
+          onKeyDown={onKeyDown}
         >
           <h2 id="vld-dialog-title" class="vld-dialog-title">{props.title}</h2>
           <Show when={props.copy}><p class="vld-dialog-copy">{props.copy}</p></Show>

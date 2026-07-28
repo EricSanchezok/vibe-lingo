@@ -236,7 +236,10 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                   />
                 }
               >
-                <div class="vld-review-layout">
+                <div
+                  class="vld-review-layout"
+                  data-single={resource().data!.queue.upcoming.length === 0}
+                >
                   <section class="vld-panel vld-review-stage">
                     <p class="vld-eyebrow">{copy(dashboard.locale(), "reviewQueue")}</p>
                     <h2 class="vld-review-question">
@@ -270,20 +273,22 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                       {busy() ? copy(dashboard.locale(), "loading") : copy(dashboard.locale(), "startReview")} →
                     </button>
                   </section>
-                  <aside class="vld-soft-panel">
-                    <h2 class="vld-section-title">{copy(dashboard.locale(), "upcoming")}</h2>
-                    <p class="vld-section-copy">{copy(dashboard.locale(), "manualReviewNote")}</p>
-                    <div class="vld-queue-list">
-                      <For each={resource().data!.queue.upcoming}>
-                        {(item) => (
-                          <div class="vld-queue-item">
-                            <PatternText patternKey={item.patternKey} label={item.label} />
-                            <span>{formatRelativeDate(dashboard.locale(), item.dueAt)}</span>
-                          </div>
-                        )}
-                      </For>
-                    </div>
-                  </aside>
+                  <Show when={resource().data!.queue.upcoming.length > 0}>
+                    <aside class="vld-soft-panel">
+                      <h2 class="vld-section-title">{copy(dashboard.locale(), "upcoming")}</h2>
+                      <p class="vld-section-copy">{copy(dashboard.locale(), "manualReviewNote")}</p>
+                      <div class="vld-queue-list">
+                        <For each={resource().data!.queue.upcoming}>
+                          {(item) => (
+                            <div class="vld-queue-item">
+                              <PatternText patternKey={item.patternKey} label={item.label} />
+                              <span>{formatRelativeDate(dashboard.locale(), item.dueAt)}</span>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </aside>
+                  </Show>
                 </div>
               </Show>
             }

@@ -101,18 +101,18 @@ export const JourneyView: Component = () => {
           </p>
         </div>
         <div class="vld-filter-row">
-          <select class="vld-select" value={eventFilter()} onChange={(event) => setEventFilter(event.currentTarget.value as EventFilter)}>
+          <select aria-label={copy(dashboard.locale(), "allEvents")} class="vld-select" value={eventFilter()} onChange={(event) => setEventFilter(event.currentTarget.value as EventFilter)}>
             <option value="all">{copy(dashboard.locale(), "allEvents")}</option>
             <option value="work">{copy(dashboard.locale(), "realWork")}</option>
             <option value="review">{copy(dashboard.locale(), "reviews")}</option>
             <option value="pattern">{copy(dashboard.locale(), "milestones")}</option>
           </select>
-          <select class="vld-select" value={days()} onChange={(event) => setDays(Number(event.currentTarget.value) as 0 | 30 | 90)}>
+          <select aria-label={dashboard.locale() === "zh-CN" ? "时间范围" : "Date range"} class="vld-select" value={days()} onChange={(event) => setDays(Number(event.currentTarget.value) as 0 | 30 | 90)}>
             <option value="0">{dashboard.locale() === "zh-CN" ? "全部时间" : "All time"}</option>
             <option value="30">{copy(dashboard.locale(), "range30")}</option>
             <option value="90">{copy(dashboard.locale(), "range90")}</option>
           </select>
-          <select class="vld-select" value={scope()} onChange={(event) => setScope(event.currentTarget.value as "all" | "current")}>
+          <select aria-label={copy(dashboard.locale(), "scope")} class="vld-select" value={scope()} onChange={(event) => setScope(event.currentTarget.value as "all" | "current")}>
             <option value="all">{copy(dashboard.locale(), "allScopes")}</option>
             <option value="current">{copy(dashboard.locale(), "currentScope")}</option>
           </select>

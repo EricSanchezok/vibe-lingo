@@ -231,6 +231,8 @@ describe("review state machine", () => {
       types: ["review_completed"],
       limit: 20,
     }).items[0]
+    if (!completed.ok) return
+    expect(completed.data.completionEventId).toBe(completedEvent.id)
     const completedRecord = service.learning.learningRecord("en", completedEvent.id)
     expect(completedRecord).toMatchObject({
       event: { reviewId: started.data.id },

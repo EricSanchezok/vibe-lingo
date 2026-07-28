@@ -13,11 +13,11 @@ VibeLingo has three independent paths:
 
 1. A system-transform hook gives the primary Agent a compact, work-first coaching contract for the configured language pair and proficiency.
 2. A continuing user-message observer asks a private hidden Agent to extract structured errors and natural correct uses after the message has already been submitted.
-3. A local learning engine promotes recurring patterns, schedules review, and exposes typed operations for the future Dashboard. Reviews use active recall, progressive hints, repair, and transfer practice.
+3. A local learning engine promotes recurring patterns, schedules review, and powers a dedicated learning workspace. Reviews use active recall, progressive hints, repair, and transfer practice.
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.3.0` does not yet provide the Figma Dashboard, a sidebar entry, automatic review invitations, notifications, Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The backend prepares the due queue but never interrupts a work Session.
+VibeLingo `0.4.0` adds a Synergy sidebar entry with overview, journey, pattern, review, and settings views. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.3.0` adds two private review Agents and a larger typed operation surface. The plugin is still unreleased, so startup deliberately replaces any v0.1/v0.2 dogfood database rather than carrying migration code.
+Version `0.4.0` adds the trusted learning workspace and a private pattern-presentation Agent. The plugin is still unreleased, so startup deliberately replaces any older dogfood database rather than carrying migration code.
 
 ## First-Time Setup
 
@@ -95,7 +95,21 @@ plugin__vibe-lingo__progress
 
 The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It reports target-language attempts, active days, due reviews, candidate/practicing/verified patterns, natural correct uses, independent reviews, and up to three sanitized examples when explicitly requested. It does not estimate proficiency or claim permanent mastery.
 
-The settings page intentionally shows only a compact summary for the active target language. It can clear that language's records or all VibeLingo learning records through a Synergy host confirmation. Clearing data does not change settings.
+The settings view intentionally shows only a compact summary for the active target language. Detailed history belongs to the learning workspace. Settings can clear that language's records or all VibeLingo learning records through a Synergy host confirmation. Clearing data does not change settings.
+
+## Learning Workspace
+
+The `VibeLingo` sidebar entry is a single host page with horizontal product tabs rather than a nested sidebar:
+
+- **Overview** shows the current learning week, activity streak, 30-day activity heatmap, 7/30/90-day evidence curves, recent journey events, due review, and recent natural use.
+- **Review** shows due and upcoming patterns. A review starts only after an explicit user action. When there are fewer than three due items, the user may include patterns due within the next seven days.
+- **Learning patterns** provides search, status/Scope filters, deterministic sorting, keyset pagination, pattern evidence, review history, scheduling, and lifecycle actions.
+- **Learning journey** provides event/time/Scope filters, keyset pagination, bounded record details, and current-Scope Session navigation when the host can resolve it.
+- **Settings** embeds the same trusted settings implementation used by Synergy's native settings surface; there is no second settings controller or schema.
+
+Routes are represented by validated query parameters and opened through `context.host.openPluginPage()`. Invalid pattern, review, or event identifiers fall back to a recoverable parent view instead of entering a broken state. Query work is abortable, and `learning.changed` / `review.changed` events invalidate snapshots without duplicating domain state in the browser.
+
+Canonical pattern metadata remains stable English internal data. The workspace requests native-language labels and rules in batches from the private `vibe-lingo-pattern-presenter` Agent, caches them by target/support language plus source metadata, and falls back to canonical text if generation is unavailable or low-confidence.
 
 ## Learning and Review Model
 
@@ -108,7 +122,7 @@ A pattern starts as `candidate`. Three confident errors across at least two Sess
 
 `verified` is an evidence state, not a language level or a permanent mastery claim.
 
-The backend exposes UI-only operations for profiles, summary curves, journey records, pattern lists and details, due queue, resumable reviews, pattern controls, and cleanup. Review state includes per-item outcomes, independent-recall and transfer totals, and each pattern's next due time so the designed completion screen does not have to reconstruct learning state. No Dashboard component or navigation contribution ships in this version.
+The UI uses typed plugin operations for profiles, summary curves, journey records, pattern lists and details, due queue, resumable reviews, localized presentations, pattern controls, and cleanup. Review state includes per-item outcomes, independent-recall and transfer totals, each pattern's next due time, and the completion journey-event ID. The frontend renders these facts but does not reproduce lifecycle, scheduling, or evidence calculations.
 
 ## Data and Privacy
 
@@ -138,7 +152,7 @@ Analyzer fragments are limited to 160 Unicode code points and review answers to 
 
 Learning records aggregate by target language across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Scope filters change the evidence view, not the global learning state or schedule. Cross-Scope fragments are never injected into the coaching prompt. A Session title is resolved only on demand in its current Scope; it is never copied into SQLite.
 
-SQLite schema version 4 is intentionally destructive during this unreleased development phase. VibeLingo validates its required tables, columns, indexes, and current event contract under an exclusive initialization lock. If the version or shape is not current, it recreates its owned tables and discards earlier dogfood statistics. A second plugin generation that starts after the first one has initialized the schema reuses the new database rather than resetting it again.
+SQLite schema version 5 is intentionally destructive during this unreleased development phase. It adds the native-language pattern-presentation cache. VibeLingo validates its required tables, columns, indexes, and current event contract under an exclusive initialization lock. If the version or shape is not current, it recreates its owned tables and discards earlier dogfood statistics. A second plugin generation that starts after the first one has initialized the schema reuses the new database rather than resetting it again.
 
 A normal plugin uninstall deletes the VibeLingo data directory. Synergy force uninstall skips lifecycle cleanup and may leave the directory behind.
 
@@ -154,7 +168,7 @@ bun run pack
 
 The built `dist/plugin.json` is generated by plugin-kit and must not be maintained by hand.
 
-The backend-to-Figma capability and robustness audit is recorded in [`research/80_synthesis/product-briefs/2026-07-28-backend-capability-and-robustness-audit.md`](./research/80_synthesis/product-briefs/2026-07-28-backend-capability-and-robustness-audit.md).
+The v0.4 frontend capability and quality audit is recorded in [`research/80_synthesis/product-briefs/2026-07-28-v04-frontend-capability-and-quality-audit.md`](./research/80_synthesis/product-briefs/2026-07-28-v04-frontend-capability-and-quality-audit.md).
 
 ## Research
 

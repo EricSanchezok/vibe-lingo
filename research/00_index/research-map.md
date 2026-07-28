@@ -55,8 +55,8 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Comprehension support | 🔄 Redesign proposed | Start from exact selected text; validate a result surface before choosing a permanent UI. |
 | Prompt-first interaction model | ✅ Accepted and implemented | Inject a work-first correction contract, then extract error and natural-correct evidence asynchronously. V0.3 feeds only active practicing patterns back into the prompt. |
 | Composer-native interaction model | Deferred experiment | Completion, decorations, preflight, and selection UI remain available if prompt-only coaching fails specific interaction needs. See `research/80_synthesis/integration-summaries/2026-07-26-composer-native-redesign.md`. |
-| Pattern learning & review | ✅ Implemented backend | Candidate/practicing/verified lifecycle, due queue, active recall, hints, repair, transfer, deterministic intervals, no automatic invitation. |
-| Progress tracking | ✅ Implemented and audited backend | Evidence-backed attempts, active days, curves, journey records, pattern detail, completion summaries, and resumable review APIs cover all 14 Figma screens; no score or inferred level. See `research/80_synthesis/product-briefs/2026-07-28-backend-capability-and-robustness-audit.md`. |
+| Pattern learning & review | ✅ Implemented | Candidate/practicing/verified lifecycle, manual due queue, active recall, hints, repair, transfer, deterministic intervals, and resumable UI; no automatic invitation. |
+| Progress tracking | ✅ Implemented and audited | The sidebar learning workspace renders evidence-backed attempts, active days, curves, journey records, pattern detail, completion summaries, filters, and pagination; no score or inferred level. See `research/80_synthesis/product-briefs/2026-07-28-v04-frontend-capability-and-quality-audit.md`. |
 | Privacy & consent | ✅ Complete | Extract, don't store. Conversation NEVER persisted. User-owned data in Synergy scope. |
 
 ### 5. Product Strategy
@@ -65,7 +65,7 @@ This map shows what we know, what we're investigating, and where the evidence li
 |---|---|---|
 | Competitive landscape | ✅ Complete | 6 analyses: Duolingo, Anki, Grammarly, LanguageTool, LingQ + 4 adjacent. Unique position: agent-native, work-as-learning. |
 | Learner personas | 🔄 Expanded | Chinese→English remains the first QA path; v0.2 supports explicit support/target BCP-47 profiles and three self-reported levels. |
-| MVP definition | ✅ Implemented backend | Compact coaching + async learning evidence + multilingual profile + review queue/state machine + Dashboard API. Dashboard UI and Composer UI remain deferred. |
+| MVP definition | ✅ Implemented | Compact coaching + async evidence + multilingual profile + manual review + sidebar learning workspace. Composer interventions remain deferred. |
 | Success metrics | ✅ Complete | Retention ≥70% with review, ≥60% polish acceptance, ≥1 tool use per 3 sessions. Warning signals defined. |
 
 ## Evidence Bank Summary
