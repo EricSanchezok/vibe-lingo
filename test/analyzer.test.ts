@@ -199,6 +199,7 @@ describe("background observer behavior", () => {
 
   test("does not persist escape-hatch messages and swallows analyzer failures", async () => {
     const database = store()
+    let failedCalls = 0
     const dependency = {
       learning: database,
       async readSettings() {
@@ -237,6 +238,7 @@ describe("background observer behavior", () => {
       invocationContext({
         agent: {
           async call() {
+            failedCalls += 1
             return { text: "not json" }
           },
         },
@@ -245,6 +247,51 @@ describe("background observer behavior", () => {
     )
     expect(database.isAnalyzed("message-escape", "en")).toBe(false)
     expect(database.isAnalyzed("message-invalid", "en")).toBe(false)
+    expect(failedCalls).toBe(2)
+  })
+
+  test("retries analysis once in memory and records only the successful classification", async () => {
+    const database = store()
+    let calls = 0
+    await processUserMessage(
+      {
+        message: {
+          id: "message-retry",
+          text: "I want add another button to settings.",
+          createdAt: 102,
+        },
+      },
+      invocationContext({
+        agent: {
+          async call() {
+            calls += 1
+            return { text: calls === 1 ? "not json" : JSON.stringify(validResult) }
+          },
+        },
+      }),
+      {
+        learning: database,
+        async readSettings() {
+          return {
+            nativeLanguage: "zh-Hans",
+            targetLanguage: "en",
+            proficiency: "intermediate",
+            correctionMode: "focused",
+            trackingEnabled: true,
+            recurringFocusEnabled: true,
+          }
+        },
+        async hasEligibleSession() {
+          return true
+        },
+      },
+    )
+    expect(calls).toBe(2)
+    expect(database.learningSummary("en")).toMatchObject({
+      analyzedMessages: 1,
+      targetAttempts: 1,
+      totalPatternCount: 1,
+    })
   })
 
   test("does nothing when the profile is incomplete", async () => {

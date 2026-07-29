@@ -9,6 +9,7 @@ import {
 } from "solid-js"
 import type {
   LearningPatternsOutput,
+  LearningSummaryOutput,
   PatternDetailOutput,
 } from "../../application/dashboard-contracts"
 import type { CommandResult, ProgressPattern, ReviewState, TrendPoint } from "../../domain/types"
@@ -83,6 +84,22 @@ export const PatternsView: Component = () => {
       { signal },
     ),
   )
+  const summaryResource = createAbortableResource<LearningSummaryOutput>(
+    () => [
+      dashboard.profile()?.targetLanguage,
+      dashboard.refreshVersion(),
+      scope(),
+    ],
+    (signal) => dashboard.context.operations.query(
+      "learning-summary",
+      {
+        targetLanguage: dashboard.profile()?.targetLanguage,
+        scope: scope(),
+        timeZone: dashboard.timeZone,
+      },
+      { signal },
+    ),
+  )
   createEffect(() => {
     const keys = resource().data?.items.map((item) => item.patternKey) ?? []
     if (keys.length) void dashboard.present(keys)
@@ -150,7 +167,11 @@ export const PatternsView: Component = () => {
             fallback={
               <EmptyState
                 title={copy(dashboard.locale(), "noPatterns")}
-                copy={copy(dashboard.locale(), "noPatternsHelp")}
+                copy={appliedQuery() || status() || scope() === "current"
+                  ? copy(dashboard.locale(), "noPatternsHelp")
+                  : dashboard.locale() === "zh-CN"
+                    ? `今天已经完成 ${summaryResource().data?.targetAttemptsToday ?? 0} 次目标语言表达。暂时还没有足够可信的学习模式。`
+                    : `You have made ${summaryResource().data?.targetAttemptsToday ?? 0} target-language attempts today. There are not enough trustworthy signals for a learning pattern yet.`}
               />
             }
           >

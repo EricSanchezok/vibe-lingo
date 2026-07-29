@@ -241,7 +241,7 @@ export async function processUserMessage(
     if (!context.agent?.call) return
 
     const knownPatterns = dependencies.learning.knownPatterns(profile.targetLanguage, 40)
-    const response = await context.agent.call({
+    const request = {
       agent: ANALYZER_AGENT_NAME,
       text: analyzerRequest(
         input.message.text,
@@ -251,8 +251,20 @@ export async function processUserMessage(
       ),
       timeoutMs: 12_000,
       maxOutputChars: 3_000,
-    })
-    const result = parseAnalysisResult(response.text)
+    }
+    let result: AnalysisResult | undefined
+    let analysisError: unknown
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await context.agent.call(request)
+        result = parseAnalysisResult(response.text)
+        break
+      } catch (error) {
+        analysisError = error
+        if (context.signal.aborted) throw error
+      }
+    }
+    if (!result) throw analysisError ?? new Error("Analyzer did not return a valid result")
     const findings = findingsForStorage(result, profile.targetLanguage)
     const demonstrations = demonstrationsForStorage(result, knownPatterns, profile.targetLanguage)
     const recorded = dependencies.learning.recordAnalysis(

@@ -49,6 +49,13 @@ type ProfileInput = {
   proficiency: "beginner" | "intermediate" | "advanced"
 }
 
+type PracticeActivity = {
+  attemptCount: number
+  findingMessageCount: number
+  findingCount: number
+  demonstrationCount: number
+}
+
 const PATTERN_KEY = /^[a-z][a-z0-9_]{2,63}$/
 
 function validFinding(finding: StoredFinding): boolean {
@@ -404,14 +411,35 @@ export class LearningRepository {
         attempts: number
         sessions: number
         first_attempt: number | null
+        last_analyzed: number | null
       }, string[]>(
         `SELECT COUNT(*) AS analyzed,
                 SUM(classification = 'target_attempt') AS attempts,
                 COUNT(DISTINCT CASE WHEN classification = 'target_attempt' THEN session_id END) AS sessions,
-                MIN(CASE WHEN classification = 'target_attempt' THEN analyzed_at END) AS first_attempt
+                MIN(CASE WHEN classification = 'target_attempt' THEN analyzed_at END) AS first_attempt,
+                MAX(analyzed_at) AS last_analyzed
          FROM analyzed_messages WHERE target_language = ?${messageWhere}`,
       )
       .get(...messageBindings)
+    const today = localDate(now, timeZone)
+    const todayRows = db
+      .query<{
+        analyzed_at: number
+        classification: string
+        session_id: string
+        finding_count: number
+      }, Array<string | number>>(
+        `SELECT analyzed_at, classification, session_id, finding_count
+         FROM analyzed_messages
+         WHERE target_language = ? AND analyzed_at >= ?${messageWhere}`,
+      )
+      .all(
+        targetLanguage,
+        now - 2 * DAY_MS,
+        ...(input.scopeId ? [input.scopeId] : []),
+      )
+      .filter((row) => localDate(count(row.analyzed_at), timeZone) === today)
+    const targetRowsToday = todayRows.filter((row) => row.classification === "target_attempt")
     const patternScopeClause = input.scopeId
       ? ` AND EXISTS (
           SELECT 1 FROM pattern_evidence scoped
@@ -563,7 +591,6 @@ export class LearningRepository {
       ...reviewRows.map((row) => localDate(count(row.completed_at), timeZone)),
     ])
     let streak = 0
-    const today = localDate(now, timeZone)
     const firstStreakOffset = activeDates.has(today)
       ? 0
       : activeDates.has(shiftDate(today, -1))
@@ -582,7 +609,15 @@ export class LearningRepository {
     const firstAttempt = messages?.first_attempt == null ? undefined : count(messages.first_attempt)
     return {
       analyzedMessages: count(messages?.analyzed),
+      analyzedMessagesToday: todayRows.length,
       findingsLast30Days: count(recentFindings?.count),
+      targetAttemptsToday: targetRowsToday.length,
+      targetSessionsToday: new Set(targetRowsToday.map((row) => row.session_id)).size,
+      findingMessagesToday: targetRowsToday.filter((row) => count(row.finding_count) > 0).length,
+      findingsToday: targetRowsToday.reduce((total, row) => total + count(row.finding_count), 0),
+      lastAnalyzedAt: messages?.last_analyzed == null
+        ? undefined
+        : count(messages.last_analyzed),
       totalPatternCount: count(patternCounts?.total),
       recurringPatternCount: count(patternCounts?.recurring),
       candidatePatternCount: count(patternCounts?.candidate),
@@ -1082,6 +1117,10 @@ export class LearningRepository {
       patternKey?: string
       reviewId?: string
       reviewItemId?: string
+      attemptCount?: number
+      findingMessageCount?: number
+      findingCount?: number
+      demonstrationCount?: number
     }>
     nextCursor?: string
   } {
@@ -1129,18 +1168,35 @@ export class LearningRepository {
       )
       .all(...bindings)
     const visible = rows.slice(0, input.limit)
+    const activityBySession = this.practiceActivityForEvents(
+      input.targetLanguage,
+      visible
+        .filter(
+          (row) =>
+            row.event_type === "practice_started"
+            && row.scope_id != null
+            && row.session_id != null,
+        )
+        .map((row) => ({ scopeId: row.scope_id!, sessionId: row.session_id! })),
+    )
     return {
-      items: visible.map((row) => ({
-        id: row.id,
-        type: row.event_type,
-        occurredAt: count(row.occurred_at),
-        scopeId: row.scope_id ?? undefined,
-        sessionId: row.session_id ?? undefined,
-        messageId: row.message_id ?? undefined,
-        patternKey: row.pattern_key ?? undefined,
-        reviewId: row.review_id ?? undefined,
-        reviewItemId: row.review_item_id ?? undefined,
-      })),
+      items: visible.map((row) => {
+        const activity = row.event_type === "practice_started" && row.scope_id && row.session_id
+          ? activityBySession.get(this.sessionActivityKey(row.scope_id, row.session_id))
+          : undefined
+        return {
+          id: row.id,
+          type: row.event_type,
+          occurredAt: count(row.occurred_at),
+          scopeId: row.scope_id ?? undefined,
+          sessionId: row.session_id ?? undefined,
+          messageId: row.message_id ?? undefined,
+          patternKey: row.pattern_key ?? undefined,
+          reviewId: row.review_id ?? undefined,
+          reviewItemId: row.review_item_id ?? undefined,
+          ...activity,
+        }
+      }),
       nextCursor: rows.length > input.limit && visible.length
         ? encodeCursor(count(visible.at(-1)!.occurred_at), visible.at(-1)!.id)
         : undefined,
@@ -1162,6 +1218,9 @@ export class LearningRepository {
       "SELECT * FROM learning_events WHERE target_language = ? AND id = ?",
     ).get(targetLanguage, eventId)
     if (!row) return undefined
+    const sessionSummary = row.scope_id && row.session_id
+      ? this.sessionLearningSummary(targetLanguage, row.scope_id, row.session_id)
+      : undefined
     const event = {
       id: row.id,
       type: row.event_type,
@@ -1172,10 +1231,15 @@ export class LearningRepository {
       patternKey: row.pattern_key ?? undefined,
       reviewId: row.review_id ?? undefined,
       reviewItemId: row.review_item_id ?? undefined,
+      ...(row.event_type === "practice_started" && sessionSummary
+        ? {
+            attemptCount: sessionSummary.targetAttempts,
+            findingMessageCount: sessionSummary.findingMessages,
+            findingCount: sessionSummary.findings,
+            demonstrationCount: sessionSummary.demonstrations,
+          }
+        : {}),
     }
-    const sessionSummary = event.scopeId && event.sessionId
-      ? this.sessionLearningSummary(targetLanguage, event.scopeId, event.sessionId)
-      : undefined
     const evidence = this.recordEvidence(targetLanguage, event)
     const patternKeys = new Set(
       [event.patternKey, ...evidence.map((item) => item.patternKey)].filter(
@@ -1195,6 +1259,56 @@ export class LearningRepository {
     }
   }
 
+  private sessionActivityKey(scopeId: string, sessionId: string): string {
+    return JSON.stringify([scopeId, sessionId])
+  }
+
+  private practiceActivityForEvents(
+    targetLanguage: string,
+    sessions: Array<{ scopeId: string; sessionId: string }>,
+  ): Map<string, PracticeActivity> {
+    const unique = [
+      ...new Map(
+        sessions.map((session) => [
+          this.sessionActivityKey(session.scopeId, session.sessionId),
+          session,
+        ]),
+      ).values(),
+    ]
+    if (unique.length === 0) return new Map()
+    const clauses = unique.map(() => "(scope_id = ? AND session_id = ?)").join(" OR ")
+    const bindings: string[] = [
+      targetLanguage,
+      ...unique.flatMap((session) => [session.scopeId, session.sessionId]),
+    ]
+    const rows = this.db().query<{
+      scope_id: string
+      session_id: string
+      attempt_count: number
+      finding_message_count: number
+      finding_count: number
+      demonstration_count: number
+    }, string[]>(
+      `SELECT scope_id, session_id,
+              SUM(classification = 'target_attempt') AS attempt_count,
+              SUM(classification = 'target_attempt' AND finding_count > 0) AS finding_message_count,
+              SUM(CASE WHEN classification = 'target_attempt' THEN finding_count ELSE 0 END) AS finding_count,
+              SUM(CASE WHEN classification = 'target_attempt' THEN demonstration_count ELSE 0 END) AS demonstration_count
+       FROM analyzed_messages
+       WHERE target_language = ? AND (${clauses})
+       GROUP BY scope_id, session_id`,
+    ).all(...bindings)
+    return new Map(rows.map((row) => [
+      this.sessionActivityKey(row.scope_id, row.session_id),
+      {
+        attemptCount: count(row.attempt_count),
+        findingMessageCount: count(row.finding_message_count),
+        findingCount: count(row.finding_count),
+        demonstrationCount: count(row.demonstration_count),
+      },
+    ]))
+  }
+
   private sessionLearningSummary(
     targetLanguage: string,
     scopeId: string,
@@ -1202,6 +1316,7 @@ export class LearningRepository {
   ): {
     analyzedMessages: number
     targetAttempts: number
+    findingMessages: number
     findings: number
     demonstrations: number
     discoveredPatterns: number
@@ -1211,6 +1326,7 @@ export class LearningRepository {
     const messages = this.db().query<{
       analyzed: number
       attempts: number
+      finding_messages: number
       findings: number
       demonstrations: number
       started_at: number | null
@@ -1218,6 +1334,7 @@ export class LearningRepository {
     }, [string, string, string]>(
       `SELECT COUNT(*) AS analyzed,
               SUM(classification = 'target_attempt') AS attempts,
+              SUM(classification = 'target_attempt' AND finding_count > 0) AS finding_messages,
               SUM(finding_count) AS findings,
               SUM(demonstration_count) AS demonstrations,
               MIN(analyzed_at) AS started_at,
@@ -1233,6 +1350,7 @@ export class LearningRepository {
     return {
       analyzedMessages: count(messages?.analyzed),
       targetAttempts: count(messages?.attempts),
+      findingMessages: count(messages?.finding_messages),
       findings: count(messages?.findings),
       demonstrations: count(messages?.demonstrations),
       discoveredPatterns: count(discovered?.count),
@@ -1688,13 +1806,30 @@ export class LearningRepository {
 
   private promoteIfRecurring(targetLanguage: string, patternKey: string, identity: MessageIdentity): void {
     const aggregate = this.db()
-      .query<{ errors: number; sessions: number }, [string, string]>(
-        `SELECT COUNT(*) AS errors, COUNT(DISTINCT session_id) AS sessions
+      .query<{
+        errors: number
+        sessions: number
+        non_minor_errors: number
+        non_minor_sessions: number
+      }, [string, string]>(
+        `SELECT COUNT(*) AS errors,
+                COUNT(DISTINCT session_id) AS sessions,
+                SUM(severity IN ('meaning_affecting', 'high_value')) AS non_minor_errors,
+                COUNT(DISTINCT CASE
+                  WHEN severity IN ('meaning_affecting', 'high_value') THEN session_id
+                END) AS non_minor_sessions
          FROM pattern_evidence
          WHERE target_language = ? AND pattern_key = ? AND kind = 'error'`,
       )
       .get(targetLanguage, patternKey)
-    if (count(aggregate?.errors) < 3 || count(aggregate?.sessions) < 2) return
+    const recurring = (
+      count(aggregate?.non_minor_errors) >= 2
+      && count(aggregate?.non_minor_sessions) >= 2
+    ) || (
+      count(aggregate?.errors) >= 3
+      && count(aggregate?.sessions) >= 2
+    )
+    if (!recurring) return
     const changed = this.db().query(
       `UPDATE learning_patterns SET stage = 'practicing', due_at = ?, revision = revision + 1
        WHERE target_language = ? AND pattern_key = ? AND stage = 'candidate'`,

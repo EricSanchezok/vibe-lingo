@@ -306,6 +306,25 @@ export function formatRelativeDate(locale: UiLocale, value: number, now = Date.n
   return formatDate(locale, value)
 }
 
+export function formatLastChecked(locale: UiLocale, value: number, now = Date.now()): string {
+  const elapsed = Math.max(0, now - value)
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+  if (elapsed < 60_000) return locale === "zh-CN" ? "刚刚" : "just now"
+  if (elapsed < 3_600_000) return relative.format(-Math.max(1, Math.round(elapsed / 60_000)), "minute")
+  if (elapsed < 86_400_000) return relative.format(-Math.max(1, Math.round(elapsed / 3_600_000)), "hour")
+  return formatRelativeDate(locale, value, now)
+}
+
+export function practiceActivityLabel(
+  locale: UiLocale,
+  attemptCount: number,
+  findingCount: number,
+): string {
+  return locale === "zh-CN"
+    ? `${attemptCount} 次目标语言表达 · ${findingCount} 条学习发现`
+    : `${attemptCount} target-language attempts · ${findingCount} learning findings`
+}
+
 export function greeting(locale: UiLocale, hour = new Date().getHours()): string {
   return copy(
     locale,

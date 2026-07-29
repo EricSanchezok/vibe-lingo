@@ -10,6 +10,7 @@ import {
 import type {
   ReviewQueueOutput,
   ReviewStateOutput,
+  LearningSummaryOutput,
 } from "../../application/dashboard-contracts"
 import type {
   CommandResult,
@@ -31,6 +32,7 @@ import { createAbortableResource } from "../resource"
 
 type ReviewData = {
   queue: ReviewQueueOutput
+  summary: LearningSummaryOutput
   state?: ReviewState
 }
 
@@ -52,7 +54,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
     ],
     async (signal) => {
       const targetLanguage = dashboard.profile()?.targetLanguage
-      const [queue, review] = await Promise.all([
+      const [queue, review, summary] = await Promise.all([
         dashboard.context.operations.query<ReviewQueueOutput>(
           "review-queue",
           { targetLanguage, scope: "all", timeZone: dashboard.timeZone, limit: 3 },
@@ -63,8 +65,13 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
           { targetLanguage, reviewId: props.reviewId },
           { signal },
         ),
+        dashboard.context.operations.query<LearningSummaryOutput>(
+          "learning-summary",
+          { targetLanguage, scope: "all", timeZone: dashboard.timeZone },
+          { signal },
+        ),
       ])
-      return { queue, state: review.state }
+      return { queue, summary, state: review.state }
     },
   )
 
@@ -236,7 +243,9 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                 fallback={
                   <EmptyState
                     title={copy(dashboard.locale(), "allCaughtUp")}
-                    copy={copy(dashboard.locale(), "allCaughtUpHelp")}
+                    copy={dashboard.locale() === "zh-CN"
+                      ? `当前没有到期复习。今天已完成 ${resource().data?.summary.targetAttemptsToday ?? 0} 次目标语言表达，${resource().data?.summary.candidatePatternCount ?? 0} 个模式仍在观察中。`
+                      : `Nothing is due now. You have made ${resource().data?.summary.targetAttemptsToday ?? 0} target-language attempts today, with ${resource().data?.summary.candidatePatternCount ?? 0} candidate patterns still being observed.`}
                     action={
                       <button class="vld-secondary" type="button" onClick={() => dashboard.navigate({ view: "overview" })}>
                         {copy(dashboard.locale(), "overview")}

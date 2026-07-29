@@ -470,13 +470,15 @@ describe("vNext learning repository", () => {
     ])
   })
 
-  test("deduplicates messages and promotes only after three errors in two Sessions", () => {
+  test("deduplicates messages and promotes non-minor findings after two Sessions", () => {
     const { learning } = repository()
-    expect(learning.recordAnalysis(identity(1), profile, true, [finding], [])).toBe(true)
-    expect(learning.recordAnalysis(identity(1), profile, true, [finding], [])).toBe(false)
+    const firstSession = identity(1, { sessionId: "same-session" })
+    expect(learning.recordAnalysis(firstSession, profile, true, [finding], [])).toBe(true)
+    expect(learning.recordAnalysis(firstSession, profile, true, [finding], [])).toBe(false)
     expect(learning.recurringPatterns("en")).toEqual([])
-    learning.recordAnalysis(identity(2), profile, true, [finding], [])
-    learning.recordAnalysis(identity(3), profile, true, [finding], [])
+    learning.recordAnalysis(identity(2, { sessionId: "same-session" }), profile, true, [finding], [])
+    expect(learning.recurringPatterns("en")).toEqual([])
+    learning.recordAnalysis(identity(3, { sessionId: "other-session" }), profile, true, [finding], [])
     expect(learning.recurringPatterns("en")[0]).toMatchObject({
       patternKey: "missing_article",
       occurrenceCount: 3,
@@ -485,6 +487,28 @@ describe("vNext learning repository", () => {
     expect(learning.reviewQueue("en", 3, 2_000)[0]).toMatchObject({
       patternKey: "missing_article",
     })
+  })
+
+  test("makes two non-minor findings in two Sessions immediately reviewable", () => {
+    const { learning } = repository()
+    learning.recordAnalysis(identity(1, { sessionId: "session-a" }), profile, true, [finding], [])
+    learning.recordAnalysis(identity(2, { sessionId: "session-b" }), profile, true, [finding], [])
+    expect(learning.patternDetail("en", "missing_article")).toMatchObject({
+      stage: "practicing",
+      occurrenceCount: 2,
+      sessionCount: 2,
+    })
+    expect(learning.reviewQueue("en", 3, 2_000)[0]?.patternKey).toBe("missing_article")
+  })
+
+  test("keeps minor findings as candidates until three errors span two Sessions", () => {
+    const { learning } = repository()
+    const minor = { ...finding, severity: "minor" as const }
+    learning.recordAnalysis(identity(1, { sessionId: "session-a" }), profile, true, [minor], [])
+    learning.recordAnalysis(identity(2, { sessionId: "session-b" }), profile, true, [minor], [])
+    expect(learning.patternDetail("en", "missing_article")?.stage).toBe("candidate")
+    learning.recordAnalysis(identity(3, { sessionId: "session-a" }), profile, true, [minor], [])
+    expect(learning.patternDetail("en", "missing_article")?.stage).toBe("practicing")
   })
 
   test("records known-pattern demonstrations but rejects unknown or conflicting ones", () => {
@@ -585,6 +609,43 @@ describe("vNext learning repository", () => {
     expect(summary.trends["7"].reduce((sum, point) => sum + point.targetAttempts, 0)).toBe(2)
   })
 
+  test("counts all local-day analysis activity without treating no-finding attempts as patterns", () => {
+    const { learning } = repository()
+    const now = Date.UTC(2026, 6, 29, 4)
+    for (let index = 0; index < 5; index++) {
+      learning.recordAnalysis(
+        identity(index, {
+          sessionId: index < 3 ? "session-a" : "session-b",
+          observedAt: now - index * 1_000,
+        }),
+        profile,
+        true,
+        [],
+        [],
+      )
+    }
+    learning.recordAnalysis(
+      identity(9, { sessionId: "session-c", observedAt: now }),
+      profile,
+      false,
+      [],
+      [],
+    )
+    const summary = learning.learningSummary("en", {
+      now,
+      timeZone: "Asia/Shanghai",
+    })
+    expect(summary).toMatchObject({
+      analyzedMessagesToday: 6,
+      targetAttemptsToday: 5,
+      targetSessionsToday: 2,
+      findingMessagesToday: 0,
+      findingsToday: 0,
+      totalPatternCount: 0,
+      lastAnalyzedAt: now,
+    })
+  })
+
   test("buckets activity by IANA timezone across a daylight-saving boundary", () => {
     const { learning } = repository()
     const beforeMidnight = Date.UTC(2026, 2, 8, 4, 30)
@@ -592,12 +653,47 @@ describe("vNext learning repository", () => {
     learning.recordAnalysis(identity(1, { observedAt: beforeMidnight }), profile, true, [], [])
     learning.recordAnalysis(identity(2, { observedAt: afterMidnight }), profile, true, [], [])
     const summary = learning.learningSummary("en", {
-      now: Date.UTC(2026, 2, 10, 12),
+      now: afterMidnight,
       timeZone: "America/New_York",
     })
     expect(summary.activeDays).toBe(2)
+    expect(summary).toMatchObject({
+      analyzedMessagesToday: 1,
+      targetAttemptsToday: 1,
+      targetSessionsToday: 1,
+    })
     expect(summary.trends["7"].map((point) => point.date)).toHaveLength(7)
     expect(new Set(summary.trends["7"].map((point) => point.date)).size).toBe(7)
+  })
+
+  test("applies Scope filtering to local-day activity", () => {
+    const { learning } = repository()
+    const now = Date.UTC(2026, 6, 29, 12)
+    learning.recordAnalysis(
+      identity(1, { scopeId: "scope-a", sessionId: "session-a", observedAt: now }),
+      profile,
+      true,
+      [finding],
+      [],
+    )
+    learning.recordAnalysis(
+      identity(2, { scopeId: "scope-b", sessionId: "session-b", observedAt: now }),
+      profile,
+      true,
+      [],
+      [],
+    )
+    expect(learning.learningSummary("en", {
+      scopeId: "scope-a",
+      now,
+      timeZone: "Asia/Shanghai",
+    })).toMatchObject({
+      analyzedMessagesToday: 1,
+      targetAttemptsToday: 1,
+      targetSessionsToday: 1,
+      findingMessagesToday: 1,
+      findingsToday: 1,
+    })
   })
 
   test("keeps an unbroken streak active until the next local day is missed", () => {
@@ -617,7 +713,7 @@ describe("vNext learning repository", () => {
     learning.recordAnalysis(identity(1, {
       scopeId: "scope-a",
       sessionId: "shared-session",
-    }), profile, true, [], [])
+    }), profile, true, [finding], [])
     learning.recordAnalysis(identity(2, {
       scopeId: "scope-a",
       sessionId: "shared-session",
@@ -628,6 +724,14 @@ describe("vNext learning repository", () => {
     }), profile, true, [], [])
     const journey = learning.journey({ targetLanguage: "en", limit: 20 })
     expect(journey.items.filter((event) => event.type === "practice_started")).toHaveLength(2)
+    expect(journey.items.find(
+      (event) => event.type === "practice_started" && event.sessionId === "shared-session",
+    )).toMatchObject({
+      attemptCount: 2,
+      findingMessageCount: 1,
+      findingCount: 1,
+      demonstrationCount: 0,
+    })
     expect(learning.learningSummary("en").targetAttempts).toBe(3)
   })
 
@@ -653,9 +757,16 @@ describe("vNext learning repository", () => {
     })
     expect(page.items).toHaveLength(1)
     const record = learning.learningRecord("en", page.items[0].id)
+    expect(record?.event).toMatchObject({
+      attemptCount: 2,
+      findingMessageCount: 1,
+      findingCount: 1,
+      demonstrationCount: 0,
+    })
     expect(record?.sessionSummary).toMatchObject({
       analyzedMessages: 2,
       targetAttempts: 2,
+      findingMessages: 1,
       findings: 1,
       discoveredPatterns: 1,
     })

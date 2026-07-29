@@ -1,6 +1,6 @@
 # Research Map
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## Overview
 
@@ -43,7 +43,7 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Vibe coding sessions | Not started | Design preferences captured |
 | Vibe research sessions | Not started | |
 | Vibe writing sessions | Not started | |
-| Daily agent Q&A | Not started | |
+| Daily agent Q&A | 🔄 Baseline captured | A 30-day local observation found a 40-message active-day median and 3-message Session median after excluding internal automation. Target-language attempt and evidence-yield rates remain open. |
 
 ### 4. Integration Patterns
 
@@ -57,6 +57,7 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Composer-native interaction model | Deferred experiment | Completion, decorations, preflight, and selection UI remain available if prompt-only coaching fails specific interaction needs. See `research/80_synthesis/integration-summaries/2026-07-26-composer-native-redesign.md`. |
 | Pattern learning & review | ✅ Implemented | Candidate/practicing/verified lifecycle, manual due queue, active recall, hints, repair, transfer, deterministic intervals, and resumable UI; no automatic invitation. |
 | Progress tracking | ✅ Implemented and audited | The sidebar learning workspace renders evidence-backed attempts, active days, curves, journey records, pattern detail, completion summaries, filters, and pagination; no score or inferred level. See `research/80_synthesis/product-briefs/2026-07-28-v04-frontend-capability-and-quality-audit.md`. |
+| Sparse-evidence parameter strategy | ✅ Accepted and implemented | V0.5 separates visible practice activity from accepted patterns, keeps `0.85`/`0.90` confidence thresholds, and promotes accepted non-minor findings after 2 occurrences in 2 Sessions. No tentative tier is stored. See `research/70_decisions/adr/2026-07-29-visible-practice-under-sparse-data.md`. |
 | Privacy & consent | ✅ Complete | Extract, don't store. Conversation NEVER persisted. User-owned data in Synergy scope. |
 
 ### 5. Product Strategy

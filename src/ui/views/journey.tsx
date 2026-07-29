@@ -19,6 +19,7 @@ import {
   formatNumber,
   formatRelativeDate,
   outcomeLabel,
+  practiceActivityLabel,
 } from "../i18n"
 import { createAbortableResource } from "../resource"
 
@@ -160,6 +161,12 @@ export const JourneyView: Component = () => {
                               <span class="vld-menu-item-sub">
                                 {event.patternKey
                                   ? dashboard.presentation(event.patternKey)?.label ?? event.patternKey
+                                  : event.type === "practice_started" && event.attemptCount != null
+                                    ? practiceActivityLabel(
+                                        dashboard.locale(),
+                                        event.attemptCount,
+                                        event.findingCount ?? 0,
+                                      )
                                   : event.sessionId
                                     ? dashboard.locale() === "zh-CN" ? "来自一个真实会话" : "From a real session"
                                     : formatRelativeDate(dashboard.locale(), event.occurredAt)}

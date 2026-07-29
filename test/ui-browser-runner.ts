@@ -35,6 +35,7 @@ const configuredSettings = {
 }
 let currentSettings: Record<string, unknown> = configuredSettings
 let currentReview: any
+let emptyCollections = false
 
 const pattern = {
   patternKey: "missing_article",
@@ -67,7 +68,13 @@ const summary = {
   setupRequired: false,
   targetLanguage: "en",
   analyzedMessages: 214,
+  analyzedMessagesToday: 12,
   findingsLast30Days: 31,
+  targetAttemptsToday: 5,
+  targetSessionsToday: 2,
+  findingMessagesToday: 2,
+  findingsToday: 2,
+  lastAnalyzedAt: now - 3 * 60_000,
   totalPatternCount: 11,
   recurringPatternCount: 4,
   candidatePatternCount: 4,
@@ -101,6 +108,10 @@ const journey = {
     occurredAt: now,
     scopeId: "scope-test",
     sessionId: "session-test",
+    attemptCount: 4,
+    findingMessageCount: 1,
+    findingCount: 1,
+    demonstrationCount: 1,
   }, {
     id: "44444444-4444-4444-8444-444444444444",
     type: "pattern_reviewable",
@@ -214,9 +225,14 @@ const context: any = {
       }
       if (id === "learning-summary") return summary
       if (id === "learning-journey") return journey
-      if (id === "review-queue") return { ...queue, activeReview: currentReview }
+      if (id === "review-queue") return {
+        ...queue,
+        due: emptyCollections ? [] : queue.due,
+        upcoming: emptyCollections ? [] : queue.upcoming,
+        activeReview: currentReview,
+      }
       if (id === "review-state") return { state: currentReview }
-      if (id === "learning-patterns") return { items: [pattern] }
+      if (id === "learning-patterns") return { items: emptyCollections ? [] : [pattern] }
       if (id === "learning-pattern-detail") return {
         found: true,
         pattern,
@@ -255,6 +271,7 @@ const context: any = {
         sessionSummary: {
           analyzedMessages: 8,
           targetAttempts: 8,
+          findingMessages: 2,
           findings: 2,
           demonstrations: 2,
           discoveredPatterns: 1,
@@ -335,11 +352,17 @@ const screens: Array<[string, string, any?]> = [
 ]
 
 const mounted = await mount("view=overview")
+assertText(mounted.target, "今日已检查 12 条消息")
+assertText(mounted.target, "5 次目标语言表达 · 2 个真实会话 · 2 条学习发现")
+assertText(mounted.target, "最后检查：3分钟前")
 for (const [route, expected, state] of screens) {
   currentReview = state
   context.host.openPluginPage("learning", Object.fromEntries(new URLSearchParams(route)))
   await new Promise((resolve) => setTimeout(resolve, 35))
   assertText(mounted.target, expected)
+  if (route === "view=journey") {
+    assertText(mounted.target, "4 次目标语言表达 · 1 条学习发现")
+  }
   if (state?.status === "completed") assertText(mounted.target, "查看学习记录")
   if (route === "view=review") {
     context.host.openPluginPage("learning", { view: "overview" })
@@ -356,10 +379,19 @@ await new Promise((resolve) => setTimeout(resolve, 0))
 assertText(document.body, "其他学习档案")
 profileButton.click()
 
+emptyCollections = true
+context.host.openPluginPage("learning", { view: "patterns" })
+await new Promise((resolve) => setTimeout(resolve, 35))
+assertText(mounted.target, "今天已经完成 5 次目标语言表达")
+context.host.openPluginPage("learning", { view: "review" })
+await new Promise((resolve) => setTimeout(resolve, 35))
+assertText(mounted.target, "当前没有到期复习。今天已完成 5 次目标语言表达，4 个模式仍在观察中。")
+emptyCollections = false
+
 await context.settings.replace({ ...configuredSettings, nativeLanguage: "", targetLanguage: "" })
 await new Promise((resolve) => setTimeout(resolve, 20))
 assertText(mounted.target, "设置你的学习档案")
 mounted.dispose()
 mounted.target.remove()
 
-console.log("14 VibeLingo UI states rendered successfully")
+console.log("16 VibeLingo UI states rendered successfully")

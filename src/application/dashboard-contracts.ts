@@ -73,13 +73,23 @@ export const JourneyEventSchema = z.object({
   patternKey: z.string().optional(),
   reviewId: z.string().optional(),
   reviewItemId: z.string().optional(),
+  attemptCount: z.number().int().nonnegative().optional(),
+  findingMessageCount: z.number().int().nonnegative().optional(),
+  findingCount: z.number().int().nonnegative().optional(),
+  demonstrationCount: z.number().int().nonnegative().optional(),
 })
 
 export const LearningSummaryOutputSchema = z.object({
   setupRequired: z.boolean().optional(),
   targetLanguage: z.string().optional(),
   analyzedMessages: z.number().int().nonnegative(),
+  analyzedMessagesToday: z.number().int().nonnegative(),
   findingsLast30Days: z.number().int().nonnegative(),
+  targetAttemptsToday: z.number().int().nonnegative(),
+  targetSessionsToday: z.number().int().nonnegative(),
+  findingMessagesToday: z.number().int().nonnegative(),
+  findingsToday: z.number().int().nonnegative(),
+  lastAnalyzedAt: z.number().optional(),
   totalPatternCount: z.number().int().nonnegative(),
   recurringPatternCount: z.number().int().nonnegative(),
   candidatePatternCount: z.number().int().nonnegative(),
@@ -113,7 +123,12 @@ export const LearningSummaryOutputSchema = z.object({
 
 export const EMPTY_LEARNING_SUMMARY = {
   analyzedMessages: 0,
+  analyzedMessagesToday: 0,
   findingsLast30Days: 0,
+  targetAttemptsToday: 0,
+  targetSessionsToday: 0,
+  findingMessagesToday: 0,
+  findingsToday: 0,
   totalPatternCount: 0,
   recurringPatternCount: 0,
   candidatePatternCount: 0,
@@ -315,6 +330,7 @@ export const LearningRecordOutputSchema = z.object({
   sessionSummary: z.object({
     analyzedMessages: z.number().int().nonnegative(),
     targetAttempts: z.number().int().nonnegative(),
+    findingMessages: z.number().int().nonnegative(),
     findings: z.number().int().nonnegative(),
     demonstrations: z.number().int().nonnegative(),
     discoveredPatterns: z.number().int().nonnegative(),

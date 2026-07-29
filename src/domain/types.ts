@@ -162,7 +162,13 @@ export type TrendPoint = {
 
 export type LearningSummary = {
   analyzedMessages: number
+  analyzedMessagesToday: number
   findingsLast30Days: number
+  targetAttemptsToday: number
+  targetSessionsToday: number
+  findingMessagesToday: number
+  findingsToday: number
+  lastAnalyzedAt?: number
   totalPatternCount: number
   recurringPatternCount: number
   candidatePatternCount: number

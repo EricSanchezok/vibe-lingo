@@ -17,7 +17,7 @@ VibeLingo has three independent paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.4.3` adds a Synergy sidebar entry with overview, journey, pattern, review, and settings views. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
+VibeLingo `0.5.0` makes sparse real-world practice visible: every successfully classified target-language message contributes to today's activity and its Session-level journey record, while only findings at or above the existing confidence threshold create learning patterns. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.4.3` includes the trusted learning workspace, private pattern presentation, non-destructive upgrades, and immediate opening corrections. Existing local learning history is preserved when upgrading from earlier versions.
+Version `0.5.0` includes the trusted learning workspace, private pattern presentation, non-destructive upgrades, immediate opening corrections, and visible same-day practice activity. Existing local learning history is preserved when upgrading from earlier versions.
 
 ## First-Time Setup
 
@@ -95,7 +95,7 @@ When the user explicitly asks about language progress, recurring mistakes, or hi
 plugin__vibe-lingo__progress
 ```
 
-The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It reports target-language attempts, active days, due reviews, candidate/practicing/verified patterns, natural correct uses, independent reviews, and up to three sanitized examples when explicitly requested. It does not estimate proficiency or claim permanent mastery.
+The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It reports today's analyzed messages, target-language attempts, active Sessions and findings alongside active days, due reviews, candidate/practicing/verified patterns, natural correct uses, independent reviews, and up to three sanitized examples when explicitly requested. It does not call a no-finding message “correct,” estimate proficiency, or claim permanent mastery.
 
 The settings view intentionally shows only a compact summary for the active target language. Detailed history belongs to the learning workspace. Settings can clear that language's records or all VibeLingo learning records through a Synergy host confirmation. Clearing data does not change settings.
 
@@ -103,7 +103,7 @@ The settings view intentionally shows only a compact summary for the active targ
 
 The `VibeLingo` sidebar entry is a single host page with horizontal product tabs rather than a nested sidebar:
 
-- **Overview** shows the current learning week, activity streak, 30-day activity heatmap, 7/30/90-day evidence curves, recent journey events, due review, and recent natural use.
+- **Overview** shows today's analyzed messages, target-language attempts, active Sessions and findings; the current learning week; activity streak; 30-day activity heatmap; 7/30/90-day evidence curves; recent journey events; due review; and recent natural use.
 - **Review** shows due and upcoming patterns. A review starts only after an explicit user action. When there are fewer than three due items, the user may include patterns due within the next seven days.
 - **Learning patterns** provides search, status/Scope filters, deterministic sorting, keyset pagination, pattern evidence, review history, scheduling, and lifecycle actions.
 - **Learning journey** provides event/time/Scope filters, keyset pagination, bounded record details, and current-Scope Session navigation when the host can resolve it.
@@ -115,7 +115,7 @@ Canonical pattern metadata remains stable English internal data. The workspace r
 
 ## Learning and Review Model
 
-A pattern starts as `candidate`. Three confident errors across at least two Sessions promote it to `practicing` and place it in the due queue. Review intervals follow a transparent `1 → 3 → 7 → 14 → 30` day ladder:
+A finding at confidence `0.85` or above creates a visible `candidate`; lower-confidence output is discarded rather than persisted as a second evidence tier. Two non-minor findings (`meaning_affecting` or `high_value`) across two Sessions promote the pattern to `practicing` and place it in the due queue. Minor-only patterns still require three findings across at least two Sessions. Review intervals follow a transparent `1 → 3 → 7 → 14 → 30` day ladder:
 
 - failed, abandoned, or assisted review returns in one day;
 - an independent review requires both unaided recall and a correct transfer task;
@@ -123,6 +123,8 @@ A pattern starts as `candidate`. Three confident errors across at least two Sess
 - a later confident error records a lapse, returns the pattern to `practicing`, and schedules it for the next day.
 
 `verified` is an evidence state, not a language level or a permanent mastery claim.
+
+The background analyzer makes one immediate in-memory retry after a timeout, unavailable model, or invalid response. If both attempts fail, it stops silently without creating a persistent job or storing the message text.
 
 The UI uses typed plugin operations for profiles, summary curves, journey records, pattern lists and details, due queue, resumable reviews, localized presentations, pattern controls, and cleanup. Review state includes per-item outcomes, independent-recall and transfer totals, each pattern's next due time, and the completion journey-event ID. The frontend renders these facts but does not reproduce lifecycle, scheduling, or evidence calculations.
 

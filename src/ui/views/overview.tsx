@@ -19,9 +19,11 @@ import {
   copy,
   eventLabel,
   formatDate,
+  formatLastChecked,
   formatNumber,
   formatRelativeDate,
   greeting,
+  practiceActivityLabel,
 } from "../i18n"
 import { createAbortableResource } from "../resource"
 
@@ -153,6 +155,30 @@ export const OverviewView: Component = () => {
               />
             }
           >
+            <section class="vld-today-practice" aria-label={dashboard.locale() === "zh-CN" ? "今日练习" : "Today's practice"}>
+              <div>
+                <p class="vld-eyebrow">
+                  {dashboard.locale() === "zh-CN" ? "今日练习" : "Today's practice"}
+                </p>
+                <strong class="vld-today-title">
+                  {dashboard.locale() === "zh-CN"
+                    ? `今日已检查 ${formatNumber(dashboard.locale(), summary()!.analyzedMessagesToday)} 条消息`
+                    : `${formatNumber(dashboard.locale(), summary()!.analyzedMessagesToday)} messages checked today`}
+                </strong>
+                <p class="vld-today-meta">
+                  {dashboard.locale() === "zh-CN"
+                    ? `${formatNumber(dashboard.locale(), summary()!.targetAttemptsToday)} 次目标语言表达 · ${formatNumber(dashboard.locale(), summary()!.targetSessionsToday)} 个真实会话 · ${formatNumber(dashboard.locale(), summary()!.findingsToday)} 条学习发现`
+                    : `${formatNumber(dashboard.locale(), summary()!.targetAttemptsToday)} target-language attempts · ${formatNumber(dashboard.locale(), summary()!.targetSessionsToday)} real sessions · ${formatNumber(dashboard.locale(), summary()!.findingsToday)} learning findings`}
+                </p>
+              </div>
+              <Show when={summary()!.lastAnalyzedAt}>
+                <span class="vld-list-meta">
+                  {dashboard.locale() === "zh-CN" ? "最后检查：" : "Last checked: "}
+                  {formatLastChecked(dashboard.locale(), summary()!.lastAnalyzedAt!)}
+                </span>
+              </Show>
+            </section>
+
             <section class="vld-panel vld-week-hero" aria-label={copy(dashboard.locale(), "week")}>
               <div>
                 <p class="vld-eyebrow">{copy(dashboard.locale(), "week")}</p>
@@ -190,20 +216,20 @@ export const OverviewView: Component = () => {
 
             <section class="vld-stat-row" aria-label={dashboard.locale() === "zh-CN" ? "学习摘要" : "Learning summary"}>
               <div class="vld-stat">
-                <span class="vld-stat-value">{summary()!.currentStreakDays}</span>
-                <span class="vld-stat-label">{copy(dashboard.locale(), "streak")} · {copy(dashboard.locale(), "days")}</span>
+                <span class="vld-stat-value">{summary()!.targetAttemptsToday}</span>
+                <span class="vld-stat-label">{dashboard.locale() === "zh-CN" ? "今日目标语言表达" : "Attempts today"}</span>
+              </div>
+              <div class="vld-stat">
+                <span class="vld-stat-value">{summary()!.targetSessionsToday}</span>
+                <span class="vld-stat-label">{dashboard.locale() === "zh-CN" ? "今日活跃会话" : "Active sessions today"}</span>
+              </div>
+              <div class="vld-stat">
+                <span class="vld-stat-value">{summary()!.candidatePatternCount}</span>
+                <span class="vld-stat-label">{dashboard.locale() === "zh-CN" ? "观察中的模式" : "Candidate patterns"}</span>
               </div>
               <div class="vld-stat">
                 <span class="vld-stat-value">{summary()!.duePatternCount}</span>
                 <span class="vld-stat-label">{copy(dashboard.locale(), "dueNow")}</span>
-              </div>
-              <div class="vld-stat">
-                <span class="vld-stat-value">{summary()!.reviewCount}</span>
-                <span class="vld-stat-label">{copy(dashboard.locale(), "reviews")}</span>
-              </div>
-              <div class="vld-stat">
-                <span class="vld-stat-value">{summary()!.verifiedPatternCount}</span>
-                <span class="vld-stat-label">{copy(dashboard.locale(), "verified")}</span>
               </div>
             </section>
 
@@ -264,6 +290,12 @@ export const OverviewView: Component = () => {
                                   <span class="vld-menu-item-sub">
                                     {event.patternKey
                                       ? dashboard.presentation(event.patternKey)?.label ?? event.patternKey
+                                      : event.type === "practice_started" && event.attemptCount != null
+                                        ? practiceActivityLabel(
+                                            dashboard.locale(),
+                                            event.attemptCount,
+                                            event.findingCount ?? 0,
+                                          )
                                       : formatRelativeDate(dashboard.locale(), event.occurredAt)}
                                   </span>
                                 </span>

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 
-test("renders the 14 Figma product states through the bundled Solid surface contract", async () => {
+test("renders the 16 Figma product states through the bundled Solid surface contract", async () => {
   const build = Bun.spawn([process.execPath, "run", "build"], {
     cwd: import.meta.dir + "/..",
     stdout: "pipe",
@@ -28,6 +28,6 @@ test("renders the 14 Figma product states through the bundled Solid surface cont
     new Response(child.stderr).text(),
   ])
   expect(stderr).toBe("")
-  expect(stdout).toContain("14 VibeLingo UI states rendered successfully")
+  expect(stdout).toContain("16 VibeLingo UI states rendered successfully")
   expect(exitCode).toBe(0)
 }, 30_000)

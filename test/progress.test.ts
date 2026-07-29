@@ -28,7 +28,12 @@ describe("progress output", () => {
         targetLanguage: "en",
         summary: {
           analyzedMessages: 12,
+          analyzedMessagesToday: 3,
           findingsLast30Days: 4,
+          targetAttemptsToday: 2,
+          targetSessionsToday: 1,
+          findingMessagesToday: 1,
+          findingsToday: 1,
           totalPatternCount: 1,
           recurringPatternCount: 1,
           candidatePatternCount: 0,
@@ -95,7 +100,12 @@ describe("progress output", () => {
         targetLanguage: "en",
         summary: {
           analyzedMessages: 1,
+          analyzedMessagesToday: 1,
           findingsLast30Days: 1,
+          targetAttemptsToday: 1,
+          targetSessionsToday: 1,
+          findingMessagesToday: 1,
+          findingsToday: 1,
           totalPatternCount: 1,
           recurringPatternCount: 0,
           candidatePatternCount: 1,
@@ -213,6 +223,14 @@ describe("progress output", () => {
       database,
     )
     expect(configured.title).toContain("Spanish")
-    expect(configured.metadata).toMatchObject({ language: "es", targetAttempts: 1 })
+    expect(configured.metadata).toMatchObject({
+      language: "es",
+      targetAttempts: 1,
+      analyzedMessagesToday: 1,
+      targetAttemptsToday: 1,
+      targetSessionsToday: 1,
+      findingMessagesToday: 1,
+      findingsToday: 1,
+    })
   })
 })

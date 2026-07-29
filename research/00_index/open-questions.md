@@ -1,6 +1,6 @@
 # Open Questions
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 These questions drive our research. Each question should eventually be answered by one or more source notes, concept notes, or synthesis notes. When a question is resolved, move it to an "Answered" section with a link to the evidence.
 
@@ -99,6 +99,10 @@ These questions drive our research. Each question should eventually be answered 
 - How do we measure learning effectiveness without being annoying (no pop quizzes)?
 - What engagement metrics indicate value (assistance requests per session, words reviewed, errors corrected)?
 - What failure signals should trigger a redesign (plugin disabled, requests ignored, negative feedback)?
+- What share of direct top-level user messages are target-language attempts?
+- What are analyzer success, finding, demonstration, canonical-reuse, and false-positive rates by language and category?
+- Does promoting two accepted non-minor errors across two Sessions improve time-to-value without increasing `not_error` actions?
+- What review batch size maximizes completion for Sessions whose median direct-user length is three messages?
 
 ### Risks
 - What if the plugin makes users more dependent on assistance rather than more independent?
@@ -111,3 +115,4 @@ These questions drive our research. Each question should eventually be answered 
 - **How is review triggered in v0.3?** The backend prepares a due queue. Review starts only by explicit operation; no Agenda task, task-boundary guess, or chat invitation.
 - **What counts as stable evidence?** Two independent recall+transfer reviews, later natural correct use, at least two Session identities, and seven elapsed days. A later error records a lapse.
 - **Should proficiency be assessed?** V0.3 continues to use a self-declared beginner/intermediate/advanced setting and does not infer CEFR.
+- **What is the ordinary direct-chat volume baseline?** In the observed 30-day local dataset, active days had a median of 40 direct top-level user messages and Sessions had a median of 3. See `research/60_evidence-bank/datasets/2026-07-29-synergy-direct-chat-frequency-baseline.md`.
