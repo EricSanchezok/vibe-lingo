@@ -4,7 +4,7 @@
 
 Accepted
 
-Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md` and `2026-07-28-evidence-learning-loop-and-review-backend.md`. The prompt-first work-first model remains the core; v0.3 limits recurring focus to active practicing patterns from the evidence lifecycle.
+Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md` and `2026-07-28-evidence-learning-loop-and-review-backend.md`. The prompt-first work-first model remains the core; v0.3 limits recurring focus to active practicing patterns from the evidence lifecycle. On 2026-07-29, foreground timing was tightened so useful correction appears in the opening coaching block rather than as a delayed final footnote.
 
 ## Context
 
@@ -123,8 +123,10 @@ The injected version should add these protections:
 - Clarification is required only when different interpretations would lead to materially different actions.
 - Good English produces no teaching output.
 - One correction is the ordinary maximum; use two only for independent, high-value issues.
+- When correction is warranted, the first user-visible text must contain the natural restatement and compact correction before any progress update, tool call, or substantive answer.
+- Continue the task immediately after that opening block; do not defer correction until the final answer.
 - Recurring-pattern claims should be based on injected learner memory, not the model's unreliable recollection.
-- If correction has already appeared in the current task response, do not repeat it in later tool-loop steps.
+- Do not repeat the opening correction in later tool-loop steps or the final answer.
 
 ## Consequences
 
@@ -134,7 +136,7 @@ The injected version should add these protections:
 - Fast MVP validation without Composer UI.
 - A single work-first mental model.
 - Explicit escape-hatch behavior.
-- Deferring corrections without delaying task execution.
+- Immediate correction without requiring the user to rewrite the task.
 
 ### Harder
 

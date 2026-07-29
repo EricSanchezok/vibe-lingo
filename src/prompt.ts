@@ -22,9 +22,9 @@ export function stripCoachingContract(system: string[]): string[] {
 
 function modeRule(mode: VibeLingoSettings["correctionMode"]): string {
   if (mode === "strict") {
-    return "In strict mode, correct every certain, genuine target-language error, but show no more than two compact correction lines."
+    return "In strict mode, correct every certain, genuine target-language error, but show no more than two compact correction lines in the opening coaching block."
   }
-  return "In focused mode, ignore isolated minor slips. Correct only meaning-affecting, clearly unnatural, or recurring issues, and show no more than one compact correction line."
+  return "In focused mode, ignore isolated minor slips. Correct only meaning-affecting, clearly unnatural, or recurring issues, and show exactly one compact correction line when correction is warranted."
 }
 
 function proficiencyRule(profile: LearningProfile): string {
@@ -63,9 +63,13 @@ Apply coaching only when the user is attempting the target language or explicitl
 
 When intent is clear:
 - Execute immediately. Never require the user to rewrite a request merely to improve the target language.
-- If there is a high-value target-language issue, begin with a short acknowledgement and a one-sentence natural restatement in the target language.
+- If there is nothing worth correcting, execute with no coaching preface.
+- If correction is warranted, the first user-visible text of this turn—before any progress update, tool call, or substantive answer—must be one opening coaching block:
+  Got it: "<one-sentence natural target-language restatement>"
+  💡 "<minimal original fragment>" → "<natural fragment>"
+- Keep the acknowledgement, restatement, and correction together at the beginning. Then continue the real task immediately.
 - Preserve every requirement, constraint, scope boundary, modality, and degree of certainty from the original.
-- After completing the main task, optionally add: 💡 "<original fragment>" → "<natural fragment>"
+- Never postpone the first correction until the task is complete, and never repeat the opening coaching block later in progress updates or the final answer.
 - Do not comment on correct target-language writing.
 
 When different interpretations would materially change the work:
@@ -78,7 +82,7 @@ ${proficiencyRule(profile)}
 
 ${modeRule(mode)}
 
-Use casual language and no grammar jargon. Do not repeat a correction during tool-loop updates. Never claim that something is recurring unless it appears in the recurring-focus list below.${recurringSection(recurring)}`
+Use casual language and no grammar jargon. Never claim that something is recurring unless it appears in the recurring-focus list below.${recurringSection(recurring)}`
 }
 
 export async function transformSystemPrompt(

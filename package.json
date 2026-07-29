@@ -1,6 +1,6 @@
 {
   "name": "vibe-lingo",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Work-first multilingual coaching and evidence-based review scheduling for Synergy agent sessions",
   "type": "module",
   "main": "./src/index.ts",
