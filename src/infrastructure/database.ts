@@ -3,7 +3,7 @@ import fs from "fs"
 import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 const REQUIRED_COLUMNS = {
   learning_profiles: [
@@ -21,6 +21,7 @@ const REQUIRED_COLUMNS = {
     "session_id",
     "analyzed_at",
     "classification",
+    "reason",
     "finding_count",
     "demonstration_count",
   ],
@@ -214,10 +215,13 @@ export class VibeLingoDatabase {
       }
       switch (this.#detectSchema(database)) {
         case "fresh":
-          this.#createV5Schema(database)
+          this.#createCurrentSchema(database)
+          break
+        case "v6_tables":
+          this.#repairIndexes(database)
           break
         case "v5_tables":
-          this.#repairIndexes(database)
+          this.#upgradeV5ToV6(database)
           break
         case "v1":
           this.#migrateLegacy(database, "v1")
@@ -248,7 +252,7 @@ export class VibeLingoDatabase {
 
   #detectSchema(
     database: Database,
-  ): "fresh" | "v5_tables" | "v1" | "v2" | "malformed" {
+  ): "fresh" | "v6_tables" | "v5_tables" | "v1" | "v2" | "malformed" {
     const tableRows = database
       .query<
         { name: string },
@@ -257,21 +261,41 @@ export class VibeLingoDatabase {
       .all();
     if (tableRows.length === 0) return "fresh"
 
-    const tableSet = new Set(tableRows.map((r) => r.name))
-    const v5TableNames = new Set(Object.keys(REQUIRED_COLUMNS))
+    const tableSet = new Set(tableRows.map((row) => row.name))
+    const currentTableNames = Object.keys(REQUIRED_COLUMNS)
 
-    if ([...v5TableNames].every((t) => tableSet.has(t))) {
+    if (currentTableNames.every((table) => tableSet.has(table))) {
+      let hasAllCurrentColumns = true
       for (const [table, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
         const presentColumns = new Set(
           database
             .query<{ name: string }, []>(`PRAGMA table_info("${table}")`)
             .all()
-            .map((r) => r.name),
+            .map((row) => row.name),
         );
-        if (requiredColumns.some((c) => !presentColumns.has(c)))
-          return "malformed"
+        if (requiredColumns.some((column) => !presentColumns.has(column))) {
+          hasAllCurrentColumns = false
+          break
+        }
       }
-      return "v5_tables"
+      if (hasAllCurrentColumns) return "v6_tables"
+
+      const missingOnlyReason = Object.entries(REQUIRED_COLUMNS).every(
+        ([table, requiredColumns]) => {
+          const presentColumns = new Set(
+            database
+              .query<{ name: string }, []>(`PRAGMA table_info("${table}")`)
+              .all()
+              .map((row) => row.name),
+          );
+          const missing = requiredColumns.filter((column) => !presentColumns.has(column))
+          return table === "analyzed_messages"
+            ? missing.length === 1 && missing[0] === "reason"
+            : missing.length === 0
+        },
+      )
+      if (missingOnlyReason) return "v5_tables"
+      return "malformed"
     }
 
     if (
@@ -327,7 +351,7 @@ export class VibeLingoDatabase {
     return "malformed"
   }
 
-  #createV5Schema(database: Database): void {
+  #createCurrentSchema(database: Database): void {
     for (const { name } of database
       .query<
         { name: string },
@@ -354,6 +378,7 @@ export class VibeLingoDatabase {
           analyzed_at INTEGER NOT NULL,
           classification TEXT NOT NULL
             CHECK(classification IN ('target_attempt', 'not_target', 'skipped')),
+          reason TEXT NOT NULL,
           finding_count INTEGER NOT NULL DEFAULT 0,
           demonstration_count INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (target_language, message_id)
@@ -548,7 +573,7 @@ export class VibeLingoDatabase {
         CREATE INDEX review_language_time
           ON review_sessions(target_language, started_at DESC);
 
-        PRAGMA user_version = 5
+        PRAGMA user_version = 6
       `);
   }
 
@@ -604,6 +629,13 @@ export class VibeLingoDatabase {
       );
     }
     database.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`)
+  }
+
+  #upgradeV5ToV6(database: Database): void {
+    database.exec(
+      "ALTER TABLE analyzed_messages ADD COLUMN reason TEXT NOT NULL DEFAULT 'historical_unknown'",
+    );
+    this.#repairIndexes(database)
   }
 
   #migrateLegacy(database: Database, kind: "v1" | "v2"): void {
@@ -689,7 +721,7 @@ export class VibeLingoDatabase {
       database.exec(`DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}"`)
     }
 
-    this.#createV5Schema(database)
+    this.#createCurrentSchema(database)
 
     for (const msg of legacyMessages) {
       const tl =
@@ -702,8 +734,8 @@ export class VibeLingoDatabase {
       database
         .query(
           `INSERT INTO analyzed_messages
-           (target_language, message_id, scope_id, session_id, analyzed_at, classification, finding_count, demonstration_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+           (target_language, message_id, scope_id, session_id, analyzed_at, classification, reason, finding_count, demonstration_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         )
         .run(
           tl,
@@ -712,6 +744,7 @@ export class VibeLingoDatabase {
           msg.session_id,
           msg.analyzed_at,
           classification,
+          classification === "target_attempt" ? "target_attempt" : "historical_unknown",
           fc,
         );
     }

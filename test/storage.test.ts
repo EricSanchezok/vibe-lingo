@@ -129,7 +129,7 @@ const v2Schema = `
 `
 
 describe("schema migration", () => {
-  test("fresh empty database creates v5 schema", () => {
+  test("fresh empty database creates current schema", () => {
     const { learning, filename } = repository()
     learning.initialize()
     const raw = new Database(filename, { readonly: true })
@@ -419,9 +419,57 @@ describe("schema migration", () => {
     ])
     overlapping.close()
   })
+
+  test("upgrades v5 in place and backfills historical reasons", () => {
+    const { learning, filename } = repository()
+    learning.recordSkipped(identity(1), profile, "too_little_target_language")
+    learning.recordAnalysis(identity(2), profile, true, [finding], [], "target_attempt")
+    learning.close()
+
+    const v5 = new Database(filename)
+    v5.exec("ALTER TABLE analyzed_messages DROP COLUMN reason")
+    v5.exec("PRAGMA user_version = 5")
+    v5.close()
+
+    const upgraded = new LearningRepository(new VibeLingoDatabase(filename))
+    upgraded.initialize()
+    const raw = new Database(filename, { readonly: true })
+    expect(Number(raw.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)).toBe(
+      SCHEMA_VERSION,
+    )
+    expect(raw.query<{ count: number }, []>(
+      "SELECT COUNT(*) AS count FROM analyzed_messages",
+    ).get()?.count).toBe(2)
+    expect(raw.query<{ count: number }, []>(
+      "SELECT COUNT(*) AS count FROM analyzed_messages WHERE reason = 'historical_unknown'",
+    ).get()?.count).toBe(2)
+    expect(raw.query("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" })
+    raw.close()
+    upgraded.close()
+  })
 })
 
 describe("vNext learning repository", () => {
+  test("persists skip and classification reasons", () => {
+    const { learning, filename } = repository()
+    learning.recordSkipped(identity(1), profile, "too_little_target_language")
+    learning.recordSkipped(identity(2), profile, "mostly_code")
+    learning.recordAnalysis(identity(3), profile, false, [], [], "not_target_language")
+    learning.recordAnalysis(identity(4), profile, true, [finding], [], "target_attempt")
+
+    const rows = new Database(filename, { readonly: true })
+      .query<{ message_id: string; classification: string; reason: string }, []>(
+        "SELECT message_id, classification, reason FROM analyzed_messages ORDER BY message_id",
+      )
+      .all()
+    expect(rows).toEqual([
+      { message_id: "message-1", classification: "skipped", reason: "too_little_target_language" },
+      { message_id: "message-2", classification: "skipped", reason: "mostly_code" },
+      { message_id: "message-3", classification: "not_target", reason: "not_target_language" },
+      { message_id: "message-4", classification: "target_attempt", reason: "target_attempt" },
+    ])
+  })
+
   test("deduplicates messages and promotes only after three errors in two Sessions", () => {
     const { learning } = repository()
     expect(learning.recordAnalysis(identity(1), profile, true, [finding], [])).toBe(true)

@@ -90,6 +90,16 @@ export type MessageIdentity = {
   observedAt: number
 }
 
+export const MessageReasonSchema = z.enum([
+  "too_long",
+  "mostly_code",
+  "too_little_target_language",
+  "historical_unknown",
+  "not_target_language",
+  "target_attempt",
+])
+export type MessageReason = z.infer<typeof MessageReasonSchema>
+
 export type StoredFinding = Omit<ErrorFinding, "originalFragment" | "correctedFragment"> & {
   originalFragment?: string
   correctedFragment?: string

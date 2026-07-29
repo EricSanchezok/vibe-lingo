@@ -203,8 +203,22 @@ export async function processUserMessage(
     const profile = configuredProfile(settings)
     if (!profile) return
     dependencies.learning.rememberProfile(profile, input.message.createdAt)
-    if (!settings.trackingEnabled) return
-    if (hasEscapeHatch(input.message.text)) return
+    if (!settings.trackingEnabled) {
+      context.log.debug("VibeLingo message analysis skipped", {
+        messageId: input.message.id,
+        classification: "skipped",
+        reason: "tracking_disabled",
+      })
+      return
+    }
+    if (hasEscapeHatch(input.message.text)) {
+      context.log.debug("VibeLingo message analysis skipped", {
+        messageId: input.message.id,
+        classification: "skipped",
+        reason: "escape_hatch",
+      })
+      return
+    }
     if (dependencies.learning.isAnalyzed(input.message.id, profile.targetLanguage)) return
 
     const identity = {
@@ -213,8 +227,15 @@ export async function processUserMessage(
       sessionId: context.sessionId ?? "",
       observedAt: input.message.createdAt,
     }
-    if (deterministicSkipReason(input.message.text, profile.targetLanguage)) {
-      dependencies.learning.recordSkipped(identity, profile)
+    const skipReason = deterministicSkipReason(input.message.text, profile.targetLanguage)
+    if (skipReason) {
+      dependencies.learning.recordSkipped(identity, profile, skipReason)
+      context.log.debug("VibeLingo message analysis skipped", {
+        messageId: input.message.id,
+        classification: "skipped",
+        reason: skipReason,
+        targetLanguage: profile.targetLanguage,
+      })
       return
     }
     if (!context.agent?.call) return
@@ -232,13 +253,24 @@ export async function processUserMessage(
       maxOutputChars: 3_000,
     })
     const result = parseAnalysisResult(response.text)
+    const findings = findingsForStorage(result, profile.targetLanguage)
+    const demonstrations = demonstrationsForStorage(result, knownPatterns, profile.targetLanguage)
     const recorded = dependencies.learning.recordAnalysis(
       identity,
       profile,
       result.isTargetLanguageAttempt,
-      findingsForStorage(result, profile.targetLanguage),
-      demonstrationsForStorage(result, knownPatterns, profile.targetLanguage),
+      findings,
+      demonstrations,
+      result.isTargetLanguageAttempt ? "target_attempt" : "not_target_language",
     )
+    context.log.debug("VibeLingo message analysis classified", {
+      messageId: input.message.id,
+      classification: result.isTargetLanguageAttempt ? "target_attempt" : "not_target",
+      reason: result.isTargetLanguageAttempt ? "target_attempt" : "not_target_language",
+      targetLanguage: profile.targetLanguage,
+      findingCount: findings.length,
+      demonstrationCount: demonstrations.length,
+    })
     if (recorded) {
       await context.events.publish("learning.changed", {
         targetLanguage: profile.targetLanguage,

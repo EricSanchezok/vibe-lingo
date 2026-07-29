@@ -15,6 +15,7 @@ import {
   type LearningEventType,
   type LearningSummary,
   type MessageIdentity,
+  type MessageReason,
   type PatternDisplayStatus,
   type PatternStage,
   type ProgressExample,
@@ -87,17 +88,21 @@ export class LearningRepository {
     transaction.immediate()
   }
 
-  recordSkipped(identity: MessageIdentity, profile: ProfileInput): boolean {
+  recordSkipped(
+    identity: MessageIdentity,
+    profile: ProfileInput,
+    reason?: MessageReason,
+  ): boolean {
     const db = this.db()
     const transaction = db.transaction(() => {
       this.upsertProfile(profile, identity.observedAt)
       const result = db
         .query(
           `INSERT OR IGNORE INTO analyzed_messages
-           (target_language, message_id, scope_id, session_id, analyzed_at, classification)
-           VALUES (?, ?, ?, ?, ?, 'skipped')`,
+           (target_language, message_id, scope_id, session_id, analyzed_at, classification, reason)
+           VALUES (?, ?, ?, ?, ?, 'skipped', ?)`,
         )
-        .run(profile.targetLanguage, identity.messageId, identity.scopeId, identity.sessionId, identity.observedAt)
+        .run(profile.targetLanguage, identity.messageId, identity.scopeId, identity.sessionId, identity.observedAt, reason ?? "historical_unknown")
       return count(result.changes) > 0
     })
     return transaction.immediate()
@@ -109,6 +114,7 @@ export class LearningRepository {
     isTargetLanguageAttempt: boolean,
     findings: StoredFinding[],
     demonstrations: StoredDemonstration[],
+    reason?: MessageReason,
   ): boolean {
     const db = this.db()
     const transaction = db.transaction(() => {
@@ -117,8 +123,8 @@ export class LearningRepository {
         .query(
           `INSERT OR IGNORE INTO analyzed_messages
            (target_language, message_id, scope_id, session_id, analyzed_at, classification,
-            finding_count, demonstration_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            reason, finding_count, demonstration_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           profile.targetLanguage,
@@ -127,6 +133,7 @@ export class LearningRepository {
           identity.sessionId,
           identity.observedAt,
           isTargetLanguageAttempt ? "target_attempt" : "not_target",
+          reason ?? (isTargetLanguageAttempt ? "target_attempt" : "not_target_language"),
           0,
           0,
         )

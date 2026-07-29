@@ -9,7 +9,7 @@ export function invocationContext(
     sessionId: "session-test",
     runtime: {
       hostVersion: "test",
-      pluginVersion: "0.4.2",
+      pluginVersion: "0.4.3",
       pluginGeneration: "generation-test",
       protocolVersion: 5,
     },

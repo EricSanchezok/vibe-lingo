@@ -57,7 +57,7 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.4.2",
+  version: "0.4.3",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   capabilities: [
     capability("session.read"),

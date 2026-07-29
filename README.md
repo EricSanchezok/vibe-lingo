@@ -17,7 +17,7 @@ VibeLingo has three independent paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.4.2` adds a Synergy sidebar entry with overview, journey, pattern, review, and settings views. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
+VibeLingo `0.4.3` adds a Synergy sidebar entry with overview, journey, pattern, review, and settings views. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.4.2` includes the trusted learning workspace, private pattern presentation, non-destructive upgrades, and immediate opening corrections. Existing local learning history is preserved when upgrading from earlier versions.
+Version `0.4.3` includes the trusted learning workspace, private pattern presentation, non-destructive upgrades, and immediate opening corrections. Existing local learning history is preserved when upgrading from earlier versions.
 
 ## First-Time Setup
 
@@ -154,7 +154,7 @@ Analyzer fragments are limited to 160 Unicode code points and review answers to 
 
 Learning records aggregate by target language across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Scope filters change the evidence view, not the global learning state or schedule. Cross-Scope fragments are never injected into the coaching prompt. A Session title is resolved only on demand in its current Scope; it is never copied into SQLite.
 
-SQLite schema version 5 is intentionally destructive during this unreleased development phase. It adds the native-language pattern-presentation cache. VibeLingo validates its required tables, columns, indexes, and current event contract under an exclusive initialization lock. If the version or shape is not current, it recreates its owned tables and discards earlier dogfood statistics. A second plugin generation that starts after the first one has initialized the schema reuses the new database rather than resetting it again.
+Upgrades preserve existing learning history and make analysis decisions directly inspectable for troubleshooting. If stored data has an unsupported shape, VibeLingo stops safely with a clear error instead of modifying it.
 
 A normal plugin uninstall deletes the VibeLingo data directory. Synergy force uninstall skips lifecycle cleanup and may leave the directory behind.
 
