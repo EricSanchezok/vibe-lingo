@@ -1,7 +1,7 @@
 import type { PluginInvocationContext } from "@ericsanchezok/synergy-plugin"
 import { containsSensitiveContent } from "../domain/privacy"
 import { canonicalLanguageTag } from "../language"
-import type { LearningProfile } from "../settings"
+import { modelRoleFromContext, type LearningProfile } from "../settings"
 import type { LearningRepository } from "../infrastructure/learning-repository"
 import type {
   PatternPresentationRepository,
@@ -77,6 +77,7 @@ export class PatternPresentationService {
     if (!context.agent?.call) return
     const response = await context.agent.call({
       agent: PATTERN_PRESENTER_AGENT_NAME,
+      modelRole: await modelRoleFromContext(context, "review"),
       text: `Localize this JSON:\n${JSON.stringify({
         supportLanguage: canonicalLanguageTag(profile.nativeLanguage) ?? profile.nativeLanguage,
         targetLanguage: canonicalLanguageTag(profile.targetLanguage) ?? profile.targetLanguage,

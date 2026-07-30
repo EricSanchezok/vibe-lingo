@@ -5,7 +5,7 @@ import type {
   ErrorSeverity,
   MessageIdentity,
 } from "../src/domain/types"
-import type { LearningProfile } from "../src/settings"
+import { DEFAULT_SETTINGS, type LearningProfile } from "../src/settings"
 
 export function invocationContext(
   overrides: Omit<Partial<PluginInvocationContext>, "agent"> & {
@@ -19,9 +19,9 @@ export function invocationContext(
     sessionId: "session-test",
     runtime: {
       hostVersion: "test",
-      pluginVersion: "0.6.0",
+      pluginVersion: "0.7.0",
       pluginGeneration: "generation-test",
-      protocolVersion: 8,
+      protocolVersion: 9,
     },
     actor: {
       type: "lifecycle",
@@ -35,6 +35,11 @@ export function invocationContext(
     },
     events: {
       async publish() {},
+    },
+    settings: {
+      async get() {
+        return DEFAULT_SETTINGS
+      },
     },
     agent: {
       async call() {

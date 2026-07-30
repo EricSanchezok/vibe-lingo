@@ -193,6 +193,7 @@ export const DashboardProvider: ParentComponent<{ context: PluginSurfaceContext 
     }
     const stopLearning = props.context.events.subscribe("learning.changed", onLearningEvent)
     const stopReview = props.context.events.subscribe("review.changed", onLearningEvent)
+    const stopTranslation = props.context.events.subscribe("translation.changed", onLearningEvent)
 
     void Promise.all([
       props.context.settings.get(),
@@ -213,6 +214,7 @@ export const DashboardProvider: ParentComponent<{ context: PluginSurfaceContext 
       stopSettings()
       stopLearning()
       stopReview()
+      stopTranslation()
     })
   })
 

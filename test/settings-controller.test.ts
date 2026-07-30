@@ -1,15 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import type { PluginSurfaceContext } from "@ericsanchezok/synergy-plugin/ui"
 import { createSettingsController } from "../src/ui/settings-controller"
-import type { VibeLingoSettings } from "../src/settings"
+import { DEFAULT_SETTINGS, type VibeLingoSettings } from "../src/settings"
 
 const english: VibeLingoSettings = {
+  ...DEFAULT_SETTINGS,
   nativeLanguage: "zh-Hans",
   targetLanguage: "en",
-  proficiency: "intermediate",
-  correctionMode: "focused",
-  trackingEnabled: true,
-  recurringFocusEnabled: true,
 }
 
 function surface(options: { failSave?: boolean; confirm?: boolean } = {}) {

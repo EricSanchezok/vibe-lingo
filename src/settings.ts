@@ -1,9 +1,19 @@
-import type { PluginInvocationContext } from "@ericsanchezok/synergy-plugin"
+import {
+  PLUGIN_MODEL_ROLES,
+  type PluginInvocationContext,
+  type PluginModelRole,
+} from "@ericsanchezok/synergy-plugin"
 import { z } from "zod"
 import { OptionalLanguageTagSchema, canonicalLanguageTag } from "./language"
 
 export const CorrectionModeSchema = z.enum(["focused", "strict", "off"])
 export const ProficiencySchema = z.enum(["beginner", "intermediate", "advanced"])
+export const ModelRoleSchema = z.enum(
+  PLUGIN_MODEL_ROLES.filter((role) => role !== "vision") as [
+    Exclude<PluginModelRole, "vision">,
+    ...Array<Exclude<PluginModelRole, "vision">>,
+  ],
+)
 
 export const VibeLingoSettingsSchema = z.object({
   nativeLanguage: OptionalLanguageTagSchema,
@@ -12,6 +22,11 @@ export const VibeLingoSettingsSchema = z.object({
   correctionMode: CorrectionModeSchema.default("focused"),
   trackingEnabled: z.boolean().default(true),
   recurringFocusEnabled: z.boolean().default(true),
+  languageDetectionModelRole: ModelRoleSchema.default("nano"),
+  learningAnalysisModelRole: ModelRoleSchema.default("mini"),
+  translationModelRole: ModelRoleSchema.default("mini"),
+  reviewModelRole: ModelRoleSchema.default("mini"),
+  translationHistoryEnabled: z.boolean().default(true),
 })
 
 export type VibeLingoSettings = z.infer<typeof VibeLingoSettingsSchema>
@@ -27,6 +42,34 @@ export const DEFAULT_SETTINGS: VibeLingoSettings = {
   correctionMode: "focused",
   trackingEnabled: true,
   recurringFocusEnabled: true,
+  languageDetectionModelRole: "nano",
+  learningAnalysisModelRole: "mini",
+  translationModelRole: "mini",
+  reviewModelRole: "mini",
+  translationHistoryEnabled: true,
+}
+
+export type ModelWorkload =
+  | "language_detection"
+  | "learning_analysis"
+  | "translation"
+  | "review"
+
+export function modelRoleFor(
+  settings: VibeLingoSettings,
+  workload: ModelWorkload,
+): PluginModelRole {
+  if (workload === "language_detection") return settings.languageDetectionModelRole
+  if (workload === "learning_analysis") return settings.learningAnalysisModelRole
+  if (workload === "translation") return settings.translationModelRole
+  return settings.reviewModelRole
+}
+
+export async function modelRoleFromContext(
+  context: PluginInvocationContext,
+  workload: ModelWorkload,
+): Promise<PluginModelRole> {
+  return modelRoleFor(await readSettings(context), workload)
 }
 
 export function configuredProfile(settings: VibeLingoSettings): LearningProfile | undefined {

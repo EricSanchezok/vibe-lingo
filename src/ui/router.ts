@@ -5,6 +5,7 @@ export type DashboardView =
   | "pattern"
   | "journey"
   | "record"
+  | "translations"
   | "settings"
 
 export type DashboardRoute = {
@@ -21,6 +22,7 @@ const VIEWS = new Set<DashboardView>([
   "pattern",
   "journey",
   "record",
+  "translations",
   "settings",
 ])
 const PATTERN_KEY = /^[a-z][a-z0-9_]{2,63}$/

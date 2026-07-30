@@ -27,13 +27,14 @@ This map shows what we know, what we're investigating, and where the evidence li
 
 | Sub-area | Status | Key Notes |
 |---|---|---|
-| Plugin manifest / lifecycle | 🔄 Revalidated | Plugin API 3 uses flat contributions, generated manifests, capability-gated Host Services, and trusted UI. The 2026-07-07 source map is historical. |
+| Plugin manifest / lifecycle | 🔄 Revalidated | Plugin API 4 uses flat kind-qualified contributions, generated manifests, capability-gated Host Services, and trusted UI. The 2026-07-07 source map is historical. |
 | Tool registration & invocation | ✅ Complete | tool() + ToolContext. Resident/group/search/internal exposure. Subagent task() from within tools. |
 | Agent / subagent interaction | ✅ Revalidated | Plugins can register hidden Agents, await bounded `agent.call`, or start memory-only bounded work with `agent.start`; directed completion arrives through `agent.call.after` without a Session/Cortex record. |
 | Memory / Notes / Agenda | Historical candidate | Available hooks do not make these the correct v0.3 business-data path. VibeLingo uses plugin SQLite and an explicit due queue; no automatic Agenda review. |
 | Composer interaction surfaces | ✅ Revalidated | Web Composer now exposes settled drafts, suffix completion, decorations, revision-safe edits, and normal-message preflight. See `research/20_synergy-platform/source-map/2026-07-26-plugin-interaction-hooks.md`. |
 | Post-submit and message surfaces | ✅ Revalidated | `session.user-message.after` observes ordinary persisted user messages; a plugin-owned Tool renderer can show the exact foreground correction and refresh from typed operations/events. |
-| Selection surfaces | ✅ Revalidated | Settled non-sensitive selections and text actions cover Composer, conversation DOM, Notes, Monaco source, and Terminal. Result presentation remains open. |
+| Selection surfaces | ✅ Revalidated | Immutable non-sensitive selection snapshots and additive text actions cover document DOM, inputs/textareas, Monaco, and Terminal. Synergy owns grouped context menus and accessible result popovers; Browser iframes remain excluded. |
+| Workload model roles | ✅ Revalidated | Bounded Agent calls may request only an approved public Synergy role; the host resolves its fallback chain and never accepts a concrete provider/model ID. |
 | Permission model | 🔄 Revalidated | Composer, selection, Session, Agent-call, and host-action capabilities are separately approved; write/intercept/Agent-call permissions carry a higher trust burden. |
 
 ### 3. User Workflows
@@ -58,6 +59,7 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Pattern learning & review | ✅ Implemented | Candidate/practicing/verified lifecycle, manual due queue, active recall, hints, repair, transfer, deterministic intervals, and resumable UI; no automatic invitation. |
 | Progress tracking | ✅ Implemented and audited | The sidebar learning workspace renders evidence-backed attempts, active days, curves, journey records, pattern detail, completion summaries, filters, and pagination; no score or inferred level. See `research/80_synthesis/product-briefs/2026-07-28-v04-frontend-capability-and-quality-audit.md`. |
 | Sparse-evidence parameter strategy | ✅ Accepted and implemented | V0.6 keeps visible practice activity separate from foreground corrections and accepted patterns, preserves `0.85`/`0.90` thresholds, and adds no tentative tier. See the sparse-data and foreground-authority ADRs. |
+| Selected-text translation | ✅ Accepted and implemented | V0.7 uses a host-composed text action, adaptive bidirectional translation, validated artifact caching, bounded history, and workload role settings. Translation remains assistive and never becomes independent learning evidence. |
 | Privacy & consent | ✅ Complete | Extract, don't store. Conversation NEVER persisted. User-owned data in Synergy scope. |
 
 ### 5. Product Strategy

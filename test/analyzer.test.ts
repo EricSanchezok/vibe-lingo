@@ -16,6 +16,7 @@ import {
 } from "../src/analysis"
 import { createServices } from "../src/application/services"
 import { VibeLingoDatabase } from "../src/infrastructure/database"
+import { DEFAULT_SETTINGS } from "../src/settings"
 import { invocationContext, seedCorrection } from "./helpers"
 
 const temporaryDirectories: string[] = []
@@ -27,12 +28,10 @@ function setup() {
     new VibeLingoDatabase(path.join(directory, "vibe-lingo.sqlite")),
   )
   const settings = {
+    ...DEFAULT_SETTINGS,
     nativeLanguage: "zh-Hans",
     targetLanguage: "en",
     proficiency: "intermediate" as const,
-    correctionMode: "focused" as const,
-    trackingEnabled: true,
-    recurringFocusEnabled: true,
   }
   const dependencies: AnalysisDependencies = {
     services,
@@ -76,6 +75,7 @@ describe("nano language classification", () => {
         agent: {
           async call(input) {
             expect(input.agent).toBe(LANGUAGE_CLASSIFIER_AGENT_NAME)
+            expect(input.modelRole).toBe("nano")
             calls++
             return { text: calls === 1 ? "not json" : '{"isTargetLanguageAttempt":true}' }
           },
@@ -162,6 +162,7 @@ describe("lightweight asynchronous teaching analysis", () => {
       },
     }, context, dependencies)
     expect(started?.agent).toBe(USAGE_ANALYZER_AGENT_NAME)
+    expect((started as { modelRole?: string } | undefined)?.modelRole).toBe("mini")
     expect(started?.text).toContain("missing_article")
 
     const completion = {
@@ -226,8 +227,9 @@ describe("lightweight asynchronous teaching analysis", () => {
           classifierCalls++
           return { text: '{"isTargetLanguageAttempt":false}' }
         },
-        async start(input) {
-          expect(input.agent).toBe(USAGE_ANALYZER_AGENT_NAME)
+          async start(input) {
+            expect(input.agent).toBe(USAGE_ANALYZER_AGENT_NAME)
+            expect(input.modelRole).toBe("mini")
           usageStarts++
           return { callId: "usage-tool-first" }
         },
@@ -286,6 +288,7 @@ describe("lightweight asynchronous teaching analysis", () => {
       dependencies,
     )).toBe("queued")
     expect(request?.agent).toBe(CORRECTION_ANALYZER_AGENT_NAME)
+    expect((request as { modelRole?: string } | undefined)?.modelRole).toBe("mini")
     expect(request?.text).toBe(correctionAnalyzerRequest(
       created.batch,
       {

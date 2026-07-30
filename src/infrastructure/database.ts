@@ -3,7 +3,7 @@ import fs from "fs"
 import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 const REQUIRED_TABLES = [
   "learning_profiles",
@@ -19,6 +19,8 @@ const REQUIRED_TABLES = [
   "review_attempts",
   "review_commands",
   "learning_events",
+  "translations",
+  "translation_occurrences",
 ] as const
 
 const REQUIRED_COLUMNS: Record<string, string[]> = {
@@ -63,6 +65,13 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
     "event_type",
     "correction_batch_id",
   ],
+  translations: [
+    "profile_target_language",
+    "native_language",
+    "destination_policy",
+    "source_hash",
+    "translated_text",
+  ],
 }
 
 const REQUIRED_INDEXES = [
@@ -76,6 +85,8 @@ const REQUIRED_INDEXES = [
   "evidence_scope_time",
   "events_language_time",
   "review_language_time",
+  "translations_language_time",
+  "translation_occurrences_time",
 ] as const
 
 export function defaultDataDirectory(): string {
@@ -418,6 +429,42 @@ export class VibeLingoDatabase {
           ON DELETE CASCADE
       );
 
+      CREATE TABLE translations (
+        id TEXT PRIMARY KEY,
+        profile_target_language TEXT NOT NULL,
+        native_language TEXT NOT NULL,
+        destination_policy TEXT NOT NULL
+          CHECK(destination_policy IN ('adaptive', 'native', 'target')),
+        detected_source_language TEXT NOT NULL,
+        destination_language TEXT NOT NULL,
+        source_hash TEXT NOT NULL,
+        source_preview TEXT,
+        source_char_count INTEGER NOT NULL,
+        translated_text TEXT NOT NULL,
+        contract_version INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL,
+        use_count INTEGER NOT NULL DEFAULT 1,
+        UNIQUE (
+          profile_target_language,
+          native_language,
+          destination_policy,
+          source_hash,
+          contract_version
+        )
+      );
+
+      CREATE TABLE translation_occurrences (
+        id TEXT PRIMARY KEY,
+        translation_id TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        session_id TEXT,
+        used_at INTEGER NOT NULL,
+        cache_hit INTEGER NOT NULL CHECK(cache_hit IN (0, 1)),
+        FOREIGN KEY (translation_id) REFERENCES translations(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX observations_language_time
         ON message_observations(target_language, observed_at DESC);
       CREATE INDEX observations_scope_time
@@ -436,8 +483,12 @@ export class VibeLingoDatabase {
         ON learning_events(target_language, occurred_at DESC, id DESC);
       CREATE INDEX review_language_time
         ON review_sessions(target_language, started_at DESC);
+      CREATE INDEX translations_language_time
+        ON translations(profile_target_language, last_used_at DESC, id DESC);
+      CREATE INDEX translation_occurrences_time
+        ON translation_occurrences(translation_id, used_at DESC);
 
-      PRAGMA user_version = 7;
+      PRAGMA user_version = 8;
       COMMIT;
     `)
   }

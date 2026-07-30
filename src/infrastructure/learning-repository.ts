@@ -1875,12 +1875,24 @@ export class LearningRepository {
     const transaction = db.transaction(() => {
       const tableCount = (table: string) =>
         count(db.query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM ${table}${where}`).get(...bindings)?.count)
+      const deletedTranslations = input.scope === "target"
+        ? count(
+            db.query<{ count: number }, [string]>(
+              "SELECT COUNT(*) AS count FROM translations WHERE profile_target_language = ?",
+            ).get(input.targetLanguage)?.count,
+          )
+        : count(
+            db.query<{ count: number }, []>(
+              "SELECT COUNT(*) AS count FROM translations",
+            ).get()?.count,
+          )
       const result = {
         deletedMessages: tableCount("message_observations"),
         deletedOccurrences: tableCount("pattern_evidence"),
         deletedPatterns: tableCount("learning_patterns"),
         deletedReviews: tableCount("review_sessions"),
         deletedEvents: tableCount("learning_events"),
+        deletedTranslations,
       }
       for (const table of [
         "learning_events",
@@ -1894,6 +1906,13 @@ export class LearningRepository {
         "learning_profiles",
       ]) {
         db.query(`DELETE FROM ${table}${where}`).run(...bindings)
+      }
+      if (input.scope === "target") {
+        db.query(
+          "DELETE FROM translations WHERE profile_target_language = ?",
+        ).run(input.targetLanguage)
+      } else {
+        db.exec("DELETE FROM translations")
       }
       return result
     })

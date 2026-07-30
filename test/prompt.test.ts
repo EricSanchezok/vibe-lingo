@@ -9,6 +9,7 @@ import {
 } from "../src/prompt"
 import { isUserFacingRootSession } from "../src/session"
 import type { RecurringPattern } from "../src/domain/types"
+import { DEFAULT_SETTINGS } from "../src/settings"
 import { invocationContext } from "./helpers"
 
 const profile = {
@@ -42,10 +43,8 @@ function dependencies(
   return {
     async readSettings() {
       return {
+        ...DEFAULT_SETTINGS,
         ...profile,
-        correctionMode: "focused",
-        trackingEnabled: true,
-        recurringFocusEnabled: true,
       }
     },
     async hasEligibleSession() {
@@ -120,10 +119,9 @@ describe("coaching contract", () => {
       invocationContext(),
       dependencies({
         readSettings: async () => ({
+          ...DEFAULT_SETTINGS,
           ...profile,
           correctionMode: "off",
-          trackingEnabled: true,
-          recurringFocusEnabled: true,
         }),
       }),
     )
@@ -138,11 +136,9 @@ describe("coaching contract", () => {
       invocationContext(),
       dependencies({
         readSettings: async () => ({
+          ...DEFAULT_SETTINGS,
           ...profile,
           nativeLanguage: "",
-          correctionMode: "focused",
-          trackingEnabled: true,
-          recurringFocusEnabled: true,
         }),
       }),
     )

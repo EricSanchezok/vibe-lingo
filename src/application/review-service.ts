@@ -7,7 +7,7 @@ import type {
   ReviewEvaluation,
   ReviewState,
 } from "../domain/types"
-import type { LearningProfile } from "../settings"
+import { modelRoleFromContext, type LearningProfile } from "../settings"
 import { LearningRepository } from "../infrastructure/learning-repository"
 import { ReviewRepository } from "../infrastructure/review-repository"
 import {
@@ -217,6 +217,7 @@ export class ReviewService {
     try {
       const response = await context.agent.call({
         agent: REVIEW_BUILDER_AGENT_NAME,
+        modelRole: await modelRoleFromContext(context, "review"),
         text: `Create the review item from this JSON:\n${request}`,
         timeoutMs: 15_000,
         maxOutputChars: 5_000,
@@ -243,6 +244,7 @@ export class ReviewService {
     try {
       const response = await context.agent.call({
         agent: REVIEW_EVALUATOR_AGENT_NAME,
+        modelRole: await modelRoleFromContext(context, "review"),
         text: `Evaluate this JSON:\n${JSON.stringify({
           supportLanguage: profile.nativeLanguage,
           targetLanguage: profile.targetLanguage,

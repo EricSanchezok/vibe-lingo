@@ -110,10 +110,10 @@ export async function recordCorrectionTool(
   if (!batch) throw new Error("VibeLingo could not read the saved correction.")
   const analysisStatus = ["pending", "queued"].includes(batch.status)
     ? await enqueueCorrectionAnalysis(batch, profile, context, {
-        services,
-        readSettings,
-        hasEligibleSession: hasUserFacingRootSession,
-      })
+      services,
+      readSettings,
+      hasEligibleSession: hasUserFacingRootSession,
+    }, settings)
     : batch.status
   try {
     await context.events.publish("learning.changed", {

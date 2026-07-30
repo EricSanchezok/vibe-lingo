@@ -570,12 +570,15 @@ const clearLearningDataOperation = operation({
         deletedPatterns: z.number().int().nonnegative(),
         deletedReviews: z.number().int().nonnegative(),
         deletedEvents: z.number().int().nonnegative(),
+        deletedTranslations: z.number().int().nonnegative(),
       }),
     }),
     z.object({ ok: z.literal(false), error: CommandErrorSchema }),
   ]),
   async handler(input, context) {
-    const result = defaultServices().learning.clearLearningData(input)
+    const services = defaultServices()
+    const result = services.learning.clearLearningData(input)
+    services.translationService.clearMemory()
     if (input.scope === "target") {
       await publishSafely(context, "learning.changed", {
         targetLanguage: input.targetLanguage,

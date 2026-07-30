@@ -215,6 +215,7 @@ export type ClearLearningDataResult = {
   deletedPatterns: number
   deletedReviews: number
   deletedEvents: number
+  deletedTranslations: number
 }
 
 export type ReviewItemStage =

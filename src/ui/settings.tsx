@@ -70,6 +70,18 @@ type Copy = {
   trackingDescription: string
   recurring: string
   recurringDescription: string
+  models: string
+  modelsDescription: string
+  detectionModel: string
+  detectionModelDescription: string
+  analysisModel: string
+  analysisModelDescription: string
+  translationModel: string
+  translationModelDescription: string
+  reviewModel: string
+  reviewModelDescription: string
+  translationHistory: string
+  translationHistoryDescription: string
   on: string
   offState: string
   data: string
@@ -131,6 +143,18 @@ const COPY: Record<UiLocale, Copy> = {
     trackingDescription: "Analyze eligible messages and store minimal local learning signals.",
     recurring: "Use recurring focus",
     recurringDescription: "Prioritize established patterns when they appear again.",
+    models: "Models",
+    modelsDescription: "Choose a Synergy model role for each kind of language work.",
+    detectionModel: "Language detection",
+    detectionModelDescription: "Classifies whether a message is an attempt in your target language.",
+    analysisModel: "Learning analysis",
+    analysisModelDescription: "Organizes visible corrections and recognizes natural use of known patterns.",
+    translationModel: "Translation",
+    translationModelDescription: "Translates selected text into your native or target language.",
+    reviewModel: "Review and presentation",
+    reviewModelDescription: "Builds and evaluates reviews and presents learning patterns.",
+    translationHistory: "Save translation history",
+    translationHistoryDescription: "Save bounded translations locally and reuse them without another model call.",
     on: "On",
     offState: "Off",
     data: "Learning data",
@@ -193,6 +217,18 @@ const COPY: Record<UiLocale, Copy> = {
     trackingDescription: "分析符合条件的消息，并在本地保存最少量学习信号。",
     recurring: "使用重复模式",
     recurringDescription: "同一问题再次出现时优先提醒。",
+    models: "模型",
+    modelsDescription: "为不同类型的语言任务选择 Synergy 模型角色。",
+    detectionModel: "语言检测",
+    detectionModelDescription: "判断消息是否是在尝试使用目标语言。",
+    analysisModel: "学习分析",
+    analysisModelDescription: "整理已展示的纠正，并识别已知模式的自然正确使用。",
+    translationModel: "划词翻译",
+    translationModelDescription: "把选中的文字翻译成母语或目标语言。",
+    reviewModel: "复习与模式呈现",
+    reviewModelDescription: "生成和评估复习内容，并呈现学习模式。",
+    translationHistory: "保存翻译记录",
+    translationHistoryDescription: "在本地保存有限长度的译文，重复选择时无需再次调用模型。",
     on: "开启",
     offState: "关闭",
     data: "学习数据",
@@ -268,6 +304,9 @@ const styles = `
 .vl-row-copy{min-width:0}
 .vl-row-title{display:block;color:var(--text-strong);font-weight:var(--font-weight-medium,500)}
 .vl-row-description{display:block;margin-top:3px;color:var(--text-weak);font-size:var(--type-ui-caption-size,.75rem);line-height:1.45}
+.vl-model-select{min-width:190px;height:38px;border:1px solid var(--border-weaker-base);border-radius:8px;background:var(--input-base);color:var(--text-strong);padding:0 30px 0 10px;font:inherit;outline:none}
+.vl-model-select:focus-visible{border-color:var(--border-strong-base);box-shadow:0 0 0 3px color-mix(in srgb,var(--text-strong) 8%,transparent)}
+.vl-model-select:disabled{cursor:not-allowed;opacity:.5}
 .vl-switch-wrap{display:flex;align-items:center;gap:8px;color:var(--text-weak);font-size:var(--type-ui-caption-size,.75rem)}
 .vl-switch{position:relative;width:44px;height:44px;border:0;background:transparent;padding:0;cursor:pointer}
 .vl-switch-track{position:absolute;left:2px;top:11px;width:40px;height:22px;border-radius:999px;background:var(--surface-disabled);transition:background-color 160ms ease}
@@ -283,7 +322,7 @@ const styles = `
 .vl-skeleton-line{height:14px;border-radius:6px;background:var(--surface-inset-base);margin-top:12px}
 .vl-skeleton-line:nth-child(1){width:42%}.vl-skeleton-line:nth-child(2){width:86%}.vl-skeleton-line:nth-child(3){width:68%}
 @media(max-width:720px){.vl-settings{width:100%;padding:28px 24px 44px}.vl-language-grid{grid-template-columns:1fr;gap:14px}.vl-language-arrow{height:18px;transform:rotate(90deg)}.vl-field-help{min-height:0}.vl-header{align-items:flex-start}.vl-data-actions{justify-content:flex-start}}
-@media(max-width:480px){.vl-settings{padding:24px 16px 36px}.vl-header{display:block}.vl-header-state{width:max-content;margin-top:14px}.vl-save-state{text-align:left}.vl-segmented{grid-template-columns:1fr}.vl-setting-row{align-items:flex-start}.vl-switch-wrap{padding-top:1px}.vl-data-actions{align-items:stretch;flex-direction:column}.vl-button{width:100%}}
+@media(max-width:480px){.vl-settings{padding:24px 16px 36px}.vl-header{display:block}.vl-header-state{width:max-content;margin-top:14px}.vl-save-state{text-align:left}.vl-segmented{grid-template-columns:1fr}.vl-setting-row{align-items:flex-start}.vl-model-select{min-width:145px;max-width:48%}.vl-switch-wrap{padding-top:1px}.vl-data-actions{align-items:stretch;flex-direction:column}.vl-button{width:100%}}
 @media(prefers-reduced-motion:reduce){.vl-combobox,.vl-segment,.vl-button,.vl-switch-track,.vl-switch-knob{transition:none}}
 `
 
@@ -554,6 +593,43 @@ const SettingSwitch: Component<{
         </span>
       </button>
     </div>
+  </div>
+)
+
+const MODEL_ROLES = [
+  { value: "nano", en: "Nano · fastest", zh: "Nano · 最快" },
+  { value: "mini", en: "Mini · balanced", zh: "Mini · 均衡" },
+  { value: "mid", en: "Mid · more capable", zh: "Mid · 更强" },
+  { value: "thinking", en: "Thinking · deeper reasoning", zh: "Thinking · 深度推理" },
+  { value: "long", en: "Long · long context", zh: "Long · 长上下文" },
+  { value: "creative", en: "Creative · expressive", zh: "Creative · 更具表达力" },
+] as const
+
+const ModelRoleRow: Component<{
+  label: string
+  description: string
+  value: VibeLingoSettings["translationModelRole"]
+  locale: UiLocale
+  disabled?: boolean
+  onChange(value: VibeLingoSettings["translationModelRole"]): void
+}> = (props) => (
+  <div class="vl-setting-row">
+    <div class="vl-row-copy">
+      <label class="vl-row-title">{props.label}</label>
+      <span class="vl-row-description">{props.description}</span>
+    </div>
+    <select
+      class="vl-model-select"
+      value={props.value}
+      disabled={props.disabled}
+      aria-label={props.label}
+      onChange={(event) =>
+        props.onChange(event.currentTarget.value as VibeLingoSettings["translationModelRole"])}
+    >
+      <For each={MODEL_ROLES}>
+        {(role) => <option value={role.value}>{props.locale === "zh-CN" ? role.zh : role.en}</option>}
+      </For>
+    </select>
   </div>
 )
 
@@ -871,11 +947,63 @@ export const SettingsView: Component<SurfaceInput> = (input) => {
             />
           </section>
 
+          <section class="vl-section" aria-labelledby="vl-models-title">
+            <div class="vl-section-head">
+              <h2 id="vl-models-title" class="vl-section-title">{copy().models}</h2>
+              <p class="vl-section-copy">{copy().modelsDescription}</p>
+            </div>
+            <ModelRoleRow
+              label={copy().detectionModel}
+              description={copy().detectionModelDescription}
+              value={settings().languageDetectionModelRole}
+              locale={locale()}
+              disabled={saveState() === "saving"}
+              onChange={(languageDetectionModelRole) =>
+                void persist({ ...settings(), languageDetectionModelRole })}
+            />
+            <ModelRoleRow
+              label={copy().analysisModel}
+              description={copy().analysisModelDescription}
+              value={settings().learningAnalysisModelRole}
+              locale={locale()}
+              disabled={saveState() === "saving"}
+              onChange={(learningAnalysisModelRole) =>
+                void persist({ ...settings(), learningAnalysisModelRole })}
+            />
+            <ModelRoleRow
+              label={copy().translationModel}
+              description={copy().translationModelDescription}
+              value={settings().translationModelRole}
+              locale={locale()}
+              disabled={saveState() === "saving"}
+              onChange={(translationModelRole) =>
+                void persist({ ...settings(), translationModelRole })}
+            />
+            <ModelRoleRow
+              label={copy().reviewModel}
+              description={copy().reviewModelDescription}
+              value={settings().reviewModelRole}
+              locale={locale()}
+              disabled={saveState() === "saving"}
+              onChange={(reviewModelRole) => void persist({ ...settings(), reviewModelRole })}
+            />
+          </section>
+
           <section class="vl-section" aria-labelledby="vl-data-title">
             <div class="vl-section-head">
               <h2 id="vl-data-title" class="vl-section-title">{copy().data}</h2>
               <p class="vl-section-copy">{copy().dataDescription}</p>
             </div>
+            <SettingSwitch
+              label={copy().translationHistory}
+              description={copy().translationHistoryDescription}
+              checked={settings().translationHistoryEnabled}
+              disabled={saveState() === "saving"}
+              onLabel={copy().on}
+              offLabel={copy().offState}
+              onChange={(translationHistoryEnabled) =>
+                void persist({ ...settings(), translationHistoryEnabled })}
+            />
             <Show
               when={summary() && (
                 summary()!.analyzedMessages > 0 ||

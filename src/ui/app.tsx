@@ -20,6 +20,7 @@ import { JourneyView, RecordView } from "./views/journey"
 import { OverviewView } from "./views/overview"
 import { PatternDetailView, PatternsView } from "./views/patterns"
 import { ReviewView } from "./views/review"
+import { TranslationsView } from "./views/translations"
 
 const DashboardApp: Component = () => {
   const dashboard = useDashboard()
@@ -60,6 +61,14 @@ const DashboardApp: Component = () => {
                   onClick={() => dashboard.navigate({ view: "patterns" })}
                 >
                   {copy(dashboard.locale(), "patterns")}
+                </button>
+                <button
+                  class="vld-tab"
+                  data-active={route().view === "translations"}
+                  type="button"
+                  onClick={() => dashboard.navigate({ view: "translations" })}
+                >
+                  {copy(dashboard.locale(), "translations")}
                 </button>
               </nav>
             </Show>
@@ -130,6 +139,7 @@ const DashboardApp: Component = () => {
                   <Match when={route().view === "overview"}><OverviewView /></Match>
                   <Match when={route().view === "review"}><ReviewView reviewId={route().reviewId} /></Match>
                   <Match when={route().view === "patterns"}><PatternsView /></Match>
+                  <Match when={route().view === "translations"}><TranslationsView /></Match>
                   <Match when={route().view === "pattern" && route().patternKey}>
                     <PatternDetailView patternKey={route().patternKey!} />
                   </Match>

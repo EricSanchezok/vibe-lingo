@@ -4,7 +4,7 @@ VibeLingo is a prompt-first multilingual coaching plugin for Synergy. It keeps t
 
 ## Requirements
 
-- Synergy with Plugin Runtime Protocol 8 (`context.agent.start()` and `agent.call.after`)
+- Synergy with Plugin API 4 and Plugin Runtime Protocol 9 (composable text actions, host-managed result popovers, per-call model roles, `agent.start()`, and `agent.call.after`)
 - Bun `>=1.3.0`
 
 ## How It Works
@@ -17,7 +17,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.6.0` aligns foreground teaching with durable learning history: the exact correction displayed in chat is saved atomically before metadata analysis starts. Target-language activity remains visible even when no correction is needed. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
+VibeLingo `0.7.0` aligns foreground teaching with durable learning history and adds explicit selected-text translation. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.6.0` requires the paired Synergy Host API. This development release performs a destructive schema reset: v0.5 and earlier local learning history is deleted instead of migrated. Stop the old Synergy/plugin generation before starting v0.6.
+Version `0.7.0` requires the paired Synergy Host API. This development release performs a destructive schema-v8 reset: every earlier local learning and translation database is deleted instead of migrated. Stop the old Synergy/plugin generation before starting v0.7.
 
 ## First-Time Setup
 
@@ -53,7 +53,7 @@ Language values are canonical BCP-47 tags supported by the current JavaScript `I
 
 The settings page includes English and Simplified Chinese copy. Before setup it follows `document.documentElement.lang`; after setup it uses Chinese for a Chinese support language and otherwise falls back to English. Language names come from `Intl.DisplayNames`.
 
-Non-English targets use the same contract, privacy rules, and isolated storage model as English. Classification quality still depends on the configured mini model, and equal quality across every `Intl`-supported language is not claimed.
+Non-English targets use the same contract, privacy rules, and isolated storage model as English. Classification, analysis, translation, and review quality depend on the models resolved for their configured Synergy roles; equal quality across every `Intl`-supported language is not claimed.
 
 ## Settings
 
@@ -66,7 +66,12 @@ The complete settings shape is:
   "proficiency": "intermediate", // beginner | intermediate | advanced
   "correctionMode": "focused",   // focused | strict | off
   "trackingEnabled": true,
-  "recurringFocusEnabled": true
+  "recurringFocusEnabled": true,
+  "languageDetectionModelRole": "nano",
+  "learningAnalysisModelRole": "mini",
+  "translationModelRole": "mini",
+  "reviewModelRole": "mini",
+  "translationHistoryEnabled": true
 }
 ```
 
@@ -78,6 +83,8 @@ The complete settings shape is:
 - `off` disables foreground coaching without deleting or disabling background tracking.
 - Turning tracking off stops new analysis but retains existing local data.
 - Turning recurring focus off stops injecting established patterns but does not delete them.
+- The four model-role settings select a Synergy workload role (`nano`, `mini`, `mid`, `thinking`, `long`, or `creative`) for language detection, learning analysis, translation, and review/presentation. They never select a provider or concrete model ID.
+- Turning translation history off stops new history writes while preserving and reusing existing persistent cache entries. Existing records must be cleared explicitly.
 
 When a message contains a correction worth surfacing, the main Agent's first visible action is:
 
@@ -115,11 +122,22 @@ The `VibeLingo` sidebar entry is a single host page with horizontal product tabs
 - **Review** shows due and upcoming patterns. A review starts only after an explicit user action. When there are fewer than three due items, the user may include patterns due within the next seven days.
 - **Learning patterns** provides search, status/Scope filters, deterministic sorting, keyset pagination, pattern evidence, review history, scheduling, and lifecycle actions.
 - **Learning journey** provides event/time/Scope filters, keyset pagination, bounded record details, and current-Scope Session navigation when the host can resolve it.
+- **Translations** provides cached translation history, direction/search filters, keyset pagination, copy/delete actions, and translation-only cleanup. Missing source previews are shown honestly.
 - **Settings** embeds the same trusted settings implementation used by Synergy's native settings surface; there is no second settings controller or schema.
 
 Routes are represented by validated query parameters and opened through `context.host.openPluginPage()`. Invalid pattern, review, or event identifiers fall back to a recoverable parent view instead of entering a broken state. Query work is abortable, and `learning.changed` / `review.changed` events invalidate snapshots without duplicating domain state in the browser.
 
 Canonical pattern metadata remains stable English internal data. The workspace requests native-language labels and rules in batches from the private `vibe-lingo-pattern-presenter` Agent, caches them by target/support language plus source metadata, and falls back to canonical text if generation is unavailable or low-confidence.
+
+## Selected-Text Translation
+
+Select up to 4,000 Unicode code points in a conversation/document, Monaco code surface, or Terminal, then open the context menu and choose **Translate with VibeLingo**. Password/sensitive inputs and embedded Browser pages are outside this surface. Synergy freezes the exact selection and opens one accessible result popover beside it, or a bottom sheet on narrow screens.
+
+The adaptive direction translates target-language text into the support/native language and translates support-language or third-language text into the target language. The result can be switched explicitly to either configured language or force-refreshed.
+
+A persistent cache hit returns immediately. A miss runs the private translator once, validates its JSON, language direction, and output bounds, then attempts a short SQLite write. Concurrent identical requests share a single in-process flight. Changing the translation model role does not invalidate cached translations; **Translate again** bypasses the cache and refreshes the record.
+
+The plugin also contributes the searchable `plugin__vibe-lingo__translation-history` Tool, intended only for explicit requests to inspect translation history.
 
 ## Learning and Review Model
 
@@ -160,13 +178,17 @@ The plugin never persists complete user messages, restatements, Agent responses,
 - natural-use and review evidence with timestamps;
 - Scope, Session, and message IDs;
 - deterministic review state and due timestamps;
+- translation identity metadata, a bounded sanitized source preview, and the complete validated translated artifact (at most 8,000 Unicode code points);
+- translation use provenance (Scope, optional Session, time, and cache-hit state);
 - at most five recent sanitized fragment/review-content records per pattern.
 
 Analyzer fragments are limited to 160 Unicode code points and review answers to 300. Generated review content is also bounded. Values that appear to contain URLs, email addresses, private absolute paths, credentials, long tokens, or code blocks are omitted while aggregate provenance is retained.
 
+Translation cache identity uses SHA-256 over the normalized selection, language pair, destination policy, and translation-contract version. The hash is an identity key, not encryption. The complete selected source is never stored. Ordinary records may retain a sanitized preview of at most 160 code points; a whole user/assistant message has no preview. Sensitive source or output is excluded from SQLite and retained only in a process-local five-minute cache; ordinary unsaved results use a 30-minute cache. The memory cache holds at most 100 entries and is cleared on plugin reload.
+
 Learning records aggregate by target language across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Scope filters change the evidence view, not the global learning state or schedule. Cross-Scope fragments are never injected into the coaching prompt. A Session title is resolved only on demand in its current Scope; it is never copied into SQLite.
 
-V0.6 has one schema path and no migration/repair adapters. If the database version or required structure differs, VibeLingo closes it, removes the SQLite/WAL/SHM files, and creates the current schema.
+V0.7 has one schema-v8 path and no migration/repair adapters. If the database version or required structure differs, VibeLingo closes it, removes the SQLite/WAL/SHM files, and creates the current schema.
 
 A normal plugin uninstall deletes the VibeLingo data directory. Synergy force uninstall skips lifecycle cleanup and may leave the directory behind.
 

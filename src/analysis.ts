@@ -18,6 +18,7 @@ import { hasCompatibleTargetScript, languageDisplayName } from "./language"
 import { hasUserFacingRootSession } from "./session"
 import {
   configuredProfile,
+  modelRoleFor,
   readSettings,
   type LearningProfile,
   type VibeLingoSettings,
@@ -129,6 +130,7 @@ async function classifyTargetLanguage(
   context: PluginInvocationContext,
   message: string,
   profile: LearningProfile,
+  settings: VibeLingoSettings,
 ): Promise<boolean | undefined> {
   if (!context.agent?.call) return undefined
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -136,6 +138,7 @@ async function classifyTargetLanguage(
       const response = await context.agent.call({
         agent: LANGUAGE_CLASSIFIER_AGENT_NAME,
         text: classifierRequest(message, profile),
+        modelRole: modelRoleFor(settings, "language_detection"),
         timeoutMs: 8_000,
         maxOutputChars: 100,
       })
@@ -213,6 +216,7 @@ export async function enqueueCorrectionAnalysis(
   profile: LearningProfile,
   context: PluginInvocationContext,
   dependencies: AnalysisDependencies = defaultDependencies(),
+  settings?: VibeLingoSettings,
 ): Promise<"queued" | "recorded_only" | "pending" | "failed"> {
   const services = dependencies.services
   if (!batch.corrections.some((item) => item.originalFragment && item.correctedFragment)) {
@@ -230,6 +234,10 @@ export async function enqueueCorrectionAnalysis(
         services.learning.suppressedKeys(profile.targetLanguage),
       ),
       correlationId: batch.correlationId,
+      modelRole: modelRoleFor(
+        settings ?? await dependencies.readSettings(context),
+        "learning_analysis",
+      ),
       timeoutMs: 12_000,
       maxOutputChars: 3_000,
     })
@@ -258,7 +266,7 @@ async function retryOneCorrection(
   if (!batch) return
   const profile = profileForTarget(settings, batch.targetLanguage, dependencies.services)
   if (!profile) return
-  await enqueueCorrectionAnalysis(batch, profile, context, dependencies)
+  await enqueueCorrectionAnalysis(batch, profile, context, dependencies, settings)
 }
 
 export async function processUserMessage(
@@ -300,6 +308,7 @@ export async function processUserMessage(
         context,
         input.message.text,
         profile,
+        settings,
       )
       if (classification == null) return
       isTargetLanguageAttempt = classification
@@ -323,6 +332,7 @@ export async function processUserMessage(
         agent: USAGE_ANALYZER_AGENT_NAME,
         text: usageRequest(input.message.text, profile, knownPatterns),
         correlationId,
+        modelRole: modelRoleFor(settings, "learning_analysis"),
         timeoutMs: 12_000,
         maxOutputChars: 2_000,
       })

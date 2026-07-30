@@ -9,6 +9,7 @@ import {
   tool,
   navigationItem,
   messageRenderer,
+  textAction,
 } from "@ericsanchezok/synergy-plugin"
 import {
   CORRECTION_ANALYZER_AGENT_NAME,
@@ -37,6 +38,15 @@ import {
 } from "./application/presentation-contracts"
 import { deleteDefaultData } from "./infrastructure/database"
 import { recordCorrectionTool, type RecordCorrectionInput } from "./correction"
+import {
+  TRANSLATOR_AGENT_NAME,
+  TRANSLATOR_PROMPT,
+} from "./application/translation-service"
+import { translationOperations } from "./translation-operations"
+import {
+  translationHistoryTool,
+  type TranslationHistoryInput,
+} from "./translation-history"
 
 const ProgressInputJsonSchema: Record<string, unknown> = {
   type: "object",
@@ -69,17 +79,19 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.6.0",
+  version: "0.7.0",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   capabilities: [
     capability("session.read"),
     capability("settings.read"),
     capability("settings.write"),
     capability("ui.hostActions"),
+    capability("selection.read"),
     capability("agent.call", {
       maxRuntimeMs: 15_000,
       maxInputChars: 8_000,
       maxOutputChars: 8_000,
+      modelRoles: ["nano", "mini", "mid", "thinking", "long", "creative"],
     }),
   ],
   contributions: [
@@ -110,7 +122,20 @@ export default definePlugin({
         additionalProperties: false,
       },
     }),
+    event({
+      id: "translation.changed",
+      payload: {
+        type: "object",
+        properties: {
+          targetLanguage: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["targetLanguage", "reason"],
+        additionalProperties: false,
+      },
+    }),
     ...dashboardOperations,
+    ...translationOperations,
     navigationItem({
       id: "learning",
       label: "VibeLingo",
@@ -118,6 +143,37 @@ export default definePlugin({
       placement: "sidebar",
       order: 45,
       component: { source: "./src/ui/app.tsx" },
+    }),
+    textAction({
+      id: "translate-selection",
+      label: "Translate with VibeLingo",
+      icon: "languages",
+      operation: "translate-selection",
+      order: 100,
+      when: {
+        minChars: 1,
+        maxChars: 4_000,
+        sources: ["document", "code", "terminal"],
+      },
+      presentation: {
+        kind: "popover",
+        width: "md",
+        component: { source: "./src/ui/translation-popover.tsx" },
+      },
+    }),
+    agent({
+      id: "translator",
+      agent: {
+        name: TRANSLATOR_AGENT_NAME,
+        description: "Private bounded selection translator for VibeLingo",
+        prompt: TRANSLATOR_PROMPT,
+        mode: "subagent",
+        modelRole: "mini",
+        temperature: 0,
+        steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
     }),
     agent({
       id: "language-classifier",
@@ -287,6 +343,32 @@ export default definePlugin({
         return progressTool(input, context)
       },
     }),
+    tool<TranslationHistoryInput>({
+      id: "translation-history",
+      description:
+        "Show saved VibeLingo translation history. Use only when the user explicitly asks about previous translations or translation history.",
+      exposure: {
+        mode: "search",
+        title: "VibeLingo translation history",
+        keywords: [
+          "translation history",
+          "previous translations",
+          "saved translations",
+        ],
+      },
+      input: {
+        type: "object",
+        properties: {
+          language: { type: "string", minLength: 1, maxLength: 64 },
+          query: { type: "string", maxLength: 200 },
+          limit: { type: "integer", minimum: 1, maximum: 10 },
+        },
+        additionalProperties: false,
+      },
+      async handler(input, context) {
+        return translationHistoryTool(input, context)
+      },
+    }),
     settings({
       id: "settings",
       label: "VibeLingo",
@@ -335,6 +417,41 @@ export default definePlugin({
             default: true,
             title: "Use recurring focus",
             description: "Prioritize established recurring patterns in future coaching.",
+          },
+          languageDetectionModelRole: {
+            type: "string",
+            enum: ["nano", "mini", "mid", "thinking", "long", "creative"],
+            default: "nano",
+            title: "Language detection",
+            description: "Model role used to identify target-language practice.",
+          },
+          learningAnalysisModelRole: {
+            type: "string",
+            enum: ["nano", "mini", "mid", "thinking", "long", "creative"],
+            default: "mini",
+            title: "Learning analysis",
+            description: "Model role used to organize corrections and natural-use evidence.",
+          },
+          translationModelRole: {
+            type: "string",
+            enum: ["nano", "mini", "mid", "thinking", "long", "creative"],
+            default: "mini",
+            title: "Translation",
+            description: "Model role used for selection translation.",
+          },
+          reviewModelRole: {
+            type: "string",
+            enum: ["nano", "mini", "mid", "thinking", "long", "creative"],
+            default: "mini",
+            title: "Review and presentation",
+            description: "Model role used for reviews and localized learning-pattern presentation.",
+          },
+          translationHistoryEnabled: {
+            type: "boolean",
+            default: true,
+            title: "Save translation history",
+            description:
+              "Save bounded translations for cache reuse and history. Existing cache remains reusable when off.",
           },
         },
         additionalProperties: false,

@@ -1,6 +1,6 @@
 # Open Questions
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 These questions drive our research. Each question should eventually be answered by one or more source notes, concept notes, or synthesis notes. When a question is resolved, move it to an "Answered" section with a link to the evidence.
 
@@ -63,13 +63,12 @@ These questions drive our research. Each question should eventually be answered 
 - Can a plugin access the current conversation context (user message, agent response) in real time?
 - How does plugin tool registration work? Can tools be invoked mid-conversation?
 - Can `composer.above` plus plugin operations/events provide an accessible, revision-bound suggestion card without a Synergy host change?
-- Does selected-text Explain require a new host-owned result popover or can an existing plugin surface remain in flow?
 - How should system-context injection identify user-facing root Agent work and exclude small, internal, or delegated calls?
 - How should the transform remain idempotent across Synergy's `budget` and `final` prompt phases?
 
 ### Storage & Persistence
 - What are the privacy implications of storing conversation excerpts?
-- Where should Plugin API 3 business data live when Synergy does not provide a generic plugin data store or data-directory Host Service?
+- Where should Plugin API 4 business data live when Synergy does not provide a generic plugin data store or data-directory Host Service?
 - What minimum fragment and provenance data is required to answer “where have I made this mistake?” without storing full messages?
 
 ### Agent Interaction
@@ -111,7 +110,9 @@ These questions drive our research. Each question should eventually be answered 
 
 ## Answered
 
-- **Where does Plugin API 3 learning data live?** Plugin-owned SQLite under the Synergy data root; settings remain host-managed. See `research/70_decisions/adr/2026-07-28-evidence-learning-loop-and-review-backend.md`.
+- **Where does Plugin API 4 learning data live?** Plugin-owned SQLite under the Synergy data root; settings remain host-managed. See `research/70_decisions/adr/2026-07-28-evidence-learning-loop-and-review-backend.md`.
+- **How should selected-text results appear?** Synergy owns an additive grouped context menu and one accessible, anchored result popover; plugins render only result content. See `research/70_decisions/adr/2026-07-30-composable-host-managed-text-actions.md`.
+- **What translation content may be cached?** The complete bounded translated artifact, never the complete selected source or raw model JSON. See `research/70_decisions/adr/2026-07-30-translation-cache-history-and-model-roles.md`.
 - **How is review triggered in v0.3?** The backend prepares a due queue. Review starts only by explicit operation; no Agenda task, task-boundary guess, or chat invitation.
 - **What counts as stable evidence?** Two independent recall+transfer reviews, later natural correct use, at least two Session identities, and seven elapsed days. A later error records a lapse.
 - **Should proficiency be assessed?** V0.3 continues to use a self-declared beginner/intermediate/advanced setting and does not infer CEFR.
