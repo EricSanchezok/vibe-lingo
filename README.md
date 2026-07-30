@@ -4,20 +4,20 @@ VibeLingo is a prompt-first multilingual coaching plugin for Synergy. It keeps t
 
 ## Requirements
 
-- Synergy `>=3.0.0`
+- Synergy with Plugin Runtime Protocol 8 (`context.agent.start()` and `agent.call.after`)
 - Bun `>=1.3.0`
 
 ## How It Works
 
-VibeLingo has three independent paths:
+VibeLingo has three responsibility-specific paths:
 
 1. A system-transform hook gives the primary Agent a compact, work-first coaching contract for the configured language pair and proficiency.
-2. A continuing user-message observer asks a private hidden Agent to extract structured errors and natural correct uses after the message has already been submitted.
-3. A local learning engine promotes recurring patterns, schedules review, and powers a dedicated learning workspace. Reviews use active recall, progressive hints, repair, and transfer practice.
+2. A Nano classifier observes ordinary user messages only to count target-language practice. When the primary Agent decides a correction is useful, it calls VibeLingo's resident correction Tool first; that card is the authoritative correction the user saw.
+3. Host-managed, Sessionless asynchronous Agents add bounded metadata to saved correction pairs and detect natural correct use of known patterns. A local learning engine promotes recurring patterns, schedules review, and powers the learning workspace.
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.5.0` makes sparse real-world practice visible: every successfully classified target-language message contributes to today's activity and its Session-level journey record, while only findings at or above the existing confidence threshold create learning patterns. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS. The due queue remains manual and never interrupts a work Session.
+VibeLingo `0.6.0` aligns foreground teaching with durable learning history: the exact correction displayed in chat is saved atomically before metadata analysis starts. Target-language activity remains visible even when no correction is needed. It still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.5.0` includes the trusted learning workspace, private pattern presentation, non-destructive upgrades, immediate opening corrections, and visible same-day practice activity. Existing local learning history is preserved when upgrading from earlier versions.
+Version `0.6.0` requires the paired Synergy Host API. This development release performs a destructive schema reset: v0.5 and earlier local learning history is deleted instead of migrated. Stop the old Synergy/plugin generation before starting v0.6.
 
 ## First-Time Setup
 
@@ -79,7 +79,15 @@ The complete settings shape is:
 - Turning tracking off stops new analysis but retains existing local data.
 - Turning recurring focus off stops injecting established patterns but does not delete them.
 
-When a message contains a correction worth surfacing, VibeLingo requires the first user-visible response to open with a natural target-language restatement and the compact correction. The Agent then continues the real task immediately. It must not postpone that feedback until the final answer or repeat it during later progress updates. Messages with nothing worth correcting receive no coaching preface.
+When a message contains a correction worth surfacing, the main Agent's first visible action is:
+
+```text
+plugin__vibe-lingo__record-correction
+```
+
+Its input contains only the natural restatement and one or two visible original/corrected fragment pairs. The Tool card renders those exact values immediately; the Agent then continues the real task. Pattern keys, categories, severity, rules, and confidence are assigned later by a private asynchronous Agent. The main Agent must not duplicate the card as ordinary `Got it`/`💡` text or postpone correction until the final answer.
+
+Turning tracking off does not suppress foreground teaching: the same Tool card is shown, but it is marked as chat-only and neither SQLite nor a metadata Agent call is used.
 
 Changing the target language switches to that language's learning-data namespace. It does not delete or mix records from an earlier target.
 
@@ -95,7 +103,7 @@ When the user explicitly asks about language progress, recurring mistakes, or hi
 plugin__vibe-lingo__progress
 ```
 
-The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It reports today's analyzed messages, target-language attempts, active Sessions and findings alongside active days, due reviews, candidate/practicing/verified patterns, natural correct uses, independent reviews, and up to three sanitized examples when explicitly requested. It does not call a no-finding message “correct,” estimate proficiency, or claim permanent mastery.
+The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It distinguishes target-language practice, visible corrections, accepted pattern evidence, natural correct use, and review evidence. It also reports pending/failed correction analysis without exposing models, confidence, or a technical queue. It does not call a no-correction message “correct,” estimate proficiency, or claim permanent mastery.
 
 The settings view intentionally shows only a compact summary for the active target language. Detailed history belongs to the learning workspace. Settings can clear that language's records or all VibeLingo learning records through a Synergy host confirmation. Clearing data does not change settings.
 
@@ -115,7 +123,7 @@ Canonical pattern metadata remains stable English internal data. The workspace r
 
 ## Learning and Review Model
 
-A finding at confidence `0.85` or above creates a visible `candidate`; lower-confidence output is discarded rather than persisted as a second evidence tier. Two non-minor findings (`meaning_affecting` or `high_value`) across two Sessions promote the pattern to `practicing` and place it in the due queue. Minor-only patterns still require three findings across at least two Sessions. Review intervals follow a transparent `1 → 3 → 7 → 14 → 30` day ladder:
+An accepted correction analysis at confidence `0.85` or above creates a visible `candidate`; rejected or lower-confidence metadata does not create evidence, while the correction card remains in history. Two non-minor corrections (`meaning_affecting` or `high_value`) across two Sessions promote the pattern to `practicing` and place it in the due queue. Minor-only patterns still require three corrections across at least two Sessions. Review intervals follow a transparent `1 → 3 → 7 → 14 → 30` day ladder:
 
 - failed, abandoned, or assisted review returns in one day;
 - an independent review requires both unaided recall and a correct transfer task;
@@ -124,7 +132,7 @@ A finding at confidence `0.85` or above creates a visible `candidate`; lower-con
 
 `verified` is an evidence state, not a language level or a permanent mastery claim.
 
-The background analyzer makes one immediate in-memory retry after a timeout, unavailable model, or invalid response. If both attempts fail, it stops silently without creating a persistent job or storing the message text.
+The Nano language classifier makes one immediate in-memory retry after a timeout, unavailable model, or invalid response. Correction metadata is submitted through `agent.start()` after the visible pair is committed; a later `agent.call.after` hook validates and writes the result idempotently. Capacity pressure leaves one recoverable `pending` correction, retried at most one at a time on a later user-message observer in the same Scope. Usage analysis is privacy-first and is not retried across a Synergy restart.
 
 The UI uses typed plugin operations for profiles, summary curves, journey records, pattern lists and details, due queue, resumable reviews, localized presentations, pattern controls, and cleanup. Review state includes per-item outcomes, independent-recall and transfer totals, each pattern's next due time, and the completion journey-event ID. The frontend renders these facts but does not reproduce lifecycle, scheduling, or evidence calculations.
 
@@ -144,10 +152,12 @@ The default is:
 
 `synergyRoot()` follows `SYNERGY_HOME` and `SYNERGY_TEST_HOME`.
 
-The plugin never persists complete user messages, Agent responses, or Session titles. It stores:
+The plugin never persists complete user messages, restatements, Agent responses, asynchronous prompts/outputs, or Session titles. It stores:
 
 - normalized pattern metadata grouped by target-language tag;
-- error, natural-use, and review evidence with timestamps;
+- the bounded correction fragment pairs actually shown to the user;
+- error metadata linked to those correction items, without a duplicate error-fragment copy;
+- natural-use and review evidence with timestamps;
 - Scope, Session, and message IDs;
 - deterministic review state and due timestamps;
 - at most five recent sanitized fragment/review-content records per pattern.
@@ -156,7 +166,7 @@ Analyzer fragments are limited to 160 Unicode code points and review answers to 
 
 Learning records aggregate by target language across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Scope filters change the evidence view, not the global learning state or schedule. Cross-Scope fragments are never injected into the coaching prompt. A Session title is resolved only on demand in its current Scope; it is never copied into SQLite.
 
-Upgrades preserve existing learning history and make analysis decisions directly inspectable for troubleshooting. If stored data has an unsupported shape, VibeLingo stops safely with a clear error instead of modifying it.
+V0.6 has one schema path and no migration/repair adapters. If the database version or required structure differs, VibeLingo closes it, removes the SQLite/WAL/SHM files, and creates the current schema.
 
 A normal plugin uninstall deletes the VibeLingo data directory. Synergy force uninstall skips lifecycle cleanup and may leave the directory behind.
 

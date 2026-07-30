@@ -255,6 +255,36 @@ export const RecordView: Component<{ eventId: string }> = (props) => {
 
             <div class="vld-detail-grid">
               <div class="vld-grid">
+                <Show when={resource().data!.corrections?.length}>
+                  <section class="vld-panel vld-detail-section">
+                    <h2 class="vld-section-title">
+                      {dashboard.locale() === "zh-CN" ? "当时显示的纠正" : "Correction shown at the time"}
+                    </h2>
+                    <For each={resource().data!.corrections}>
+                      {(correction) => (
+                        <div class="vld-evidence-row">
+                          <p class="vld-evidence-copy">
+                            {correction.originalFragment || correction.correctedFragment
+                              ? [correction.originalFragment, correction.correctedFragment].filter(Boolean).join(" → ")
+                              : copy(dashboard.locale(), "contentNotRetained")}
+                          </p>
+                          <Show when={correction.patternKey}>
+                            {(patternKey) => (
+                              <button
+                                class="vld-link-button"
+                                type="button"
+                                onClick={() => dashboard.navigate({ view: "pattern", patternKey: patternKey() })}
+                              >
+                                {dashboard.locale() === "zh-CN" ? "查看关联模式" : "View linked pattern"} →
+                              </button>
+                            )}
+                          </Show>
+                        </div>
+                      )}
+                    </For>
+                  </section>
+                </Show>
+
                 <Show when={resource().data!.patterns?.length}>
                   <section class="vld-panel vld-detail-section">
                     <h2 class="vld-section-title">{copy(dashboard.locale(), "patterns")}</h2>

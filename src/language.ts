@@ -115,27 +115,3 @@ function scriptCharacters(text: string, script: string | undefined): number {
   const pattern = script ? SCRIPT_PATTERNS[script] : undefined
   return pattern ? (text.match(pattern)?.length ?? 0) : (text.match(/\p{L}/gu)?.length ?? 0)
 }
-
-export function hasTargetLanguageSignal(text: string, targetLanguage: string): boolean {
-  const script = languageScript(targetLanguage)
-  if (script === "Jpan") {
-    return (text.match(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu)?.length ?? 0) >= 2
-  }
-  if (script === "Kore") {
-    return (text.match(/\p{Script=Hangul}/gu)?.length ?? 0) >= 2
-  }
-  if (script === "Hans" || script === "Hant" || script === "Hani") {
-    return scriptCharacters(text, script) >= 3
-  }
-  if (!script || !SCRIPT_PATTERNS[script]) {
-    return scriptCharacters(text, script) >= 3
-  }
-  if (scriptCharacters(text, script) < 3) return false
-  try {
-    const locale = canonicalLanguageTag(targetLanguage) ?? "en"
-    const segments = new Intl.Segmenter(locale, { granularity: "word" }).segment(text)
-    return Array.from(segments).filter((segment) => segment.isWordLike).length >= 3
-  } catch {
-    return (text.match(/[\p{L}\p{M}]+/gu)?.length ?? 0) >= 3
-  }
-}

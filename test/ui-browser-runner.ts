@@ -19,6 +19,16 @@ const navigation = manifest.contributions.find(
 if (!navigation?.component?.exportName) throw new Error("Built navigation export was not found")
 const bundled = await import(pathToFileURL(`${process.cwd()}/dist/ui/index.js`).href)
 const App = bundled[navigation.component.exportName]
+const correctionRenderer = manifest.contributions.find(
+  (item: any) =>
+    item.kind === "ui.messageRenderer"
+    && item.id === "correction-card"
+    && item.tool === "plugin__vibe-lingo__record-correction",
+)
+if (!correctionRenderer?.component?.exportName) {
+  throw new Error("Built correction-card export was not found")
+}
+const CorrectionCard = bundled[correctionRenderer.component.exportName]
 const DAY = 86_400_000
 const now = Date.now()
 const reviewId = "11111111-1111-4111-8111-111111111111"
@@ -74,6 +84,10 @@ const summary = {
   targetSessionsToday: 2,
   findingMessagesToday: 2,
   findingsToday: 2,
+  correctionsToday: 2,
+  acceptedFindingsToday: 1,
+  correctionsAnalyzing: 1,
+  correctionsFailed: 0,
   lastAnalyzedAt: now - 3 * 60_000,
   totalPatternCount: 11,
   recurringPatternCount: 4,
@@ -353,7 +367,7 @@ const screens: Array<[string, string, any?]> = [
 
 const mounted = await mount("view=overview")
 assertText(mounted.target, "今日已检查 12 条消息")
-assertText(mounted.target, "5 次目标语言表达 · 2 个真实会话 · 2 条学习发现")
+assertText(mounted.target, "5 次目标语言表达 · 2 个真实会话 · 2 次可见纠正 · 1 条可信发现")
 assertText(mounted.target, "最后检查：3分钟前")
 for (const [route, expected, state] of screens) {
   currentReview = state
@@ -394,4 +408,68 @@ assertText(mounted.target, "设置你的学习档案")
 mounted.dispose()
 mounted.target.remove()
 
-console.log("16 VibeLingo UI states rendered successfully")
+let correctionStatus: any = {
+  found: true,
+  status: "queued",
+  patternKeys: [],
+}
+const learningListeners = new Set<() => void>()
+const correctionContext: any = {
+  ...context,
+  surface: { kind: "ui.messageRenderer", id: "correction-card" },
+  message: { id: "assistant-one", role: "assistant" },
+  tool: {
+    name: "plugin__vibe-lingo__record-correction",
+    input: {
+      restatement: "Add a button to the settings page.",
+      corrections: [{
+        originalFragment: "add button",
+        correctedFragment: "add a button",
+      }],
+    },
+    metadata: {
+      vibeLingo: {
+        status: "analyzing",
+        batchId: "66666666-6666-4666-8666-666666666666",
+      },
+    },
+    status: "completed",
+  },
+  operations: {
+    ...context.operations,
+    async query(id: string) {
+      if (id === "correction-status") return correctionStatus
+      return context.operations.query(id)
+    },
+  },
+  events: {
+    subscribe(id: string, listener: () => void) {
+      if (id === "learning.changed") learningListeners.add(listener)
+      return () => learningListeners.delete(listener)
+    },
+  },
+}
+const correctionTarget = document.createElement("div")
+document.body.append(correctionTarget)
+const disposeCorrection = web.render(
+  () => solid.createComponent(CorrectionCard, correctionContext),
+  correctionTarget,
+)
+await new Promise((resolve) => setTimeout(resolve, 10))
+assertText(correctionTarget, "更自然的表达")
+assertText(correctionTarget, "add button")
+assertText(correctionTarget, "正在整理学习记录")
+
+correctionStatus = {
+  found: true,
+  status: "analyzed",
+  patternKeys: ["missing_article"],
+}
+learningListeners.forEach((listener) => listener())
+await new Promise((resolve) => setTimeout(resolve, 10))
+assertText(correctionTarget, "学习模式已更新")
+assertText(correctionTarget, "查看学习模式")
+disposeCorrection()
+correctionTarget.remove()
+
+console.log("16 VibeLingo UI states and correction card rendered successfully")

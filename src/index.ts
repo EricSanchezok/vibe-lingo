@@ -2,13 +2,24 @@ import {
   agent,
   capability,
   definePlugin,
+  event,
   hook,
   lifecycleUninstall,
   settings,
   tool,
   navigationItem,
+  messageRenderer,
 } from "@ericsanchezok/synergy-plugin"
-import { ANALYZER_AGENT_NAME, ANALYZER_PROMPT, processUserMessage } from "./analyzer"
+import {
+  CORRECTION_ANALYZER_AGENT_NAME,
+  CORRECTION_ANALYZER_PROMPT,
+  handleAgentCallAfter,
+  LANGUAGE_CLASSIFIER_AGENT_NAME,
+  LANGUAGE_CLASSIFIER_PROMPT,
+  processUserMessage,
+  USAGE_ANALYZER_AGENT_NAME,
+  USAGE_ANALYZER_PROMPT,
+} from "./analysis"
 import { dashboardOperations } from "./operations"
 import { defaultPromptDependencies, transformSystemPrompt } from "./prompt"
 import { progressTool } from "./progress"
@@ -25,6 +36,7 @@ import {
   PATTERN_PRESENTER_PROMPT,
 } from "./application/presentation-contracts"
 import { deleteDefaultData } from "./infrastructure/database"
+import { recordCorrectionTool, type RecordCorrectionInput } from "./correction"
 
 const ProgressInputJsonSchema: Record<string, unknown> = {
   type: "object",
@@ -57,7 +69,7 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.5.0",
+  version: "0.6.0",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   capabilities: [
     capability("session.read"),
@@ -71,6 +83,33 @@ export default definePlugin({
     }),
   ],
   contributions: [
+    event({
+      id: "learning.changed",
+      payload: {
+        type: "object",
+        properties: {
+          targetLanguage: { type: "string" },
+          revision: { type: "integer", minimum: 0 },
+          reason: { type: "string" },
+        },
+        required: ["targetLanguage", "revision", "reason"],
+        additionalProperties: false,
+      },
+    }),
+    event({
+      id: "review.changed",
+      payload: {
+        type: "object",
+        properties: {
+          targetLanguage: { type: "string" },
+          reviewId: { type: "string" },
+          revision: { type: "integer", minimum: 0 },
+          reason: { type: "string" },
+        },
+        required: ["targetLanguage", "reviewId", "revision", "reason"],
+        additionalProperties: false,
+      },
+    }),
     ...dashboardOperations,
     navigationItem({
       id: "learning",
@@ -81,11 +120,39 @@ export default definePlugin({
       component: { source: "./src/ui/app.tsx" },
     }),
     agent({
-      id: "language-analyzer",
+      id: "language-classifier",
       agent: {
-        name: ANALYZER_AGENT_NAME,
-        description: "Private structured target-language learning signal classifier for VibeLingo",
-        prompt: ANALYZER_PROMPT,
+        name: LANGUAGE_CLASSIFIER_AGENT_NAME,
+        description: "Private target-language attempt classifier for VibeLingo",
+        prompt: LANGUAGE_CLASSIFIER_PROMPT,
+        mode: "subagent",
+        modelRole: "nano",
+        temperature: 0,
+        steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    }),
+    agent({
+      id: "usage-analyzer",
+      agent: {
+        name: USAGE_ANALYZER_AGENT_NAME,
+        description: "Private known-pattern natural-use analyzer for VibeLingo",
+        prompt: USAGE_ANALYZER_PROMPT,
+        mode: "subagent",
+        modelRole: "mini",
+        temperature: 0,
+        steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    }),
+    agent({
+      id: "correction-analyzer",
+      agent: {
+        name: CORRECTION_ANALYZER_AGENT_NAME,
+        description: "Private correction metadata analyzer for VibeLingo",
+        prompt: CORRECTION_ANALYZER_PROMPT,
         mode: "subagent",
         modelRole: "mini",
         temperature: 0,
@@ -157,6 +224,54 @@ export default definePlugin({
       async handler(input, context) {
         await processUserMessage(input, context)
       },
+    }),
+    hook<"agent.call.after">({
+      id: "complete-teaching-analysis",
+      point: "agent.call.after",
+      requires: ["settings.read", "agent.call"],
+      async handler(input, context) {
+        await handleAgentCallAfter(input, context)
+      },
+    }),
+    tool<RecordCorrectionInput>({
+      id: "record-correction",
+      description:
+        "Display and record the exact language correction selected by the main Agent. Call this as the first visible action only when the VibeLingo coaching contract requires a correction.",
+      requires: ["settings.read", "agent.call"],
+      exposure: { mode: "resident" },
+      display: { toolCard: "visible" },
+      input: {
+        type: "object",
+        properties: {
+          restatement: { type: "string", minLength: 1, maxLength: 500 },
+          corrections: {
+            type: "array",
+            minItems: 1,
+            maxItems: 2,
+            items: {
+              type: "object",
+              properties: {
+                originalFragment: { type: "string", minLength: 1, maxLength: 160 },
+                correctedFragment: { type: "string", minLength: 1, maxLength: 160 },
+              },
+              required: ["originalFragment", "correctedFragment"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["restatement", "corrections"],
+        additionalProperties: false,
+      },
+      async handler(input, context) {
+        return recordCorrectionTool(input, context)
+      },
+    }),
+    messageRenderer({
+      id: "correction-card",
+      label: "VibeLingo correction",
+      messageType: "tool",
+      tool: "plugin__vibe-lingo__record-correction",
+      component: { source: "./src/ui/correction-card.tsx" },
     }),
     tool<ProgressInput>({
       id: "progress",

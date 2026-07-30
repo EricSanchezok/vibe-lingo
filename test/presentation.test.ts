@@ -4,7 +4,7 @@ import os from "os"
 import path from "path"
 import { createServices } from "../src/application/services"
 import { VibeLingoDatabase } from "../src/infrastructure/database"
-import { invocationContext } from "./helpers"
+import { invocationContext, seedCorrection } from "./helpers"
 
 const temporaryDirectories: string[] = []
 
@@ -27,12 +27,12 @@ const profile = {
 }
 
 function seed(service: ReturnType<typeof services>) {
-  service.learning.recordAnalysis({
+  seedCorrection(service, {
     messageId: "message-1",
     scopeId: "scope-a",
     sessionId: "session-a",
     observedAt: 1_000,
-  }, profile, true, [{
+  }, profile, {
     patternKey: "missing_article",
     category: "grammar",
     severity: "high_value",
@@ -42,7 +42,7 @@ function seed(service: ReturnType<typeof services>) {
     correctedFragment: "add a button",
     confidence: 0.98,
     sensitive: false,
-  }], [])
+  })
 }
 
 describe("localized pattern presentations", () => {

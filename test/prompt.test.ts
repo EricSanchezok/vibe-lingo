@@ -72,15 +72,17 @@ describe("coaching contract", () => {
     expect(focused).toContain("Chinese")
     expect(focused).toContain("English (en)")
     expect(focused).toContain("intermediate")
-    expect(focused).toContain("the first user-visible text of this turn")
-    expect(focused).toContain('Got it: "<one-sentence natural target-language restatement>"')
-    expect(focused).toContain('💡 "<minimal original fragment>" → "<natural fragment>"')
-    expect(focused).toContain("Never postpone the first correction until the task is complete")
+    expect(focused).toContain("your first user-visible action")
+    expect(focused).toContain("plugin__vibe-lingo__record-correction")
+    expect(focused).toContain("one-sentence natural target-language restatement")
+    expect(focused).toContain("minimal original/corrected fragment pairs")
+    expect(focused).toContain("Never postpone correction until the task is complete")
+    expect(focused).toContain("Do not invent or submit pattern keys")
     expect(focused).not.toContain("After completing the main task")
     expect(focused).not.toContain("optionally add")
   })
 
-  test("removes only the current V3 contract entry", () => {
+  test("removes only the current V4 contract entry", () => {
     expect(
       stripCoachingContract([
         "one",

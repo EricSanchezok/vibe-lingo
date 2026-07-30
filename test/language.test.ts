@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import {
   canonicalLanguageTag,
   hasCompatibleTargetScript,
-  hasTargetLanguageSignal,
   languageScript,
 } from "../src/language"
 import { configuredProfile, VibeLingoSettingsSchema } from "../src/settings"
@@ -43,16 +42,14 @@ describe("multilingual profile", () => {
     })
   })
 
-  test("uses controlled script signals for Latin, Han, Japanese, Korean, Cyrillic, and unknown scripts", () => {
+  test("validates correction fragments against the configured target script", () => {
     expect(languageScript("en")).toBe("Latn")
-    expect(hasTargetLanguageSignal("Please add this button", "en")).toBe(true)
-    expect(hasTargetLanguageSignal("fix it", "en")).toBe(false)
-    expect(hasTargetLanguageSignal("请帮我修改页面", "zh-Hans")).toBe(true)
-    expect(hasTargetLanguageSignal("请帮我修改页面", "ja")).toBe(false)
-    expect(hasTargetLanguageSignal("ボタンを追加", "ja")).toBe(true)
-    expect(hasTargetLanguageSignal("버튼을 추가해 주세요", "ko")).toBe(true)
-    expect(hasTargetLanguageSignal("Добавьте эту кнопку", "ru")).toBe(true)
-    expect(hasTargetLanguageSignal("tlhIngan Hol Dajatlh", "tlh")).toBe(true)
+    expect(hasCompatibleTargetScript("Please add this button", "en")).toBe(true)
+    expect(hasCompatibleTargetScript("请帮我修改页面", "zh-Hans")).toBe(true)
+    expect(hasCompatibleTargetScript("ボタンを追加", "ja")).toBe(true)
+    expect(hasCompatibleTargetScript("버튼을 추가해 주세요", "ko")).toBe(true)
+    expect(hasCompatibleTargetScript("Добавьте эту кнопку", "ru")).toBe(true)
+    expect(hasCompatibleTargetScript("tlhIngan Hol Dajatlh", "tlh")).toBe(true)
     expect(hasCompatibleTargetScript("añade un botón", "es")).toBe(true)
     expect(hasCompatibleTargetScript("ボタン", "en")).toBe(false)
   })

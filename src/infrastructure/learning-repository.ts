@@ -26,10 +26,11 @@ import {
   type ReviewOutcome,
   type ReviewSessionStatus,
   type StoredDemonstration,
-  type StoredFinding,
+  type CorrectionAnalysisResult,
   type TrendPoint,
 } from "../domain/types"
 import { canonicalTimeZone, dateRange, localDate, shiftDate } from "../domain/time"
+import { hasCompatibleTargetScript } from "../language"
 import { VibeLingoDatabase } from "./database"
 import {
   count,
@@ -58,18 +59,6 @@ type PracticeActivity = {
 
 const PATTERN_KEY = /^[a-z][a-z0-9_]{2,63}$/
 
-function validFinding(finding: StoredFinding): boolean {
-  return PATTERN_KEY.test(finding.patternKey)
-    && ErrorCategorySchema.safeParse(finding.category).success
-    && ErrorSeveritySchema.safeParse(finding.severity).success
-    && Array.from(finding.label).length > 0
-    && Array.from(finding.label).length <= 80
-    && Array.from(finding.rule).length > 0
-    && Array.from(finding.rule).length <= 200
-    && !containsSensitiveContent(finding.label)
-    && !containsSensitiveContent(finding.rule)
-}
-
 export class LearningRepository {
   constructor(readonly database: VibeLingoDatabase) {}
 
@@ -81,13 +70,35 @@ export class LearningRepository {
     this.database.close()
   }
 
-  isAnalyzed(messageId: string, targetLanguage: string): boolean {
+  isObserved(messageId: string, targetLanguage: string): boolean {
+    return Boolean(this.messageObservation(messageId, targetLanguage))
+  }
+
+  messageObservation(
+    messageId: string,
+    targetLanguage: string,
+  ): {
+    classification: "target_attempt" | "not_target" | "skipped"
+    reason: MessageReason
+    usageStatus: "not_applicable" | "pending" | "queued" | "analyzed" | "failed"
+  } | undefined {
     const row = this.db()
-      .query<{ present: number }, [string, string]>(
-        "SELECT 1 AS present FROM analyzed_messages WHERE message_id = ? AND target_language = ?",
+      .query<{
+        classification: "target_attempt" | "not_target" | "skipped"
+        reason: MessageReason
+        usage_status: "not_applicable" | "pending" | "queued" | "analyzed" | "failed"
+      }, [string, string]>(
+        `SELECT classification, reason, usage_status FROM message_observations
+         WHERE user_message_id = ? AND target_language = ?`,
       )
       .get(messageId, targetLanguage)
-    return Boolean(row)
+    return row
+      ? {
+          classification: row.classification,
+          reason: row.reason,
+          usageStatus: row.usage_status,
+        }
+      : undefined
   }
 
   rememberProfile(profile: ProfileInput, usedAt = Date.now()): void {
@@ -95,43 +106,36 @@ export class LearningRepository {
     transaction.immediate()
   }
 
-  recordSkipped(
+  recordObservation(
     identity: MessageIdentity,
     profile: ProfileInput,
-    reason?: MessageReason,
+    classification: "target_attempt" | "not_target" | "skipped",
+    reason: MessageReason,
   ): boolean {
     const db = this.db()
     const transaction = db.transaction(() => {
       this.upsertProfile(profile, identity.observedAt)
       const result = db
         .query(
-          `INSERT OR IGNORE INTO analyzed_messages
-           (target_language, message_id, scope_id, session_id, analyzed_at, classification, reason)
-           VALUES (?, ?, ?, ?, ?, 'skipped', ?)`,
-        )
-        .run(profile.targetLanguage, identity.messageId, identity.scopeId, identity.sessionId, identity.observedAt, reason ?? "historical_unknown")
-      return count(result.changes) > 0
-    })
-    return transaction.immediate()
-  }
-
-  recordAnalysis(
-    identity: MessageIdentity,
-    profile: ProfileInput,
-    isTargetLanguageAttempt: boolean,
-    findings: StoredFinding[],
-    demonstrations: StoredDemonstration[],
-    reason?: MessageReason,
-  ): boolean {
-    const db = this.db()
-    const transaction = db.transaction(() => {
-      this.upsertProfile(profile, identity.observedAt)
-      const inserted = db
-        .query(
-          `INSERT OR IGNORE INTO analyzed_messages
-           (target_language, message_id, scope_id, session_id, analyzed_at, classification,
-            reason, finding_count, demonstration_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO message_observations
+           (target_language, user_message_id, scope_id, session_id, observed_at, classification, reason)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(target_language, user_message_id) DO UPDATE SET
+             classification = CASE
+               WHEN message_observations.classification = 'target_attempt'
+                 OR excluded.classification = 'target_attempt'
+               THEN 'target_attempt'
+               ELSE excluded.classification
+             END,
+             reason = CASE
+               WHEN message_observations.classification = 'target_attempt'
+                 OR excluded.classification = 'target_attempt'
+               THEN CASE
+                 WHEN excluded.reason = 'foreground_correction' THEN excluded.reason
+                 ELSE message_observations.reason
+               END
+               ELSE excluded.reason
+             END`,
         )
         .run(
           profile.targetLanguage,
@@ -139,14 +143,10 @@ export class LearningRepository {
           identity.scopeId,
           identity.sessionId,
           identity.observedAt,
-          isTargetLanguageAttempt ? "target_attempt" : "not_target",
-          reason ?? (isTargetLanguageAttempt ? "target_attempt" : "not_target_language"),
-          0,
-          0,
+          classification,
+          reason,
         )
-      if (count(inserted.changes) === 0) return false
-
-      if (isTargetLanguageAttempt) {
+      if (classification === "target_attempt") {
         this.insertEvent({
           targetLanguage: profile.targetLanguage,
           type: "practice_started",
@@ -154,108 +154,79 @@ export class LearningRepository {
           identity,
         })
       }
+      if (count(result.changes) > 0) this.bumpRevision(profile.targetLanguage)
+      return count(result.changes) > 0
+    })
+    return transaction.immediate()
+  }
 
-      const errored = new Set<string>()
-      let storedFindingCount = 0
+  markUsageQueued(
+    targetLanguage: string,
+    userMessageId: string,
+    correlationId: string,
+    callId: string,
+  ): void {
+    this.db()
+      .query(
+        `UPDATE message_observations
+         SET usage_status = 'queued', usage_correlation_id = ?, usage_call_id = ?
+         WHERE target_language = ? AND user_message_id = ?`,
+      )
+      .run(correlationId, callId, targetLanguage, userMessageId)
+  }
+
+  markUsageFailed(correlationId: string): void {
+    this.db()
+      .query(
+        `UPDATE message_observations SET usage_status = 'failed'
+         WHERE usage_correlation_id = ? AND usage_status = 'queued'`,
+      )
+      .run(correlationId)
+  }
+
+  usageObservation(correlationId: string): {
+    targetLanguage: string
+    userMessageId: string
+    scopeId: string
+    sessionId: string
+    observedAt: number
+    status: string
+  } | undefined {
+    const row = this.db()
+      .query<{
+        target_language: string
+        user_message_id: string
+        scope_id: string
+        session_id: string
+        observed_at: number
+        usage_status: string
+      }, [string]>(
+        `SELECT target_language, user_message_id, scope_id, session_id, observed_at, usage_status
+         FROM message_observations WHERE usage_correlation_id = ?`,
+      )
+      .get(correlationId)
+    return row
+      ? {
+          targetLanguage: row.target_language,
+          userMessageId: row.user_message_id,
+          scopeId: row.scope_id,
+          sessionId: row.session_id,
+          observedAt: count(row.observed_at),
+          status: row.usage_status,
+        }
+      : undefined
+  }
+
+  recordUsageAnalysis(
+    identity: MessageIdentity,
+    profile: ProfileInput,
+    demonstrations: StoredDemonstration[],
+    correlationId: string,
+  ): boolean {
+    const db = this.db()
+    const transaction = db.transaction(() => {
       let storedDemonstrationCount = 0
-      for (const finding of (isTargetLanguageAttempt ? findings : [])
-        .filter(
-          (item) =>
-            Number.isFinite(item.confidence)
-            && item.confidence >= MIN_FINDING_CONFIDENCE
-            && item.confidence <= 1
-            && validFinding(item),
-        )
-        .slice(0, 2)) {
-        const canonical = this.resolveCanonical(profile.targetLanguage, finding.patternKey)
-        if (this.isRejected(profile.targetLanguage, canonical)) continue
-        errored.add(canonical)
-        const existing = this.pattern(profile.targetLanguage, canonical)
-        db.query(
-          `INSERT INTO learning_patterns
-           (target_language, pattern_key, category, severity, label, rule, first_seen_at, last_seen_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(target_language, pattern_key) DO UPDATE SET
-             category = excluded.category,
-             severity = CASE
-               WHEN learning_patterns.severity = 'meaning_affecting' THEN learning_patterns.severity
-               WHEN excluded.severity = 'meaning_affecting' THEN excluded.severity
-               WHEN learning_patterns.severity = 'high_value' THEN learning_patterns.severity
-               ELSE excluded.severity
-             END,
-             label = excluded.label,
-             rule = excluded.rule,
-             last_seen_at = MAX(learning_patterns.last_seen_at, excluded.last_seen_at),
-             revision = learning_patterns.revision + 1`,
-        ).run(
-          profile.targetLanguage,
-          canonical,
-          finding.category,
-          finding.severity,
-          finding.label,
-          finding.rule,
-          identity.observedAt,
-          identity.observedAt,
-        )
-        if (!existing) {
-          this.insertEvent({
-            targetLanguage: profile.targetLanguage,
-            type: "pattern_discovered",
-            at: identity.observedAt,
-            identity,
-            patternKey: canonical,
-          })
-        }
-        const originalFragment = finding.originalFragment
-          ? sanitizeFragment(finding.originalFragment, finding.sensitive)
-          : undefined
-        const correctedFragment = finding.correctedFragment
-          ? sanitizeFragment(finding.correctedFragment, finding.sensitive)
-          : undefined
-        const evidence = db.query(
-          `INSERT OR IGNORE INTO pattern_evidence
-           (id, target_language, pattern_key, kind, outcome, severity, confidence,
-            scope_id, session_id, message_id, observed_at, original_fragment, corrected_fragment)
-           VALUES (?, ?, ?, 'error', 'incorrect', ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          crypto.randomUUID(),
-          profile.targetLanguage,
-          canonical,
-          finding.severity,
-          finding.confidence,
-          identity.scopeId,
-          identity.sessionId,
-          identity.messageId,
-          identity.observedAt,
-          originalFragment ?? null,
-          correctedFragment ?? null,
-        )
-        if (count(evidence.changes) === 0) continue
-        storedFindingCount++
-
-        const before = this.pattern(profile.targetLanguage, canonical)
-        if (before?.disposition === "active" && before.stage === "verified") {
-          db.query(
-            `UPDATE learning_patterns
-             SET stage = 'practicing', verified_at = NULL, schedule_step = 0,
-                 due_at = ?, lapse_count = lapse_count + 1, last_lapsed_at = ?, revision = revision + 1
-             WHERE target_language = ? AND pattern_key = ?`,
-          ).run(identity.observedAt + DAY_MS, identity.observedAt, profile.targetLanguage, canonical)
-          this.insertEvent({
-            targetLanguage: profile.targetLanguage,
-            type: "pattern_lapsed",
-            at: identity.observedAt,
-            identity,
-            patternKey: canonical,
-          })
-        } else if (before?.disposition === "active") {
-          this.promoteIfRecurring(profile.targetLanguage, canonical, identity)
-        }
-        // Ignored patterns retain evidence but keep their frozen lifecycle and schedule.
-        this.trimEvidence(profile.targetLanguage, canonical)
-      }
-
-      for (const demonstration of (isTargetLanguageAttempt ? demonstrations : [])
+      for (const demonstration of demonstrations
         .filter(
           (item) =>
             PATTERN_KEY.test(item.patternKey)
@@ -265,16 +236,23 @@ export class LearningRepository {
         )
         .slice(0, 2)) {
         const canonical = this.resolveCanonical(profile.targetLanguage, demonstration.patternKey)
-        if (errored.has(canonical)) continue
         const pattern = this.pattern(profile.targetLanguage, canonical)
         if (!pattern || pattern.disposition !== "active") continue
+        const conflictingError = db
+          .query<{ present: number }, [string, string, string]>(
+            `SELECT 1 AS present FROM pattern_evidence
+             WHERE target_language = ? AND pattern_key = ? AND kind = 'error'
+               AND user_message_id = ?`,
+          )
+          .get(profile.targetLanguage, canonical, identity.messageId)
+        if (conflictingError) continue
         const fragment = demonstration.fragment
           ? sanitizeFragment(demonstration.fragment, demonstration.sensitive)
           : undefined
         const evidence = db.query(
           `INSERT OR IGNORE INTO pattern_evidence
            (id, target_language, pattern_key, kind, outcome, confidence,
-            scope_id, session_id, message_id, observed_at, corrected_fragment)
+            scope_id, session_id, user_message_id, observed_at, corrected_fragment)
            VALUES (?, ?, ?, 'natural_correct', 'correct', ?, ?, ?, ?, ?, ?)`,
         ).run(
           crypto.randomUUID(),
@@ -293,16 +271,201 @@ export class LearningRepository {
       }
 
       db.query(
-        `UPDATE analyzed_messages SET finding_count = ?, demonstration_count = ?
-         WHERE target_language = ? AND message_id = ?`,
-      ).run(storedFindingCount, storedDemonstrationCount, profile.targetLanguage, identity.messageId)
+        `UPDATE message_observations
+         SET usage_status = 'analyzed', demonstration_count = ?
+         WHERE target_language = ? AND user_message_id = ? AND usage_correlation_id = ?`,
+      ).run(
+        storedDemonstrationCount,
+        profile.targetLanguage,
+        identity.messageId,
+        correlationId,
+      )
       this.bumpRevision(profile.targetLanguage)
       return true
     })
     return transaction.immediate()
   }
 
-  knownPatterns(targetLanguage: string, limit = 40): KnownPattern[] {
+  recordCorrectionAnalysis(batchId: string, result: CorrectionAnalysisResult): boolean {
+    const db = this.db()
+    return db.transaction(() => {
+      const batch = db
+        .query<{
+          target_language: string
+          scope_id: string
+          session_id: string
+          user_message_id: string
+          created_at: number
+          analysis_status: string
+        }, [string]>(
+          `SELECT target_language, scope_id, session_id, user_message_id, created_at, analysis_status
+           FROM correction_batches WHERE id = ?`,
+        )
+        .get(batchId)
+      if (!batch || ["analyzed", "recorded_only"].includes(batch.analysis_status)) return false
+      const items = db
+        .query<{
+          id: string
+          ordinal: number
+          corrected_fragment: string | null
+        }, [string]>(
+          `SELECT id, ordinal, corrected_fragment
+           FROM correction_items WHERE batch_id = ? ORDER BY ordinal`,
+        )
+        .all(batchId)
+      const byOrdinal = new Map(items.map((item) => [count(item.ordinal), item]))
+      const identity: MessageIdentity = {
+        messageId: batch.user_message_id,
+        scopeId: batch.scope_id,
+        sessionId: batch.session_id,
+        observedAt: count(batch.created_at),
+      }
+      let acceptedCount = 0
+      const seenIndexes = new Set<number>()
+      for (const analysis of result.items) {
+        if (seenIndexes.has(analysis.correctionIndex)) continue
+        seenIndexes.add(analysis.correctionIndex)
+        const item = byOrdinal.get(analysis.correctionIndex)
+        if (!item) continue
+        const complete =
+          analysis.accepted
+          && analysis.confidence >= MIN_FINDING_CONFIDENCE
+          && analysis.patternKey
+          && analysis.category
+          && analysis.severity
+          && analysis.label
+          && analysis.rule
+          && PATTERN_KEY.test(analysis.patternKey)
+          && ErrorCategorySchema.safeParse(analysis.category).success
+          && ErrorSeveritySchema.safeParse(analysis.severity).success
+          && !containsSensitiveContent(analysis.label)
+          && !containsSensitiveContent(analysis.rule)
+          && (
+            analysis.sensitive
+            || (
+              item.corrected_fragment != null
+              && hasCompatibleTargetScript(item.corrected_fragment, batch.target_language)
+            )
+          )
+        if (!complete) {
+          db.query(
+            "UPDATE correction_items SET accepted = 0, confidence = ? WHERE id = ?",
+          ).run(analysis.confidence, item.id)
+          continue
+        }
+        const canonical = this.resolveCanonical(batch.target_language, analysis.patternKey!)
+        if (this.isRejected(batch.target_language, canonical)) continue
+        const existing = this.pattern(batch.target_language, canonical)
+        if (existing && existing.disposition !== "active") {
+          db.query(
+            "UPDATE correction_items SET accepted = 0, confidence = ? WHERE id = ?",
+          ).run(analysis.confidence, item.id)
+          continue
+        }
+        db.query(
+          `INSERT INTO learning_patterns
+           (target_language, pattern_key, category, severity, label, rule, first_seen_at, last_seen_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(target_language, pattern_key) DO UPDATE SET
+             category = excluded.category,
+             severity = CASE
+               WHEN learning_patterns.severity = 'meaning_affecting' THEN learning_patterns.severity
+               WHEN excluded.severity = 'meaning_affecting' THEN excluded.severity
+               WHEN learning_patterns.severity = 'high_value' THEN learning_patterns.severity
+               ELSE excluded.severity
+             END,
+             label = excluded.label,
+             rule = excluded.rule,
+             last_seen_at = MAX(learning_patterns.last_seen_at, excluded.last_seen_at),
+             revision = learning_patterns.revision + 1`,
+        ).run(
+          batch.target_language,
+          canonical,
+          analysis.category!,
+          analysis.severity!,
+          analysis.label!,
+          analysis.rule!,
+          identity.observedAt,
+          identity.observedAt,
+        )
+        if (!existing) {
+          this.insertEvent({
+            targetLanguage: batch.target_language,
+            type: "pattern_discovered",
+            at: identity.observedAt,
+            identity,
+            patternKey: canonical,
+          })
+        }
+        if (analysis.sensitive) {
+          db.query(
+            `UPDATE correction_items SET original_fragment = NULL, corrected_fragment = NULL
+             WHERE id = ?`,
+          ).run(item.id)
+        }
+        db.query(
+          `UPDATE correction_items
+           SET accepted = 1, confidence = ?, pattern_key = ? WHERE id = ?`,
+        ).run(analysis.confidence, canonical, item.id)
+        db.query(
+          `DELETE FROM pattern_evidence
+           WHERE target_language = ? AND pattern_key = ? AND kind = 'natural_correct'
+             AND user_message_id = ?`,
+        ).run(batch.target_language, canonical, identity.messageId)
+        const evidence = db.query(
+          `INSERT OR IGNORE INTO pattern_evidence
+           (id, target_language, pattern_key, kind, outcome, severity, confidence,
+            scope_id, session_id, user_message_id, correction_item_id, observed_at)
+           VALUES (?, ?, ?, 'error', 'incorrect', ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+          crypto.randomUUID(),
+          batch.target_language,
+          canonical,
+          analysis.severity!,
+          analysis.confidence,
+          identity.scopeId,
+          identity.sessionId,
+          identity.messageId,
+          item.id,
+          identity.observedAt,
+        )
+        if (count(evidence.changes) === 0) continue
+        acceptedCount++
+        const before = this.pattern(batch.target_language, canonical)
+        if (before?.disposition === "active" && before.stage === "verified") {
+          db.query(
+            `UPDATE learning_patterns
+             SET stage = 'practicing', verified_at = NULL, schedule_step = 0,
+                 due_at = ?, lapse_count = lapse_count + 1, last_lapsed_at = ?,
+                 revision = revision + 1
+             WHERE target_language = ? AND pattern_key = ?`,
+          ).run(identity.observedAt + DAY_MS, identity.observedAt, batch.target_language, canonical)
+          this.insertEvent({
+            targetLanguage: batch.target_language,
+            type: "pattern_lapsed",
+            at: identity.observedAt,
+            identity,
+            patternKey: canonical,
+          })
+        } else if (before?.disposition === "active") {
+          this.promoteIfRecurring(batch.target_language, canonical, identity)
+        }
+        this.trimEvidence(batch.target_language, canonical)
+      }
+      db.query(
+        `UPDATE correction_batches SET analysis_status = ?
+         WHERE id = ?`,
+      ).run(acceptedCount > 0 ? "analyzed" : "recorded_only", batchId)
+      this.bumpRevision(batch.target_language)
+      return true
+    }).immediate()
+  }
+
+  knownPatterns(
+    targetLanguage: string,
+    limit = 40,
+    includeIgnored = false,
+  ): KnownPattern[] {
     const canonical = this.db()
       .query<{
         pattern_key: string
@@ -313,7 +476,8 @@ export class LearningRepository {
       }, [string, number]>(
         `SELECT pattern_key, category, label, rule, stage
          FROM learning_patterns
-         WHERE target_language = ? AND disposition != 'rejected'
+         WHERE target_language = ?
+           AND disposition ${includeIgnored ? "!= 'rejected'" : "= 'active'"}
          ORDER BY last_seen_at DESC LIMIT ?`,
       )
       .all(targetLanguage, limit)
@@ -416,30 +580,62 @@ export class LearningRepository {
         `SELECT COUNT(*) AS analyzed,
                 SUM(classification = 'target_attempt') AS attempts,
                 COUNT(DISTINCT CASE WHEN classification = 'target_attempt' THEN session_id END) AS sessions,
-                MIN(CASE WHEN classification = 'target_attempt' THEN analyzed_at END) AS first_attempt,
-                MAX(analyzed_at) AS last_analyzed
-         FROM analyzed_messages WHERE target_language = ?${messageWhere}`,
+                MIN(CASE WHEN classification = 'target_attempt' THEN observed_at END) AS first_attempt,
+                MAX(observed_at) AS last_analyzed
+         FROM message_observations WHERE target_language = ?${messageWhere}`,
       )
       .get(...messageBindings)
     const today = localDate(now, timeZone)
     const todayRows = db
       .query<{
-        analyzed_at: number
+        observed_at: number
         classification: string
         session_id: string
-        finding_count: number
       }, Array<string | number>>(
-        `SELECT analyzed_at, classification, session_id, finding_count
-         FROM analyzed_messages
-         WHERE target_language = ? AND analyzed_at >= ?${messageWhere}`,
+        `SELECT observed_at, classification, session_id
+         FROM message_observations
+         WHERE target_language = ? AND observed_at >= ?${messageWhere}`,
       )
       .all(
         targetLanguage,
         now - 2 * DAY_MS,
         ...(input.scopeId ? [input.scopeId] : []),
       )
-      .filter((row) => localDate(count(row.analyzed_at), timeZone) === today)
+      .filter((row) => localDate(count(row.observed_at), timeZone) === today)
     const targetRowsToday = todayRows.filter((row) => row.classification === "target_attempt")
+    const correctionRowsToday = db
+      .query<{ created_at: number }, Array<string | number>>(
+        `SELECT created_at
+         FROM correction_batches
+         WHERE target_language = ? AND created_at >= ?${messageWhere}`,
+      )
+      .all(
+        targetLanguage,
+        now - 2 * DAY_MS,
+        ...(input.scopeId ? [input.scopeId] : []),
+      )
+      .filter((row) => localDate(count(row.created_at), timeZone) === today)
+    const correctionStatusCounts = db
+      .query<{ analyzing: number; failed: number }, string[]>(
+        `SELECT
+           SUM(analysis_status IN ('pending', 'queued')) AS analyzing,
+           SUM(analysis_status = 'failed') AS failed
+         FROM correction_batches
+         WHERE target_language = ?${messageWhere}`,
+      )
+      .get(...messageBindings)
+    const findingRowsToday = db
+      .query<{ observed_at: number; user_message_id: string | null }, Array<string | number>>(
+        `SELECT observed_at, user_message_id FROM pattern_evidence
+         WHERE target_language = ? AND kind = 'error' AND observed_at >= ?
+           ${input.scopeId ? "AND scope_id = ?" : ""}`,
+      )
+      .all(
+        targetLanguage,
+        now - 2 * DAY_MS,
+        ...(input.scopeId ? [input.scopeId] : []),
+      )
+      .filter((row) => localDate(count(row.observed_at), timeZone) === today)
     const patternScopeClause = input.scopeId
       ? ` AND EXISTS (
           SELECT 1 FROM pattern_evidence scoped
@@ -574,10 +770,10 @@ export class LearningRepository {
     }
 
     const attemptRows = db
-      .query<{ analyzed_at: number }, string[]>(
-        `SELECT analyzed_at FROM analyzed_messages
+      .query<{ observed_at: number }, string[]>(
+        `SELECT observed_at FROM message_observations
          WHERE target_language = ? AND classification = 'target_attempt'${messageWhere}
-         ORDER BY analyzed_at`,
+         ORDER BY observed_at`,
       )
       .all(...messageBindings)
     const reviewRows = db
@@ -587,7 +783,7 @@ export class LearningRepository {
       )
       .all(...reviewBindings)
     const activeDates = new Set([
-      ...attemptRows.map((row) => localDate(count(row.analyzed_at), timeZone)),
+      ...attemptRows.map((row) => localDate(count(row.observed_at), timeZone)),
       ...reviewRows.map((row) => localDate(count(row.completed_at), timeZone)),
     ])
     let streak = 0
@@ -613,8 +809,14 @@ export class LearningRepository {
       findingsLast30Days: count(recentFindings?.count),
       targetAttemptsToday: targetRowsToday.length,
       targetSessionsToday: new Set(targetRowsToday.map((row) => row.session_id)).size,
-      findingMessagesToday: targetRowsToday.filter((row) => count(row.finding_count) > 0).length,
-      findingsToday: targetRowsToday.reduce((total, row) => total + count(row.finding_count), 0),
+      findingMessagesToday: new Set(
+        findingRowsToday.map((row) => row.user_message_id).filter(Boolean),
+      ).size,
+      findingsToday: findingRowsToday.length,
+      correctionsToday: correctionRowsToday.length,
+      acceptedFindingsToday: findingRowsToday.length,
+      correctionsAnalyzing: count(correctionStatusCounts?.analyzing),
+      correctionsFailed: count(correctionStatusCounts?.failed),
       lastAnalyzedAt: messages?.last_analyzed == null
         ? undefined
         : count(messages.last_analyzed),
@@ -875,11 +1077,14 @@ export class LearningRepository {
       original_fragment: string | null
       corrected_fragment: string | null
     }, Array<string | number>>(
-      `SELECT id, kind, outcome, confidence, observed_at, scope_id, session_id,
-              message_id, review_item_id, original_fragment, corrected_fragment
-       FROM pattern_evidence
-       WHERE target_language = ? AND pattern_key = ?${scopeClause}
-       ORDER BY observed_at DESC, id DESC LIMIT ?`,
+      `SELECT e.id, e.kind, e.outcome, e.confidence, e.observed_at, e.scope_id, e.session_id,
+              e.user_message_id AS message_id, e.review_item_id,
+              COALESCE(ci.original_fragment, e.original_fragment) AS original_fragment,
+              COALESCE(ci.corrected_fragment, e.corrected_fragment) AS corrected_fragment
+       FROM pattern_evidence e
+       LEFT JOIN correction_items ci ON ci.id = e.correction_item_id
+       WHERE e.target_language = ? AND e.pattern_key = ?${scopeClause}
+       ORDER BY e.observed_at DESC, e.id DESC LIMIT ?`,
     ).all(...bindings).map((row) => ({
       id: row.id,
       kind: row.kind,
@@ -1115,6 +1320,7 @@ export class LearningRepository {
       sessionId?: string
       messageId?: string
       patternKey?: string
+      correctionBatchId?: string
       reviewId?: string
       reviewItemId?: string
       attemptCount?: number
@@ -1160,6 +1366,7 @@ export class LearningRepository {
         session_id: string | null
         message_id: string | null
         pattern_key: string | null
+        correction_batch_id: string | null
         review_id: string | null
         review_item_id: string | null
       }, Array<string | number>>(
@@ -1192,6 +1399,7 @@ export class LearningRepository {
           sessionId: row.session_id ?? undefined,
           messageId: row.message_id ?? undefined,
           patternKey: row.pattern_key ?? undefined,
+          correctionBatchId: row.correction_batch_id ?? undefined,
           reviewId: row.review_id ?? undefined,
           reviewItemId: row.review_item_id ?? undefined,
           ...activity,
@@ -1212,6 +1420,7 @@ export class LearningRepository {
       session_id: string | null
       message_id: string | null
       pattern_key: string | null
+      correction_batch_id: string | null
       review_id: string | null
       review_item_id: string | null
     }, [string, string]>(
@@ -1229,6 +1438,7 @@ export class LearningRepository {
       sessionId: row.session_id ?? undefined,
       messageId: row.message_id ?? undefined,
       patternKey: row.pattern_key ?? undefined,
+      correctionBatchId: row.correction_batch_id ?? undefined,
       reviewId: row.review_id ?? undefined,
       reviewItemId: row.review_item_id ?? undefined,
       ...(row.event_type === "practice_started" && sessionSummary
@@ -1255,8 +1465,39 @@ export class LearningRepository {
         .map((patternKey) => this.patternDetail(targetLanguage, patternKey))
         .filter((pattern): pattern is ProgressPattern => Boolean(pattern)),
       evidence,
+      corrections: event.correctionBatchId
+        ? this.correctionPairs(event.correctionBatchId)
+        : undefined,
       sessionSummary,
     }
+  }
+
+  private correctionPairs(batchId: string): Array<{
+    index: number
+    originalFragment?: string
+    correctedFragment?: string
+    patternKey?: string
+    accepted?: boolean
+  }> {
+    return this.db()
+      .query<{
+        ordinal: number
+        original_fragment: string | null
+        corrected_fragment: string | null
+        pattern_key: string | null
+        accepted: number | null
+      }, [string]>(
+        `SELECT ordinal, original_fragment, corrected_fragment, pattern_key, accepted
+         FROM correction_items WHERE batch_id = ? ORDER BY ordinal`,
+      )
+      .all(batchId)
+      .map((row) => ({
+        index: count(row.ordinal),
+        ...(row.original_fragment ? { originalFragment: row.original_fragment } : {}),
+        ...(row.corrected_fragment ? { correctedFragment: row.corrected_fragment } : {}),
+        ...(row.pattern_key ? { patternKey: row.pattern_key } : {}),
+        ...(row.accepted == null ? {} : { accepted: Boolean(row.accepted) }),
+      }))
   }
 
   private sessionActivityKey(scopeId: string, sessionId: string): string {
@@ -1291,10 +1532,22 @@ export class LearningRepository {
     }, string[]>(
       `SELECT scope_id, session_id,
               SUM(classification = 'target_attempt') AS attempt_count,
-              SUM(classification = 'target_attempt' AND finding_count > 0) AS finding_message_count,
-              SUM(CASE WHEN classification = 'target_attempt' THEN finding_count ELSE 0 END) AS finding_count,
+              (
+                SELECT COUNT(DISTINCT pe.user_message_id) FROM pattern_evidence pe
+                WHERE pe.target_language = message_observations.target_language
+                  AND pe.scope_id = message_observations.scope_id
+                  AND pe.session_id = message_observations.session_id
+                  AND pe.kind = 'error'
+              ) AS finding_message_count,
+              (
+                SELECT COUNT(*) FROM pattern_evidence pe
+                WHERE pe.target_language = message_observations.target_language
+                  AND pe.scope_id = message_observations.scope_id
+                  AND pe.session_id = message_observations.session_id
+                  AND pe.kind = 'error'
+              ) AS finding_count,
               SUM(CASE WHEN classification = 'target_attempt' THEN demonstration_count ELSE 0 END) AS demonstration_count
-       FROM analyzed_messages
+       FROM message_observations
        WHERE target_language = ? AND (${clauses})
        GROUP BY scope_id, session_id`,
     ).all(...bindings)
@@ -1334,12 +1587,24 @@ export class LearningRepository {
     }, [string, string, string]>(
       `SELECT COUNT(*) AS analyzed,
               SUM(classification = 'target_attempt') AS attempts,
-              SUM(classification = 'target_attempt' AND finding_count > 0) AS finding_messages,
-              SUM(finding_count) AS findings,
+              (
+                SELECT COUNT(DISTINCT pe.user_message_id) FROM pattern_evidence pe
+                WHERE pe.target_language = message_observations.target_language
+                  AND pe.scope_id = message_observations.scope_id
+                  AND pe.session_id = message_observations.session_id
+                  AND pe.kind = 'error'
+              ) AS finding_messages,
+              (
+                SELECT COUNT(*) FROM pattern_evidence pe
+                WHERE pe.target_language = message_observations.target_language
+                  AND pe.scope_id = message_observations.scope_id
+                  AND pe.session_id = message_observations.session_id
+                  AND pe.kind = 'error'
+              ) AS findings,
               SUM(demonstration_count) AS demonstrations,
-              MIN(analyzed_at) AS started_at,
-              MAX(analyzed_at) AS last_seen_at
-       FROM analyzed_messages
+              MIN(observed_at) AS started_at,
+              MAX(observed_at) AS last_seen_at
+       FROM message_observations
        WHERE target_language = ? AND scope_id = ? AND session_id = ?`,
     ).get(targetLanguage, scopeId, sessionId)
     const discovered = this.db().query<{ count: number }, [string, string, string]>(
@@ -1398,7 +1663,7 @@ export class LearningRepository {
       )`)
       bindings.push(event.reviewId)
     } else if (event.messageId) {
-      clauses.push("e.message_id = ?")
+      clauses.push("e.user_message_id = ?")
       bindings.push(event.messageId)
     } else if (event.scopeId && event.sessionId) {
       clauses.push("e.scope_id = ?", "e.session_id = ?")
@@ -1426,11 +1691,14 @@ export class LearningRepository {
       corrected_fragment: string | null
     }, Array<string | number>>(
       `SELECT e.id, e.pattern_key, p.label, e.kind, e.outcome, e.confidence,
-              e.observed_at, e.scope_id, e.session_id, e.message_id, e.review_item_id,
-              e.original_fragment, e.corrected_fragment
+              e.observed_at, e.scope_id, e.session_id, e.user_message_id AS message_id,
+              e.review_item_id,
+              COALESCE(ci.original_fragment, e.original_fragment) AS original_fragment,
+              COALESCE(ci.corrected_fragment, e.corrected_fragment) AS corrected_fragment
        FROM pattern_evidence e
        JOIN learning_patterns p
          ON p.target_language = e.target_language AND p.pattern_key = e.pattern_key
+       LEFT JOIN correction_items ci ON ci.id = e.correction_item_id
        WHERE ${clauses.join(" AND ")}
        ORDER BY e.observed_at DESC, e.id DESC LIMIT ?`,
     ).all(...bindings).map((row) => ({
@@ -1529,6 +1797,12 @@ export class LearningRepository {
            WHERE target_language = ? AND canonical_key = ?`,
         ).run(target, targetLanguage, source)
         db.query(
+          `UPDATE correction_items SET pattern_key = ?
+           WHERE pattern_key = ? AND batch_id IN (
+             SELECT id FROM correction_batches WHERE target_language = ?
+           )`,
+        ).run(target, source, targetLanguage)
+        db.query(
           "DELETE FROM learning_patterns WHERE target_language = ? AND pattern_key = ?",
         ).run(targetLanguage, source)
         this.recomputeVerified(targetLanguage, target, Date.now())
@@ -1541,6 +1815,12 @@ export class LearningRepository {
         if (command.action === "ignore" && existing.disposition === "rejected") return undefined
         if (command.action === "delete") {
           this.abandonOpenReviewsForPattern(targetLanguage, key)
+          db.query(
+            `UPDATE correction_items SET pattern_key = NULL, accepted = 0
+             WHERE pattern_key = ? AND batch_id IN (
+               SELECT id FROM correction_batches WHERE target_language = ?
+             )`,
+          ).run(key, targetLanguage)
           db.query(
             "DELETE FROM learning_patterns WHERE target_language = ? AND pattern_key = ?",
           ).run(targetLanguage, key)
@@ -1557,6 +1837,12 @@ export class LearningRepository {
           db.query(
             `DELETE FROM pattern_evidence WHERE target_language = ? AND pattern_key = ?`,
           ).run(targetLanguage, key)
+          db.query(
+            `UPDATE correction_items SET pattern_key = NULL, accepted = 0
+             WHERE pattern_key = ? AND batch_id IN (
+               SELECT id FROM correction_batches WHERE target_language = ?
+             )`,
+          ).run(key, targetLanguage)
           db.query(
             `UPDATE learning_patterns SET disposition = 'rejected', stage = 'candidate',
              due_at = NULL, verified_at = NULL, revision = revision + 1
@@ -1590,13 +1876,23 @@ export class LearningRepository {
       const tableCount = (table: string) =>
         count(db.query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM ${table}${where}`).get(...bindings)?.count)
       const result = {
-        deletedMessages: tableCount("analyzed_messages"),
+        deletedMessages: tableCount("message_observations"),
         deletedOccurrences: tableCount("pattern_evidence"),
         deletedPatterns: tableCount("learning_patterns"),
         deletedReviews: tableCount("review_sessions"),
         deletedEvents: tableCount("learning_events"),
       }
-      for (const table of ["review_sessions", "pattern_presentations", "pattern_aliases", "pattern_evidence", "learning_events", "learning_patterns", "analyzed_messages", "learning_profiles"]) {
+      for (const table of [
+        "learning_events",
+        "review_sessions",
+        "pattern_evidence",
+        "pattern_presentations",
+        "pattern_aliases",
+        "correction_batches",
+        "learning_patterns",
+        "message_observations",
+        "learning_profiles",
+      ]) {
         db.query(`DELETE FROM ${table}${where}`).run(...bindings)
       }
       return result
@@ -1681,11 +1977,11 @@ export class LearningRepository {
     const scopeClause = scopeId ? " AND scope_id = ?" : ""
     const bindings: Array<string | number> = [targetLanguage, since]
     if (scopeId) bindings.push(scopeId)
-    for (const row of this.db().query<{ analyzed_at: number }, Array<string | number>>(
-      `SELECT analyzed_at FROM analyzed_messages
-       WHERE target_language = ? AND analyzed_at >= ? AND classification = 'target_attempt'${scopeClause}`,
+    for (const row of this.db().query<{ observed_at: number }, Array<string | number>>(
+      `SELECT observed_at FROM message_observations
+       WHERE target_language = ? AND observed_at >= ? AND classification = 'target_attempt'${scopeClause}`,
     ).all(...bindings)) {
-      const point = points.get(localDate(count(row.analyzed_at), timeZone))
+      const point = points.get(localDate(count(row.observed_at), timeZone))
       if (point) point.targetAttempts++
     }
     for (const row of this.db().query<{ observed_at: number; kind: string; outcome: string }, Array<string | number>>(
@@ -1759,11 +2055,17 @@ export class LearningRepository {
         original_fragment: string | null
         corrected_fragment: string | null
       }, Array<string | number>>(
-        `SELECT observed_at, scope_id, session_id, message_id, original_fragment, corrected_fragment
-         FROM pattern_evidence
-         WHERE target_language = ? AND pattern_key = ?${scopeClause}
-           AND (original_fragment IS NOT NULL OR corrected_fragment IS NOT NULL)
-         ORDER BY observed_at DESC, id DESC LIMIT ?`,
+        `SELECT e.observed_at, e.scope_id, e.session_id, e.user_message_id AS message_id,
+                COALESCE(ci.original_fragment, e.original_fragment) AS original_fragment,
+                COALESCE(ci.corrected_fragment, e.corrected_fragment) AS corrected_fragment
+         FROM pattern_evidence e
+         LEFT JOIN correction_items ci ON ci.id = e.correction_item_id
+         WHERE e.target_language = ? AND e.pattern_key = ?${scopeClause}
+           AND (
+             ci.original_fragment IS NOT NULL OR ci.corrected_fragment IS NOT NULL
+             OR e.original_fragment IS NOT NULL OR e.corrected_fragment IS NOT NULL
+           )
+         ORDER BY e.observed_at DESC, e.id DESC LIMIT ?`,
       )
       .all(...bindings)
       .map((row) => ({
@@ -1873,6 +2175,18 @@ export class LearningRepository {
          WHERE target_language = ? AND pattern_key = ?
            AND (original_fragment IS NOT NULL OR corrected_fragment IS NOT NULL)
          ORDER BY observed_at DESC, id DESC LIMIT -1 OFFSET ?
+       )`,
+    ).run(targetLanguage, patternKey, MAX_STORED_EXAMPLES)
+    this.db().query(
+      `UPDATE correction_items
+       SET original_fragment = NULL, corrected_fragment = NULL
+       WHERE id IN (
+         SELECT ci.id
+         FROM correction_items ci
+         JOIN pattern_evidence e ON e.correction_item_id = ci.id
+         WHERE e.target_language = ? AND e.pattern_key = ?
+           AND (ci.original_fragment IS NOT NULL OR ci.corrected_fragment IS NOT NULL)
+         ORDER BY e.observed_at DESC, e.id DESC LIMIT -1 OFFSET ?
        )`,
     ).run(targetLanguage, patternKey, MAX_STORED_EXAMPLES)
   }

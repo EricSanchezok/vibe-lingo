@@ -3,9 +3,10 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import { progressTool, renderProgress } from "../src/progress"
+import { createServices } from "../src/application/services"
 import { VibeLingoDatabase } from "../src/infrastructure/database"
 import { LearningRepository } from "../src/infrastructure/learning-repository"
-import { invocationContext } from "./helpers"
+import { invocationContext, seedCorrection } from "./helpers"
 
 const temporaryDirectories: string[] = []
 
@@ -34,6 +35,10 @@ describe("progress output", () => {
           targetSessionsToday: 1,
           findingMessagesToday: 1,
           findingsToday: 1,
+          correctionsToday: 1,
+          acceptedFindingsToday: 1,
+          correctionsAnalyzing: 0,
+          correctionsFailed: 0,
           totalPatternCount: 1,
           recurringPatternCount: 1,
           candidatePatternCount: 0,
@@ -106,6 +111,10 @@ describe("progress output", () => {
           targetSessionsToday: 1,
           findingMessagesToday: 1,
           findingsToday: 1,
+          correctionsToday: 1,
+          acceptedFindingsToday: 1,
+          correctionsAnalyzing: 0,
+          correctionsFailed: 0,
           totalPatternCount: 1,
           recurringPatternCount: 0,
           candidatePatternCount: 1,
@@ -176,7 +185,9 @@ describe("progress output", () => {
     )
     expect(unconfigured.metadata).toMatchObject({ setupRequired: true })
 
-    database.recordAnalysis(
+    const service = createServices(database.database)
+    seedCorrection(
+      service,
       {
         messageId: "message-es",
         scopeId: "scope-test",
@@ -188,9 +199,7 @@ describe("progress output", () => {
         targetLanguage: "es",
         proficiency: "intermediate",
       },
-      true,
-      [
-        {
+      {
           patternKey: "missing_article",
           category: "grammar",
           severity: "high_value",
@@ -200,9 +209,7 @@ describe("progress output", () => {
           correctedFragment: "añade un botón",
           confidence: 0.95,
           sensitive: false,
-        },
-      ],
-      [],
+      },
     )
     const configured = await progressTool(
       {},

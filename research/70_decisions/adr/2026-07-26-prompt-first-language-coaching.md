@@ -4,7 +4,7 @@
 
 Accepted
 
-Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md` and `2026-07-28-evidence-learning-loop-and-review-backend.md`. The prompt-first work-first model remains the core; v0.3 limits recurring focus to active practicing patterns from the evidence lifecycle. On 2026-07-29, foreground timing was tightened so useful correction appears in the opening coaching block rather than as a delayed final footnote.
+Extended by `2026-07-27-multilingual-profile-and-trusted-settings.md`, `2026-07-28-evidence-learning-loop-and-review-backend.md`, and `2026-07-30-foreground-correction-authority-and-sessionless-analysis.md`. The prompt-first work-first model remains the core; v0.3 limits recurring focus to active practicing patterns. V0.6 makes the correction Tool card the first visible action and authoritative history record instead of duplicating `Got it`/`💡` text in the final answer.
 
 ## Context
 
@@ -123,8 +123,8 @@ The injected version should add these protections:
 - Clarification is required only when different interpretations would lead to materially different actions.
 - Good English produces no teaching output.
 - One correction is the ordinary maximum; use two only for independent, high-value issues.
-- When correction is warranted, the first user-visible text must contain the natural restatement and compact correction before any progress update, tool call, or substantive answer.
-- Continue the task immediately after that opening block; do not defer correction until the final answer.
+- When correction is warranted, `plugin__vibe-lingo__record-correction` must be the first visible action before any progress update, other Tool, or substantive answer.
+- The Tool receives only the visible restatement and fragment pairs. Continue the task immediately after it returns; do not duplicate or defer correction in ordinary text.
 - Recurring-pattern claims should be based on injected learner memory, not the model's unreliable recollection.
 - Do not repeat the opening correction in later tool-loop steps or the final answer.
 

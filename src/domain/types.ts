@@ -30,6 +30,7 @@ export const EvidenceKindSchema = z.enum([
 export const EvidenceOutcomeSchema = z.enum(["incorrect", "assisted", "independent", "correct"])
 export const LearningEventTypeSchema = z.enum([
   "practice_started",
+  "correction_recorded",
   "pattern_discovered",
   "pattern_reviewable",
   "review_item_completed",
@@ -40,15 +41,15 @@ export const LearningEventTypeSchema = z.enum([
 export const ReviewSessionStatusSchema = z.enum(["active", "paused", "completed", "abandoned"])
 export const ReviewOutcomeSchema = z.enum(["failed", "assisted", "independent", "abandoned"])
 
-export const ErrorFindingSchema = z
+export const CorrectionAnalysisItemSchema = z
   .object({
-    patternKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
-    category: ErrorCategorySchema,
-    severity: ErrorSeveritySchema,
-    label: z.string().min(1).max(80),
-    rule: z.string().min(1).max(200),
-    originalFragment: z.string().min(1),
-    correctedFragment: z.string().min(1),
+    correctionIndex: z.number().int().nonnegative(),
+    accepted: z.boolean(),
+    patternKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/).optional(),
+    category: ErrorCategorySchema.optional(),
+    severity: ErrorSeveritySchema.optional(),
+    label: z.string().min(1).max(80).optional(),
+    rule: z.string().min(1).max(200).optional(),
     confidence: z.number().min(0).max(1),
     sensitive: z.boolean(),
   })
@@ -63,12 +64,18 @@ export const DemonstrationSchema = z
   })
   .strict()
 
-export const AnalysisResultSchema = z
+export const CorrectionAnalysisResultSchema = z
   .object({
-    isTargetLanguageAttempt: z.boolean(),
-    findings: z.array(ErrorFindingSchema).max(2),
-    demonstrations: z.array(DemonstrationSchema).max(2),
+    items: z.array(CorrectionAnalysisItemSchema).max(2),
   })
+  .strict()
+
+export const LanguageClassificationSchema = z
+  .object({ isTargetLanguageAttempt: z.boolean() })
+  .strict()
+
+export const UsageAnalysisResultSchema = z
+  .object({ demonstrations: z.array(DemonstrationSchema).max(2) })
   .strict()
 
 export type ErrorCategory = z.infer<typeof ErrorCategorySchema>
@@ -79,9 +86,10 @@ export type PatternDisplayStatus = z.infer<typeof PatternDisplayStatusSchema>
 export type EvidenceKind = z.infer<typeof EvidenceKindSchema>
 export type EvidenceOutcome = z.infer<typeof EvidenceOutcomeSchema>
 export type LearningEventType = z.infer<typeof LearningEventTypeSchema>
-export type ErrorFinding = z.infer<typeof ErrorFindingSchema>
+export type CorrectionAnalysisItem = z.infer<typeof CorrectionAnalysisItemSchema>
 export type Demonstration = z.infer<typeof DemonstrationSchema>
-export type AnalysisResult = z.infer<typeof AnalysisResultSchema>
+export type CorrectionAnalysisResult = z.infer<typeof CorrectionAnalysisResultSchema>
+export type UsageAnalysisResult = z.infer<typeof UsageAnalysisResultSchema>
 
 export type MessageIdentity = {
   messageId: string
@@ -93,17 +101,12 @@ export type MessageIdentity = {
 export const MessageReasonSchema = z.enum([
   "too_long",
   "mostly_code",
-  "too_little_target_language",
   "historical_unknown",
   "not_target_language",
   "target_attempt",
+  "foreground_correction",
 ])
 export type MessageReason = z.infer<typeof MessageReasonSchema>
-
-export type StoredFinding = Omit<ErrorFinding, "originalFragment" | "correctedFragment"> & {
-  originalFragment?: string
-  correctedFragment?: string
-}
 
 export type StoredDemonstration = Omit<Demonstration, "fragment"> & {
   fragment?: string
@@ -168,6 +171,10 @@ export type LearningSummary = {
   targetSessionsToday: number
   findingMessagesToday: number
   findingsToday: number
+  correctionsToday: number
+  acceptedFindingsToday: number
+  correctionsAnalyzing: number
+  correctionsFailed: number
   lastAnalyzedAt?: number
   totalPatternCount: number
   recurringPatternCount: number

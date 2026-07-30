@@ -360,8 +360,9 @@ export function outcomeLabel(locale: UiLocale, outcome: ReviewOutcome): string {
 
 export function eventLabel(locale: UiLocale, type: LearningEventType): string {
   const labels = locale === "zh-CN"
-    ? {
+      ? {
         practice_started: "在真实工作中使用目标语言",
+        correction_recorded: "记录了一次可见纠正",
         pattern_discovered: "建立新的学习模式",
         pattern_reviewable: "一个模式进入复习阶段",
         review_item_completed: "完成一个模式的复习",
@@ -369,8 +370,9 @@ export function eventLabel(locale: UiLocale, type: LearningEventType): string {
         pattern_verified: "一个模式获得稳定证据",
         pattern_lapsed: "一个已验证模式再次出现问题",
       }
-    : {
+      : {
         practice_started: "Used the target language in real work",
+        correction_recorded: "Recorded a visible correction",
         pattern_discovered: "Created a new learning pattern",
         pattern_reviewable: "A pattern became ready for review",
         review_item_completed: "Completed one pattern review",

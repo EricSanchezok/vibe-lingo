@@ -15,7 +15,7 @@ The product must make real practice visible without manufacturing “good expres
 VibeLingo uses two deliberately separate outcomes:
 
 1. Every successfully classified target-language message contributes to practice activity, same-day progress, trends, and one aggregated journey event per Scope/Session.
-2. Only findings with confidence at or above `0.85` create or update a learning pattern.
+2. Only metadata at confidence `0.85` or above for a correction actually shown by the foreground Tool creates or updates a learning pattern.
 
 Pattern promotion uses:
 
@@ -24,7 +24,7 @@ Pattern promotion uses:
 
 No tentative signal is stored. A no-finding target-language attempt is described only as practice activity, never as a correct message.
 
-Analyzer failures receive one immediate in-memory retry. Exhausted retries remain fail-soft and do not create a durable task or persist the full message.
+The Nano activity classifier receives one immediate in-memory retry. Correction metadata runs later through a memory-only Sessionless Agent call; the committed visible correction survives unavailable models or completion failure without persisting the full message.
 
 ## Rationale
 
@@ -36,9 +36,9 @@ Cross-Session recurrence remains mandatory because repeated wording inside one d
 
 - Overview and Progress can remain meaningful on days with no findings.
 - Journey stays Session-granular and does not add message-level events.
-- The database schema does not change; aggregates are derived from `analyzed_messages`.
+- Activity aggregates are derived from message observations; visible correction counts and accepted findings remain separate.
 - Candidate patterns remain trustworthy, and no second confidence lifecycle must be maintained.
-- Analyzer failure still loses an observation after one retry, preserving privacy and architectural simplicity.
+- Classifier failure still loses one activity observation after its retry. Usage analysis may be lost across restart; committed foreground corrections remain recoverable.
 
 ## Evidence
 

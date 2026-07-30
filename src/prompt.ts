@@ -8,7 +8,7 @@ import { configuredProfile, readSettings } from "./settings"
 import { hasUserFacingRootSession } from "./session"
 import type { RecurringPattern } from "./domain/types"
 
-export const COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V3]"
+export const COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V4]"
 
 export type PromptDependencies = {
   readSettings(context: PluginInvocationContext): Promise<VibeLingoSettings>
@@ -22,9 +22,9 @@ export function stripCoachingContract(system: string[]): string[] {
 
 function modeRule(mode: VibeLingoSettings["correctionMode"]): string {
   if (mode === "strict") {
-    return "In strict mode, correct every certain, genuine target-language error, but show no more than two compact correction lines in the opening coaching block."
+    return "In strict mode, correct every certain, genuine target-language error, but submit no more than two correction pairs."
   }
-  return "In focused mode, ignore isolated minor slips. Correct only meaning-affecting, clearly unnatural, or recurring issues, and show exactly one compact correction line when correction is warranted."
+  return "In focused mode, ignore isolated minor slips. Correct only meaning-affecting, clearly unnatural, or recurring issues, and submit exactly one correction pair when correction is warranted."
 }
 
 function proficiencyRule(profile: LearningProfile): string {
@@ -64,12 +64,13 @@ Apply coaching only when the user is attempting the target language or explicitl
 When intent is clear:
 - Execute immediately. Never require the user to rewrite a request merely to improve the target language.
 - If there is nothing worth correcting, execute with no coaching preface.
-- If correction is warranted, the first user-visible text of this turn—before any progress update, tool call, or substantive answer—must be one opening coaching block:
-  Got it: "<one-sentence natural target-language restatement>"
-  💡 "<minimal original fragment>" → "<natural fragment>"
-- Keep the acknowledgement, restatement, and correction together at the beginning. Then continue the real task immediately.
+- If correction is warranted, your first user-visible action—before any progress update, other tool, or substantive answer—must be a call to plugin__vibe-lingo__record-correction.
+- Give that tool only a one-sentence natural target-language restatement and the minimal original/corrected fragment pairs that the user should see.
+- Do not write a duplicate "Got it" or correction block in ordinary assistant text. The tool card is the complete visible correction.
+- After the correction tool returns, continue the real task immediately.
 - Preserve every requirement, constraint, scope boundary, modality, and degree of certainty from the original.
-- Never postpone the first correction until the task is complete, and never repeat the opening coaching block later in progress updates or the final answer.
+- Never postpone correction until the task is complete and never repeat it later in progress updates or the final answer.
+- Do not invent or submit pattern keys, categories, severity, rules, confidence, message IDs, or learning metadata. VibeLingo analyzes those separately.
 - Do not comment on correct target-language writing.
 
 When different interpretations would materially change the work:

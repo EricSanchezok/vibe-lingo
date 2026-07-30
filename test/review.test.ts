@@ -6,7 +6,7 @@ import { createServices } from "../src/application/services"
 import { DAY_MS, type ReviewContent } from "../src/domain/types"
 import { scheduleAfterReview } from "../src/domain/schedule"
 import { VibeLingoDatabase } from "../src/infrastructure/database"
-import { invocationContext } from "./helpers"
+import { invocationContext, seedCorrection } from "./helpers"
 
 const temporaryDirectories: string[] = []
 
@@ -40,12 +40,12 @@ const content: ReviewContent = {
 
 function seedPracticing(service: ReturnType<typeof services>, now = 1_000) {
   for (let index = 0; index < 3; index++) {
-    service.learning.recordAnalysis({
+    seedCorrection(service, {
       messageId: `message-${index}`,
       scopeId: "scope-a",
       sessionId: index === 1 ? "session-b" : "session-a",
       observedAt: now + index,
-    }, profile, true, [{
+    }, profile, {
       patternKey: "missing_article",
       category: "grammar",
       severity: "high_value",
@@ -55,7 +55,7 @@ function seedPracticing(service: ReturnType<typeof services>, now = 1_000) {
       correctedFragment: "add a button",
       confidence: 0.98,
       sensitive: false,
-    }], [])
+    })
   }
 }
 
@@ -484,12 +484,12 @@ describe("review state machine", () => {
     const service = services()
     seedPracticing(service)
     for (let index = 0; index < 3; index++) {
-      service.learning.recordAnalysis({
+      seedCorrection(service, {
         messageId: `merge-source-${index}`,
         scopeId: "scope-a",
         sessionId: index === 1 ? "merge-session-b" : "merge-session-a",
         observedAt: 2_000 + index,
-      }, profile, true, [{
+      }, profile, {
         patternKey: "article_alias",
         category: "grammar",
         severity: "high_value",
@@ -499,7 +499,7 @@ describe("review state machine", () => {
         correctedFragment: "add a panel",
         confidence: 0.98,
         sensitive: false,
-      }], [])
+      })
     }
     const active = service.reviews.create({
       targetLanguage: "en",
@@ -597,12 +597,12 @@ describe("review state machine", () => {
     const service = services()
     seedPracticing(service)
     for (let index = 0; index < 3; index++) {
-      service.learning.recordAnalysis({
+      seedCorrection(service, {
         messageId: `word-choice-${index}`,
         scopeId: "scope-a",
         sessionId: index === 1 ? "word-session-b" : "word-session-a",
         observedAt: 2_000 + index,
-      }, profile, true, [{
+      }, profile, {
         patternKey: "precise_word_choice",
         category: "word_choice",
         severity: "high_value",
@@ -612,7 +612,7 @@ describe("review state machine", () => {
         correctedFragment: "build the component",
         confidence: 0.98,
         sensitive: false,
-      }], [])
+      })
     }
     let builderCalls = 0
     const context = invocationContext({
@@ -738,17 +738,20 @@ describe("review state machine", () => {
     completeReview(base + 8 * DAY_MS, "two")
     expect(service.learning.patternDetail("en", "missing_article")?.stage).toBe("practicing")
 
-    service.learning.recordAnalysis({
+    const naturalIdentity = {
       messageId: "natural-use",
       scopeId: "scope-b",
       sessionId: "real-session",
       observedAt: base + 9 * DAY_MS,
-    }, profile, true, [], [{
+    }
+    service.learning.recordObservation(naturalIdentity, profile, "target_attempt", "target_attempt")
+    service.learning.markUsageQueued("en", "natural-use", "usage:en:natural-use", "call-natural")
+    service.learning.recordUsageAnalysis(naturalIdentity, profile, [{
       patternKey: "missing_article",
       fragment: "Add a button to the settings page.",
       confidence: 0.99,
       sensitive: false,
-    }])
+    }], "usage:en:natural-use")
     expect(service.learning.patternDetail("en", "missing_article")).toMatchObject({
       stage: "verified",
       independentReviewCount: 2,
@@ -756,12 +759,12 @@ describe("review state machine", () => {
       dueAt: undefined,
     })
 
-    service.learning.recordAnalysis({
+    seedCorrection(service, {
       messageId: "lapse",
       scopeId: "scope-b",
       sessionId: "real-session-two",
       observedAt: base + 10 * DAY_MS,
-    }, profile, true, [{
+    }, profile, {
       patternKey: "missing_article",
       category: "grammar",
       severity: "high_value",
@@ -771,7 +774,7 @@ describe("review state machine", () => {
       correctedFragment: "add a button",
       confidence: 0.99,
       sensitive: false,
-    }], [])
+    })
     expect(service.learning.patternDetail("en", "missing_article")).toMatchObject({
       stage: "practicing",
       dueAt: base + 11 * DAY_MS,

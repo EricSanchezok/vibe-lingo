@@ -1,6 +1,6 @@
 # Research Map
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 ## Overview
 
@@ -29,10 +29,10 @@ This map shows what we know, what we're investigating, and where the evidence li
 |---|---|---|
 | Plugin manifest / lifecycle | 🔄 Revalidated | Plugin API 3 uses flat contributions, generated manifests, capability-gated Host Services, and trusted UI. The 2026-07-07 source map is historical. |
 | Tool registration & invocation | ✅ Complete | tool() + ToolContext. Resident/group/search/internal exposure. Subagent task() from within tools. |
-| Agent / subagent interaction | 🔄 Revalidated | Plugins can register Agents and use bounded Sessionless `agent.call` from approved executable contributions. |
+| Agent / subagent interaction | ✅ Revalidated | Plugins can register hidden Agents, await bounded `agent.call`, or start memory-only bounded work with `agent.start`; directed completion arrives through `agent.call.after` without a Session/Cortex record. |
 | Memory / Notes / Agenda | Historical candidate | Available hooks do not make these the correct v0.3 business-data path. VibeLingo uses plugin SQLite and an explicit due queue; no automatic Agenda review. |
 | Composer interaction surfaces | ✅ Revalidated | Web Composer now exposes settled drafts, suffix completion, decorations, revision-safe edits, and normal-message preflight. See `research/20_synergy-platform/source-map/2026-07-26-plugin-interaction-hooks.md`. |
-| Post-submit and message surfaces | ✅ Revalidated | `session.user-message.after` observes ordinary persisted user messages asynchronously; message slots can attach conditional plugin-owned UI. |
+| Post-submit and message surfaces | ✅ Revalidated | `session.user-message.after` observes ordinary persisted user messages; a plugin-owned Tool renderer can show the exact foreground correction and refresh from typed operations/events. |
 | Selection surfaces | ✅ Revalidated | Settled non-sensitive selections and text actions cover Composer, conversation DOM, Notes, Monaco source, and Terminal. Result presentation remains open. |
 | Permission model | 🔄 Revalidated | Composer, selection, Session, Agent-call, and host-action capabilities are separately approved; write/intercept/Agent-call permissions carry a higher trust burden. |
 
@@ -53,11 +53,11 @@ This map shows what we know, what we're investigating, and where the evidence li
 | Inline input assistance | 🔄 Redesign proposed | Move from `lingo_help` as a required chat turn to high-confidence Composer completion plus an explicit draft action. |
 | Expression polish | 🔄 Redesign proposed | Separate communication-risk preflight from learning-oriented post-send reflection. |
 | Comprehension support | 🔄 Redesign proposed | Start from exact selected text; validate a result surface before choosing a permanent UI. |
-| Prompt-first interaction model | ✅ Accepted and implemented | Inject a work-first correction contract, then extract error and natural-correct evidence asynchronously. V0.3 feeds only active practicing patterns back into the prompt. |
+| Prompt-first interaction model | ✅ Accepted and implemented | Prompt V4 requires an owned correction Tool as the first visible action. The saved card is authoritative; asynchronous metadata cannot rewrite it. Only active practicing patterns return to the prompt. |
 | Composer-native interaction model | Deferred experiment | Completion, decorations, preflight, and selection UI remain available if prompt-only coaching fails specific interaction needs. See `research/80_synthesis/integration-summaries/2026-07-26-composer-native-redesign.md`. |
 | Pattern learning & review | ✅ Implemented | Candidate/practicing/verified lifecycle, manual due queue, active recall, hints, repair, transfer, deterministic intervals, and resumable UI; no automatic invitation. |
 | Progress tracking | ✅ Implemented and audited | The sidebar learning workspace renders evidence-backed attempts, active days, curves, journey records, pattern detail, completion summaries, filters, and pagination; no score or inferred level. See `research/80_synthesis/product-briefs/2026-07-28-v04-frontend-capability-and-quality-audit.md`. |
-| Sparse-evidence parameter strategy | ✅ Accepted and implemented | V0.5 separates visible practice activity from accepted patterns, keeps `0.85`/`0.90` confidence thresholds, and promotes accepted non-minor findings after 2 occurrences in 2 Sessions. No tentative tier is stored. See `research/70_decisions/adr/2026-07-29-visible-practice-under-sparse-data.md`. |
+| Sparse-evidence parameter strategy | ✅ Accepted and implemented | V0.6 keeps visible practice activity separate from foreground corrections and accepted patterns, preserves `0.85`/`0.90` thresholds, and adds no tentative tier. See the sparse-data and foreground-authority ADRs. |
 | Privacy & consent | ✅ Complete | Extract, don't store. Conversation NEVER persisted. User-owned data in Synergy scope. |
 
 ### 5. Product Strategy

@@ -28,6 +28,6 @@ test("renders the 16 Figma product states through the bundled Solid surface cont
     new Response(child.stderr).text(),
   ])
   expect(stderr).toBe("")
-  expect(stdout).toContain("16 VibeLingo UI states rendered successfully")
+  expect(stdout).toContain("16 VibeLingo UI states and correction card rendered successfully")
   expect(exitCode).toBe(0)
 }, 30_000)

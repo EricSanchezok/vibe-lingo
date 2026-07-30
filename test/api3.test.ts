@@ -15,7 +15,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.5.0",
+      version: "0.6.0",
       capabilities: [
         { id: "session.read" },
         { id: "settings.read" },
@@ -32,8 +32,11 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       ],
     })
     expect(plugin.contributions.map(({ kind, id }) => `${kind}:${id}`)).toEqual([
+      "event:learning.changed",
+      "event:review.changed",
       "operation:learning-profiles",
       "operation:learning-summary",
+      "operation:correction-status",
       "operation:learning-journey",
       "operation:learning-record",
       "operation:learning-patterns",
@@ -46,12 +49,17 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       "operation:pattern-command",
       "operation:clear-learning-data",
       "ui.navigationItem:learning",
-      "agent:language-analyzer",
+      "agent:language-classifier",
+      "agent:usage-analyzer",
+      "agent:correction-analyzer",
       "agent:review-builder",
       "agent:review-evaluator",
       "agent:pattern-presenter",
       "hook:coach-system",
       "hook:analyze-user-message",
+      "hook:complete-teaching-analysis",
+      "tool:record-correction",
+      "ui.messageRenderer:correction-card",
       "tool:progress",
       "ui.settings:settings",
       "lifecycle.uninstall:cleanup-data",
@@ -59,6 +67,7 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     expect(plugin.handlerIds).toEqual([
       "operation:learning-profiles",
       "operation:learning-summary",
+      "operation:correction-status",
       "operation:learning-journey",
       "operation:learning-record",
       "operation:learning-patterns",
@@ -72,6 +81,8 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
       "operation:clear-learning-data",
       "hook:coach-system",
       "hook:analyze-user-message",
+      "hook:complete-teaching-analysis",
+      "tool:record-correction",
       "tool:progress",
       "lifecycle.uninstall:cleanup-data",
     ])
@@ -108,14 +119,30 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
     })
   })
 
-  test("keeps the analyzer private and bounds the progress tool surface", () => {
-    expect(contribution("agent", "language-analyzer")).toMatchObject({
+  test("keeps the three teaching agents private and bounds the visible tool surfaces", () => {
+    expect(contribution("agent", "language-classifier")).toMatchObject({
       agent: {
-        name: "vibe-lingo-analyzer",
+        name: "vibe-lingo-language-classifier",
         mode: "subagent",
-        modelRole: "mini",
+        modelRole: "nano",
         temperature: 0,
         steps: 1,
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    })
+    expect(contribution("agent", "usage-analyzer")).toMatchObject({
+      agent: {
+        name: "vibe-lingo-usage-analyzer",
+        modelRole: "mini",
+        hidden: true,
+        permission: { "*": "deny" },
+      },
+    })
+    expect(contribution("agent", "correction-analyzer")).toMatchObject({
+      agent: {
+        name: "vibe-lingo-correction-analyzer",
+        modelRole: "mini",
         hidden: true,
         permission: { "*": "deny" },
       },
@@ -146,6 +173,20 @@ describe("VibeLingo Plugin API 3 descriptor", () => {
         mode: "search",
         title: "VibeLingo progress",
       },
+    })
+    expect(contribution("tool", "record-correction")).toMatchObject({
+      exposure: { mode: "resident" },
+      display: { toolCard: "visible" },
+      requires: ["settings.read", "agent.call"],
+    })
+    expect(contribution("ui.messageRenderer", "correction-card")).toMatchObject({
+      messageType: "tool",
+      tool: "plugin__vibe-lingo__record-correction",
+      component: { source: "./src/ui/correction-card.tsx" },
+    })
+    expect(contribution("operation", "correction-status")).toMatchObject({
+      type: "query",
+      expose: ["ui"],
     })
   })
 

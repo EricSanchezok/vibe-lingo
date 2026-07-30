@@ -167,8 +167,8 @@ export const OverviewView: Component = () => {
                 </strong>
                 <p class="vld-today-meta">
                   {dashboard.locale() === "zh-CN"
-                    ? `${formatNumber(dashboard.locale(), summary()!.targetAttemptsToday)} 次目标语言表达 · ${formatNumber(dashboard.locale(), summary()!.targetSessionsToday)} 个真实会话 · ${formatNumber(dashboard.locale(), summary()!.findingsToday)} 条学习发现`
-                    : `${formatNumber(dashboard.locale(), summary()!.targetAttemptsToday)} target-language attempts · ${formatNumber(dashboard.locale(), summary()!.targetSessionsToday)} real sessions · ${formatNumber(dashboard.locale(), summary()!.findingsToday)} learning findings`}
+                    ? `${formatNumber(dashboard.locale(), summary()!.targetAttemptsToday)} 次目标语言表达 · ${formatNumber(dashboard.locale(), summary()!.targetSessionsToday)} 个真实会话 · ${formatNumber(dashboard.locale(), summary()!.correctionsToday)} 次可见纠正 · ${formatNumber(dashboard.locale(), summary()!.acceptedFindingsToday)} 条可信发现`
+                    : `${formatNumber(dashboard.locale(), summary()!.targetAttemptsToday)} target-language attempts · ${formatNumber(dashboard.locale(), summary()!.targetSessionsToday)} real sessions · ${formatNumber(dashboard.locale(), summary()!.correctionsToday)} visible corrections · ${formatNumber(dashboard.locale(), summary()!.acceptedFindingsToday)} accepted findings`}
                 </p>
               </div>
               <Show when={summary()!.lastAnalyzedAt}>

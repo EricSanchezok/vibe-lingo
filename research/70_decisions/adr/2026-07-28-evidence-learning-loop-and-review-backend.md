@@ -4,7 +4,7 @@
 
 Accepted
 
-Extends the prompt-first and multilingual-profile ADRs. This decision governs VibeLingo `0.3.0` and is extended by `2026-07-28-sidebar-learning-workspace-and-manual-review.md`.
+Extends the prompt-first and multilingual-profile ADRs. This decision governs the learning and review domain introduced in VibeLingo `0.3.0`; the evidence source and promotion thresholds are extended by `2026-07-29-visible-practice-under-sparse-data.md` and `2026-07-30-foreground-correction-authority-and-sessionless-analysis.md`.
 
 ## Context
 
@@ -29,7 +29,7 @@ Store bounded, sanitized evidence for:
 - natural correct use of an already-known pattern;
 - review recall, repair, and transfer attempts.
 
-Patterns use `candidate → practicing → verified`. Three errors across two Sessions make a pattern practicing and immediately due. Verified requires two independent reviews, a later natural use, two Session identities, and at least seven elapsed days. A later error records a lapse and returns the pattern to practicing.
+Patterns use `candidate → practicing → verified`. The original three-error threshold is superseded by the sparse-data ADR: two non-minor corrections across two Sessions, or three minor corrections across at least two Sessions, make a pattern practicing and immediately due. Verified requires two independent reviews, a later natural use, two Session identities, and at least seven elapsed days. A later error records a lapse and returns the pattern to practicing.
 
 Verified is an evidence state, not permanent mastery or an assessed proficiency level.
 
@@ -59,7 +59,7 @@ Use plugin-owned SQLite under the existing VibeLingo data directory. Target-lang
 
 Never persist complete user messages, Agent responses, or Session titles. Keep at most five recent content-bearing evidence/review records per pattern and retain older metadata without content.
 
-Schema v4 destructively recreates any earlier dogfood database. Initialization verifies the complete required table/column/index shape under an exclusive lock, then rechecks after acquiring the lock so overlapping plugin generations do not reset a database that the newer generation has already prepared. No legacy migration layer remains.
+The current development schema destructively recreates any earlier dogfood database. V0.6 replaces the v0.3 evidence source with authoritative foreground correction items and message observations; it retains the review domain without a migration or parallel legacy store. Old and new plugin generations must not overlap during this development reset.
 
 ### Dashboard completeness and repository boundaries
 

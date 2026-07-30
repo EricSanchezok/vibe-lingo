@@ -99,6 +99,34 @@ const learningSummaryOperation = operation({
   },
 })
 
+const correctionStatusOperation = operation({
+  id: "correction-status",
+  type: "query",
+  expose: ["ui"],
+  input: z.object({ batchId: z.string().uuid() }),
+  output: z.object({
+    found: z.boolean(),
+    status: z.enum(["pending", "queued", "analyzed", "recorded_only", "failed"]).optional(),
+    patternKeys: z.array(z.string()),
+  }),
+  async handler(input) {
+    const batch = defaultServices().corrections.byId(input.batchId)
+    return batch
+      ? {
+          found: true,
+          status: batch.status,
+          patternKeys: [
+            ...new Set(
+              batch.corrections
+                .filter((item) => item.accepted && item.patternKey)
+                .map((item) => item.patternKey!),
+            ),
+          ],
+        }
+      : { found: false, patternKeys: [] }
+  },
+})
+
 const learningJourneyOperation = operation({
   id: "learning-journey",
   type: "query",
@@ -568,6 +596,7 @@ const clearLearningDataOperation = operation({
 export const dashboardOperations = [
   learningProfilesOperation,
   learningSummaryOperation,
+  correctionStatusOperation,
   learningJourneyOperation,
   learningRecordOperation,
   learningPatternsOperation,

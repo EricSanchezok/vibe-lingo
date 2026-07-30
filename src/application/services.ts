@@ -2,6 +2,7 @@ import { VibeLingoDatabase, defaultDatabase } from "../infrastructure/database"
 import { LearningRepository } from "../infrastructure/learning-repository"
 import { ReviewRepository } from "../infrastructure/review-repository"
 import { PatternPresentationRepository } from "../infrastructure/pattern-presentation-repository"
+import { CorrectionRepository } from "../infrastructure/correction-repository"
 import { PatternPresentationService } from "./presentation-service"
 import { ReviewService } from "./review-service"
 
@@ -11,6 +12,7 @@ export type VibeLingoServices = {
   reviews: ReviewRepository
   reviewService: ReviewService
   presentations: PatternPresentationRepository
+  corrections: CorrectionRepository
   presentationService: PatternPresentationService
 }
 
@@ -26,6 +28,7 @@ export function createServices(database: VibeLingoDatabase): VibeLingoServices {
     reviews,
     reviewService: new ReviewService(learning, reviews),
     presentations,
+    corrections: new CorrectionRepository(database),
     presentationService: new PatternPresentationService(learning, presentations),
   }
 }
