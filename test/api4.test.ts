@@ -137,7 +137,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     })
     expect(contribution("ui.navigationItem", "learning")).toMatchObject({
       label: "VibeLingo",
-      icon: "book-open",
+      icon: "languages",
       placement: "sidebar",
       component: { source: "./src/ui/app.tsx" },
     })

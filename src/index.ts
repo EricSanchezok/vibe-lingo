@@ -139,7 +139,7 @@ export default definePlugin({
     navigationItem({
       id: "learning",
       label: "VibeLingo",
-      icon: "book-open",
+      icon: "languages",
       placement: "sidebar",
       order: 45,
       component: { source: "./src/ui/app.tsx" },
