@@ -146,6 +146,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       expose: ["ui"],
     })
     expect(contribution("ui.textAction", "translate-selection")).toMatchObject({
+      label: "Translate",
       operation: "translate-selection",
       when: {
         minChars: 1,

@@ -37,6 +37,8 @@ Four settings select public Synergy model roles by workload:
 
 Calls may request only an allowed Synergy role, never a provider/model ID. The role is deliberately absent from the translation cache key; the user can explicitly bypass cache to refresh an artifact.
 
+The translator's model-facing output is intentionally limited to the translated text and detected source-language tag. Destination selection and sensitive-content classification remain deterministic application responsibilities. VibeLingo normalizes a small set of equivalent legacy field names and makes one bounded repair call only when the first response is structurally invalid; transport retry and role fallback remain Synergy responsibilities.
+
 ## Rationale
 
 The translated artifact is the reusable value, so retaining it is necessary to eliminate repeat model calls. Omitting complete source text preserves the stronger privacy invariant. A language/profile/direction/contract key prevents semantic cross-contamination, while excluding model role preserves useful cache across model-configuration changes. Workload roles give users meaningful control without leaking provider topology into the plugin.
@@ -47,6 +49,7 @@ The translated artifact is the reusable value, so retaining it is necessary to e
 - SHA-256 is an identity mechanism, not encryption or anonymization.
 - Search can cover only saved previews and translations, not omitted full source text.
 - Force refresh spends a new model call and atomically updates the cache.
+- A malformed first model response can spend one additional bounded repair call; valid first responses never do.
 - v0.7 uses destructive schema v8 and retains no earlier database compatibility path.
 
 ## Evidence

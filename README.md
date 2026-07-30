@@ -44,8 +44,8 @@ VibeLingo does not coach or analyze messages until the user saves a complete lea
 ```jsonc
 {
   "nativeLanguage": "zh-Hans", // support/explanation language
-  "targetLanguage": "en",      // language being practiced
-  "proficiency": "intermediate"
+  "targetLanguage": "en", // language being practiced
+  "proficiency": "intermediate",
 }
 ```
 
@@ -64,14 +64,14 @@ The complete settings shape is:
   "nativeLanguage": "zh-Hans",
   "targetLanguage": "en",
   "proficiency": "intermediate", // beginner | intermediate | advanced
-  "correctionMode": "focused",   // focused | strict | off
+  "correctionMode": "focused", // focused | strict | off
   "trackingEnabled": true,
   "recurringFocusEnabled": true,
   "languageDetectionModelRole": "nano",
   "learningAnalysisModelRole": "mini",
   "translationModelRole": "mini",
   "reviewModelRole": "mini",
-  "translationHistoryEnabled": true
+  "translationHistoryEnabled": true,
 }
 ```
 
@@ -131,11 +131,11 @@ Canonical pattern metadata remains stable English internal data. The workspace r
 
 ## Selected-Text Translation
 
-Select up to 4,000 Unicode code points in a conversation/document, Monaco code surface, or Terminal, then open the context menu and choose **Translate with VibeLingo**. Password/sensitive inputs and embedded Browser pages are outside this surface. Synergy freezes the exact selection and opens one accessible result popover beside it, or a bottom sheet on narrow screens.
+Select up to 4,000 Unicode code points in a conversation/document, Monaco code surface, or Terminal, then open the context menu and choose **Translate** under **VibeLingo**. Password/sensitive inputs and embedded Browser pages are outside this surface. Synergy freezes the exact selection and opens one accessible result popover beside it, or a bottom sheet on narrow screens.
 
 The adaptive direction translates target-language text into the support/native language and translates support-language or third-language text into the target language. The result can be switched explicitly to either configured language or force-refreshed.
 
-A persistent cache hit returns immediately. A miss runs the private translator once, validates its JSON, language direction, and output bounds, then attempts a short SQLite write. Concurrent identical requests share a single in-process flight. Changing the translation model role does not invalidate cached translations; **Translate again** bypasses the cache and refreshes the record.
+A persistent cache hit returns immediately. A miss asks the private translator for only the translated text and detected source-language tag; VibeLingo derives the destination and privacy state in code. Common equivalent field names are normalized, and malformed structured output receives one bounded repair attempt before a clean retryable error is shown. Synergy's configured model-role fallback and provider retry remain the lower-level availability fallback. Valid output is checked for language direction and size before a short SQLite write. Concurrent identical requests share a single in-process flight. Changing the translation model role does not invalidate cached translations; **Translate again** bypasses the cache and refreshes the record.
 
 The plugin also contributes the searchable `plugin__vibe-lingo__translation-history` Tool, intended only for explicit requests to inspect translation history.
 

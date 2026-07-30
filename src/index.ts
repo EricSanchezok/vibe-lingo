@@ -146,7 +146,7 @@ export default definePlugin({
     }),
     textAction({
       id: "translate-selection",
-      label: "Translate with VibeLingo",
+      label: "Translate",
       icon: "languages",
       operation: "translate-selection",
       order: 100,

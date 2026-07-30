@@ -47,6 +47,114 @@ afterEach(() => {
 })
 
 describe("translation service", () => {
+  test("accepts the minimal translator contract and infers a missing source tag for distinct scripts", async () => {
+    const { repository } = setup()
+    const callTranslator = mock(async () =>
+      JSON.stringify({
+        translation: "你好",
+      }),
+    )
+    const service = new TranslationService(repository, { callTranslator })
+    const result = await service.translate(
+      {
+        profile,
+        selection: selection("hello"),
+        destination: "adaptive",
+        historyEnabled: false,
+        modelRole: "mini",
+      },
+      invocationContext(),
+    )
+
+    expect(result).toMatchObject({
+      status: "translated",
+      sourceLanguage: "en",
+      destinationLanguage: "zh-Hans",
+      translatedText: "你好",
+    })
+    expect(callTranslator).toHaveBeenCalledTimes(1)
+  })
+
+  test("repairs one malformed translator response with the same configured role", async () => {
+    const { repository } = setup()
+    const callTranslator = mock()
+      .mockResolvedValueOnce('{"translation":"你好"}')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          translation: "こんにちは",
+          sourceLanguage: "en",
+        }),
+      )
+    const service = new TranslationService(repository, { callTranslator })
+    const result = await service.translate(
+      {
+        profile: {
+          nativeLanguage: "zh-Hans",
+          targetLanguage: "ja",
+          proficiency: "intermediate",
+        },
+        selection: selection("hello"),
+        destination: "target",
+        historyEnabled: false,
+        modelRole: "thinking",
+      },
+      invocationContext(),
+    )
+
+    expect(result.status).toBe("translated")
+    expect(callTranslator).toHaveBeenCalledTimes(2)
+    expect(callTranslator.mock.calls[1]?.[1]).toBe("thinking")
+    expect(callTranslator.mock.calls[1]?.[0]).toContain(
+      "repair_translation_output",
+    )
+  })
+
+  test("hides schema details after a failed bounded repair", async () => {
+    const { repository } = setup()
+    const callTranslator = mock(async () => '{"unexpected":true}')
+    const service = new TranslationService(repository, { callTranslator })
+
+    await expect(
+      service.translate(
+        {
+          profile,
+          selection: selection("hello"),
+          destination: "adaptive",
+          historyEnabled: false,
+          modelRole: "mini",
+        },
+        invocationContext(),
+      ),
+    ).rejects.toThrow(
+      "VibeLingo could not complete the translation. Please retry.",
+    )
+    expect(callTranslator).toHaveBeenCalledTimes(2)
+  })
+
+  test("handles the minimal not-translatable response without retrying", async () => {
+    const { repository } = setup()
+    const callTranslator = mock(async () =>
+      JSON.stringify({ translation: null, sourceLanguage: null }),
+    )
+    const service = new TranslationService(repository, { callTranslator })
+    const result = await service.translate(
+      {
+        profile,
+        selection: selection("1234"),
+        destination: "adaptive",
+        historyEnabled: false,
+        modelRole: "mini",
+      },
+      invocationContext(),
+    )
+
+    expect(result).toEqual({
+      status: "not_translatable",
+      reason: "The selection contains no translatable natural language.",
+    })
+    expect(callTranslator).toHaveBeenCalledTimes(1)
+  })
+
   test("normalizes cache identity without persisting the full source text", async () => {
     const { database, repository } = setup()
     let calls = 0

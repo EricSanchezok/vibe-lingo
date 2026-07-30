@@ -148,7 +148,7 @@ const COPY = {
     uses: "Uses",
     clearTranslations: "Clear translations",
     noTranslations: "No saved translations yet",
-    noTranslationsHelp: "Select text in Synergy and choose “Translate with VibeLingo.”",
+    noTranslationsHelp: "Select text in Synergy, then choose “Translate” under VibeLingo.",
   },
   "zh-CN": {
     overview: "总览",
@@ -289,7 +289,7 @@ const COPY = {
     uses: "使用次数",
     clearTranslations: "清除翻译记录",
     noTranslations: "还没有翻译记录",
-    noTranslationsHelp: "在 Synergy 中选中文字，然后选择“使用 VibeLingo 翻译”。",
+    noTranslationsHelp: "在 Synergy 中选中文字，然后选择 VibeLingo 下的“翻译”。",
   },
 } as const
 

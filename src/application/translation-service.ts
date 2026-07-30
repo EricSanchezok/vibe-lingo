@@ -3,7 +3,6 @@ import type {
   PluginInvocationContext,
   PluginModelRole,
 } from "@ericsanchezok/synergy-plugin"
-import { z } from "zod"
 import {
   MAX_TRANSLATION_CODEPOINTS,
   MAX_TRANSLATION_SOURCE_CODEPOINTS,
@@ -18,34 +17,19 @@ import {
   sanitizeFragment,
   truncateCodePoints,
 } from "../domain/privacy"
-import { canonicalLanguageTag, languageDisplayName } from "../language"
+import {
+  canonicalLanguageTag,
+  hasCompatibleTargetScript,
+  languageDisplayName,
+} from "../language"
 import type { TranslationRepository } from "../infrastructure/translation-repository"
 
 export const TRANSLATOR_AGENT_NAME = "vibe-lingo-translator"
 export const TRANSLATOR_PROMPT = `You translate a selected passage for VibeLingo.
-Return one JSON object and no markdown. Detect the source language, follow the requested destination policy,
-and preserve meaning, tone, formatting, code identifiers, and uncertainty. Do not explain the translation.
-If the input has no translatable natural language, return status "not_translatable" with a short reason.
-Mark sensitive true if either input or translated output contains credentials, private keys, personal contact
-details, private absolute paths, or other secrets.`
-
-const AgentOutputSchema = z.discriminatedUnion("status", [
-  z
-    .object({
-      status: z.literal("translated"),
-      detectedSourceLanguage: z.string().min(1).max(64),
-      destinationLanguage: z.string().min(1).max(64),
-      translatedText: z.string().min(1),
-      sensitive: z.boolean(),
-    })
-    .strict(),
-  z
-    .object({
-      status: z.literal("not_translatable"),
-      reason: z.string().trim().min(1).max(200),
-    })
-    .strict(),
-])
+Return exactly one JSON object and no markdown or explanation.
+For a translation, return {"translation":"...","sourceLanguage":"<BCP-47 tag>"}.
+If there is no translatable natural language, return {"translation":null,"sourceLanguage":null}.
+Use exactly these two keys. Preserve meaning, tone, formatting, code identifiers, and uncertainty.`
 
 type Dependencies = {
   now?: () => number
@@ -60,6 +44,13 @@ type MemoryEntry = {
   artifact: TranslationArtifact
   expiresAt: number
   persistence: "disabled" | "privacy_excluded" | "write_failed" | "saved"
+}
+
+class InvalidTranslatorOutputError extends Error {
+  constructor() {
+    super("The translation response was incomplete.")
+    this.name = "InvalidTranslatorOutputError"
+  }
 }
 
 function languageBase(tag: string) {
@@ -142,26 +133,125 @@ export class TranslationService {
         native: "Translate to native language.",
         target: "Translate to target language.",
       },
+      output: {
+        translation:
+          "translated text, or null when there is no natural language",
+        sourceLanguage: "detected BCP-47 source-language tag, or null",
+      },
       selection: normalized,
     })
   }
 
+  private repairPrompt(
+    request: TranslateRequest,
+    normalized: string,
+    invalidOutput: string,
+  ) {
+    return JSON.stringify({
+      task: "repair_translation_output",
+      instruction:
+        'Translate the selection and return exactly {"translation":"...","sourceLanguage":"<BCP-47 tag>"}. Return both values as null only when there is no translatable natural language. Do not use status, translatedText, destinationLanguage, markdown, or any other keys.',
+      nativeLanguage: request.profile.nativeLanguage,
+      targetLanguage: request.profile.targetLanguage,
+      destinationPolicy: request.destination,
+      previousInvalidOutput: truncateCodePoints(invalidOutput, 600),
+      selection: normalized,
+    })
+  }
+
+  private jsonObject(text: string): Record<string, unknown> {
+    const trimmed = text.trim()
+    const unfenced = trimmed
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim()
+    const candidates = [unfenced]
+    const start = unfenced.indexOf("{")
+    const end = unfenced.lastIndexOf("}")
+    if (start >= 0 && end > start)
+      candidates.push(unfenced.slice(start, end + 1))
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>
+        }
+      } catch {
+        // A bounded repair call handles malformed output.
+      }
+    }
+    throw new InvalidTranslatorOutputError()
+  }
+
+  private sourceLanguageHint(request: TranslateRequest, normalized: string) {
+    const nativeMatch = hasCompatibleTargetScript(
+      normalized,
+      request.profile.nativeLanguage,
+    )
+    const targetMatch = hasCompatibleTargetScript(
+      normalized,
+      request.profile.targetLanguage,
+    )
+    if (nativeMatch && !targetMatch) return request.profile.nativeLanguage
+    if (targetMatch && !nativeMatch) return request.profile.targetLanguage
+    return undefined
+  }
+
+  private canonicalSourceLanguage(
+    request: TranslateRequest,
+    value: unknown,
+    normalized: string,
+  ) {
+    if (typeof value === "string") {
+      const canonical = canonicalLanguageTag(value)
+      if (canonical) return canonical
+      const normalizedName = value.trim().toLocaleLowerCase("en")
+      for (const tag of [
+        request.profile.nativeLanguage,
+        request.profile.targetLanguage,
+      ]) {
+        if (
+          languageDisplayName(tag, "en").toLocaleLowerCase("en") ===
+          normalizedName
+        ) {
+          return tag
+        }
+      }
+    }
+    return this.sourceLanguageHint(request, normalized)
+  }
+
   private parse(
     request: TranslateRequest,
+    normalized: string,
     text: string,
   ): TranslationArtifact | { reason: string } {
-    let value: unknown
-    try {
-      value = JSON.parse(text)
-    } catch {
-      throw new Error("Translator returned invalid JSON")
+    const value = this.jsonObject(text)
+    const translation =
+      value.translation ?? value.translatedText ?? value.translated_text ?? null
+    if (
+      value.status === "not_translatable" ||
+      (translation === null &&
+        (value.sourceLanguage === null ||
+          value.detectedSourceLanguage === null ||
+          value.detected_source_language === null))
+    ) {
+      return {
+        reason: "The selection contains no translatable natural language.",
+      }
     }
-    const parsed = AgentOutputSchema.parse(value)
-    if (parsed.status === "not_translatable") return { reason: parsed.reason }
-    const sourceLanguage = canonicalLanguageTag(parsed.detectedSourceLanguage)
-    const destinationLanguage = canonicalLanguageTag(parsed.destinationLanguage)
-    if (!sourceLanguage || !destinationLanguage)
-      throw new Error("Translator returned an invalid language tag")
+    if (typeof translation !== "string" || !translation.trim()) {
+      throw new InvalidTranslatorOutputError()
+    }
+    const sourceLanguage = this.canonicalSourceLanguage(
+      request,
+      value.sourceLanguage ??
+        value.detectedSourceLanguage ??
+        value.detectedLanguage ??
+        value.detected_source_language,
+      normalized,
+    )
+    if (!sourceLanguage) throw new InvalidTranslatorOutputError()
     const expected =
       request.destination === "native"
         ? request.profile.nativeLanguage
@@ -171,24 +261,48 @@ export class TranslationService {
               languageBase(request.profile.targetLanguage)
             ? request.profile.nativeLanguage
             : request.profile.targetLanguage
-    if (languageBase(destinationLanguage) !== languageBase(expected)) {
-      throw new Error("Translator returned an unexpected destination language")
-    }
+    const destinationLanguage = expected
     if (
-      !parsed.translatedText.trim() ||
-      [...parsed.translatedText].length > MAX_TRANSLATION_CODEPOINTS
+      !translation.trim() ||
+      [...translation].length > MAX_TRANSLATION_CODEPOINTS
     ) {
-      throw new Error("Translated text exceeded its storage bound")
+      throw new InvalidTranslatorOutputError()
     }
     return {
       sourceLanguage,
       destinationLanguage,
       translatedText: truncateCodePoints(
-        parsed.translatedText,
+        translation,
         MAX_TRANSLATION_CODEPOINTS,
       ),
-      sensitive:
-        parsed.sensitive || containsSensitiveContent(parsed.translatedText),
+      sensitive: containsSensitiveContent(translation),
+    }
+  }
+
+  private async generate(
+    request: TranslateRequest,
+    normalized: string,
+    context: PluginInvocationContext,
+  ) {
+    const initial = await this.#callTranslator(
+      this.prompt(request, normalized),
+      request.modelRole,
+      context,
+    )
+    try {
+      return this.parse(request, normalized, initial)
+    } catch (error) {
+      if (!(error instanceof InvalidTranslatorOutputError)) throw error
+    }
+    const repaired = await this.#callTranslator(
+      this.repairPrompt(request, normalized, initial),
+      request.modelRole,
+      context,
+    )
+    try {
+      return this.parse(request, normalized, repaired)
+    } catch {
+      throw new InvalidTranslatorOutputError()
     }
   }
 
@@ -283,16 +397,22 @@ export class TranslationService {
     const flightKey = `${request.bypassCache ? "refresh" : "normal"}:${key}`
     let flight = this.#inflight.get(flightKey)
     if (!flight) {
-      flight = this.#callTranslator(
-        this.prompt(request, normalized),
-        request.modelRole,
-        context,
+      flight = this.generate(request, normalized, context).finally(() =>
+        this.#inflight.delete(flightKey),
       )
-        .then((text) => this.parse(request, text))
-        .finally(() => this.#inflight.delete(flightKey))
       this.#inflight.set(flightKey, flight)
     }
-    const generated = await flight
+    let generated: Awaited<typeof flight>
+    try {
+      generated = await flight
+    } catch (error) {
+      context.log.debug("VibeLingo translation generation failed", {
+        reason: error instanceof Error ? error.name : "unknown",
+      })
+      throw new Error(
+        "VibeLingo could not complete the translation. Please retry.",
+      )
+    }
     if ("reason" in generated)
       return { status: "not_translatable", reason: generated.reason }
 
