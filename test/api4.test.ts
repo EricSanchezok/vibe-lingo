@@ -3,6 +3,7 @@ import type {
   HookContribution,
   PluginHookPointInputs,
 } from "@ericsanchezok/synergy-plugin"
+import { schemaToJsonSchema } from "@ericsanchezok/synergy-plugin"
 import plugin from "../src"
 import { COACHING_MARKER } from "../src/prompt"
 import { DEFAULT_SETTINGS } from "../src/settings"
@@ -109,6 +110,19 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       "tool:translation-history",
       "lifecycle.uninstall:cleanup-data",
     ])
+  })
+
+  test("keeps every runtime validation schema representable as JSON Schema", () => {
+    for (const candidate of plugin.contributions) {
+      if (candidate.kind === "operation") {
+        expect(() => schemaToJsonSchema(candidate.input)).not.toThrow()
+        expect(() => schemaToJsonSchema(candidate.output)).not.toThrow()
+      } else if (candidate.kind === "event") {
+        expect(() => schemaToJsonSchema(candidate.payload)).not.toThrow()
+      } else if (candidate.kind === "tool") {
+        expect(() => schemaToJsonSchema(candidate.input)).not.toThrow()
+      }
+    }
   })
 
   test("ships trusted settings UI with a declarative fallback and UI-only operations", () => {

@@ -577,11 +577,14 @@ const clearLearningDataOperation = operation({
   ]),
   async handler(input, context) {
     const services = defaultServices()
-    const result = services.learning.clearLearningData(input)
+    const clearInput = input.scope === "target"
+      ? { ...input, targetLanguage: LanguageTagSchema.parse(input.targetLanguage) }
+      : input
+    const result = services.learning.clearLearningData(clearInput)
     services.translationService.clearMemory()
-    if (input.scope === "target") {
+    if (clearInput.scope === "target") {
       await publishSafely(context, "learning.changed", {
-        targetLanguage: input.targetLanguage,
+        targetLanguage: clearInput.targetLanguage,
         revision: 0,
         reason: "cleared",
       })

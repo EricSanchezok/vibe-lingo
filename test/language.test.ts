@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
+  LanguageTagSchema,
+  OptionalLanguageTagSchema,
   canonicalLanguageTag,
   hasCompatibleTargetScript,
   languageScript,
@@ -13,6 +15,14 @@ describe("multilingual profile", () => {
     expect(canonicalLanguageTag("tlh")).toBe("tlh")
     expect(canonicalLanguageTag("not a language")).toBeUndefined()
     expect(canonicalLanguageTag("en-x-private")).toBeUndefined()
+  })
+
+  test("preserves canonicalization in JSON-Schema-compatible validators", () => {
+    expect(LanguageTagSchema.parse(" zh-hans ")).toBe("zh-Hans")
+    expect(OptionalLanguageTagSchema.parse("pt-br")).toBe("pt-BR")
+    expect(OptionalLanguageTagSchema.parse(undefined)).toBe("")
+    expect(OptionalLanguageTagSchema.parse("   ")).toBe("")
+    expect(LanguageTagSchema.safeParse("en-x-private").success).toBe(false)
   })
 
   test("requires two valid, distinct languages before activation", () => {

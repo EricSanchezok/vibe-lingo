@@ -46,30 +46,16 @@ export function hasCompatibleTargetScript(text: string, targetLanguage: string):
   return scriptCharacters(text, script) > 0
 }
 
-export const LanguageTagSchema = z.string().transform((value, context) => {
-  const canonical = canonicalLanguageTag(value)
-  if (!canonical) {
-    context.addIssue({
-      code: "custom",
-      message: "Enter a valid BCP-47 language tag, such as en, zh-Hans, or pt-BR.",
-    })
-    return z.NEVER
-  }
-  return canonical
-})
+const LANGUAGE_TAG_ERROR = "Enter a valid BCP-47 language tag, such as en, zh-Hans, or pt-BR."
 
-export const OptionalLanguageTagSchema = z.string().default("").transform((value, context) => {
-  if (!value.trim()) return ""
-  const canonical = canonicalLanguageTag(value)
-  if (!canonical) {
-    context.addIssue({
-      code: "custom",
-      message: "Enter a valid BCP-47 language tag, such as en, zh-Hans, or pt-BR.",
-    })
-    return z.NEVER
-  }
-  return canonical
-})
+export const LanguageTagSchema = z.string()
+  .refine((value) => canonicalLanguageTag(value) !== undefined, LANGUAGE_TAG_ERROR)
+  .overwrite((value) => canonicalLanguageTag(value)!)
+
+export const OptionalLanguageTagSchema = z.string()
+  .default("")
+  .refine((value) => !value.trim() || canonicalLanguageTag(value) !== undefined, LANGUAGE_TAG_ERROR)
+  .overwrite((value) => value.trim() ? canonicalLanguageTag(value)! : "")
 
 export function languageDisplayName(tag: string, locale = "en"): string {
   const canonical = canonicalLanguageTag(tag)
