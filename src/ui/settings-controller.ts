@@ -49,10 +49,18 @@ export function createSettingsController(
   }
 
   async function loadSummary(targetLanguage: string) {
-    const summary = await context.operations.query<LearningSummary>("learning-summary", {
-      targetLanguage,
-    })
-    update({ summary })
+    try {
+      const summary = await context.operations.query<LearningSummary>(
+        "learning-summary",
+        {
+          targetLanguage,
+          scope: "all",
+        },
+      )
+      update({ summary, error: undefined })
+    } catch {
+      update({ summary: undefined, error: copy.dataFailure() })
+    }
   }
 
   async function applyExternal(values: Record<string, unknown>) {
@@ -61,7 +69,8 @@ export function createSettingsController(
     const isOwnSave =
       state.saveState === "saving" &&
       Object.entries(parsed.data).every(
-        ([key, value]) => state.settings[key as keyof VibeLingoSettings] === value,
+        ([key, value]) =>
+          state.settings[key as keyof VibeLingoSettings] === value,
       )
     update({ settings: parsed.data, error: undefined })
     if (isOwnSave) return
@@ -123,10 +132,9 @@ export function createSettingsController(
       if (!(await context.host.confirm(confirmation))) return false
       update({ clearing: true, error: undefined })
       try {
-        const response = await context.operations.command<CommandResult<ClearLearningDataResult>>(
-          "clear-learning-data",
-          input,
-        )
+        const response = await context.operations.command<
+          CommandResult<ClearLearningDataResult>
+        >("clear-learning-data", input)
         if (!response.ok) throw new Error(response.error.message)
         const result = response.data
         const profile = configuredProfile(state.settings)

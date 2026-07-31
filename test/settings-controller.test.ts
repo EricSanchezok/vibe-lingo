@@ -9,11 +9,20 @@ const english: VibeLingoSettings = {
   targetLanguage: "en",
 }
 
-function surface(options: { failSave?: boolean; confirm?: boolean } = {}) {
+function surface(
+  options: {
+    failSave?: boolean
+    failSummary?: boolean
+    confirm?: boolean
+  } = {},
+) {
   let values: Record<string, unknown> = english
   let subscriber: ((next: Record<string, unknown>) => void) | undefined
   const calls = {
-    summaries: [] as string[],
+    summaries: [] as Array<{
+      targetLanguage: string
+      scope: "all" | "current"
+    }>,
     commands: [] as unknown[],
     notifications: [] as string[],
   }
@@ -23,8 +32,13 @@ function surface(options: { failSave?: boolean; confirm?: boolean } = {}) {
     surface: { kind: "ui.settings", id: "settings" },
     operations: {
       async query(_id: string, input: unknown) {
-        const targetLanguage = (input as { targetLanguage: string }).targetLanguage
-        calls.summaries.push(targetLanguage)
+        if (options.failSummary) throw new Error("summary failed")
+        const summaryInput = input as {
+          targetLanguage: string
+          scope: "all" | "current"
+        }
+        calls.summaries.push(summaryInput)
+        const { targetLanguage } = summaryInput
         return {
           analyzedMessages: targetLanguage === "en" ? 4 : 2,
           findingsLast30Days: 1,
@@ -106,7 +120,11 @@ describe("trusted settings controller", () => {
       summary: { analyzedMessages: 4 },
     })
     expect(
-      await controller.replace({ ...english, nativeLanguage: "en", targetLanguage: "es" }),
+      await controller.replace({
+        ...english,
+        nativeLanguage: "en",
+        targetLanguage: "es",
+      }),
     ).toBe(true)
     expect(controller.state()).toMatchObject({
       saveState: "saved",
@@ -125,7 +143,26 @@ describe("trusted settings controller", () => {
       settings: { targetLanguage: "es", proficiency: "advanced" },
       summary: { analyzedMessages: 2 },
     })
-    expect(host.calls.summaries).toEqual(["en", "es", "es"])
+    expect(host.calls.summaries).toEqual([
+      { targetLanguage: "en", scope: "all" },
+      { targetLanguage: "es", scope: "all" },
+      { targetLanguage: "es", scope: "all" },
+    ])
+    controller.dispose()
+  })
+
+  test("keeps loaded settings when the learning summary fails", async () => {
+    const host = surface({ failSummary: true })
+    const controller = createSettingsController(host.context, copy)
+
+    await controller.start()
+
+    expect(controller.state()).toMatchObject({
+      loading: false,
+      settings: { targetLanguage: "en" },
+      error: "data failed",
+    })
+    expect(controller.state().summary).toBeUndefined()
     controller.dispose()
   })
 
@@ -157,7 +194,9 @@ describe("trusted settings controller", () => {
         { title: "Delete?", message: "Permanent", confirmLabel: "Delete" },
       ),
     ).toBe(true)
-    expect(host.calls.commands).toEqual([{ scope: "target", targetLanguage: "en" }])
+    expect(host.calls.commands).toEqual([
+      { scope: "target", targetLanguage: "en" },
+    ])
     expect(host.calls.notifications).toContain("deleted")
     expect(controller.state().clearing).toBe(false)
     controller.dispose()
