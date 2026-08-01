@@ -79,8 +79,13 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.7.0",
+  version: "0.7.1",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
+  compatibility: { synergy: ">=3.0.11" },
+  author: "Eric Sanchez",
+  homepage: "https://github.com/EricSanchezok/vibe-lingo",
+  repository: "https://github.com/EricSanchezok/vibe-lingo",
+  keywords: ["language-learning", "translation", "coaching", "review"],
   capabilities: [
     capability("session.read"),
     capability("settings.read"),
@@ -259,9 +264,9 @@ export default definePlugin({
         permission: { "*": "deny" },
       },
     }),
-    hook<"experimental.chat.system.transform">({
+    hook<"chat.system.transform">({
       id: "coach-system",
-      point: "experimental.chat.system.transform",
+      point: "chat.system.transform",
       requires: ["session.read", "settings.read"],
       async handler(input, context) {
         return transformSystemPrompt(

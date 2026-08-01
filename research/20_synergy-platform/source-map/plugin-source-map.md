@@ -65,7 +65,7 @@ Plugins receive `PluginInput` containing:
 | Store vocabulary (structured) | Notes system | `index.ts:571-594` (6 hooks) |
 | Store preferences (key-value) | PluginConfigAccessor | `index.ts:39-43` |
 | Schedule reviews | Agenda system | `index.ts:541-569` (3 hooks) |
-| Modify agent behavior | `experimental.chat.system.transform` | `index.ts:512-515` |
+| Modify agent behavior | stable API4 `chat.system.transform` | `packages/plugin/src/contribution.ts`, `packages/synergy/src/plugin/hook-points.ts` |
 | Transform conversation history | `experimental.chat.messages.transform` | `index.ts:507-510` |
 | Access conversation data | `data.session: "read"` permission | `manifest.ts:212-214` |
 | Call subagent for analysis | `context.task` | `tool.ts:18` |

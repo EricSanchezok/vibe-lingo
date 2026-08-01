@@ -19,7 +19,7 @@ export function invocationContext(
     sessionId: "session-test",
     runtime: {
       hostVersion: "test",
-      pluginVersion: "0.7.0",
+      pluginVersion: "0.7.1",
       pluginGeneration: "generation-test",
       protocolVersion: 9,
     },

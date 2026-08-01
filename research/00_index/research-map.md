@@ -1,6 +1,6 @@
 # Research Map
 
-Last updated: 2026-07-30
+Last updated: 2026-08-01
 
 ## Overview
 
@@ -27,7 +27,7 @@ This map shows what we know, what we're investigating, and where the evidence li
 
 | Sub-area | Status | Key Notes |
 |---|---|---|
-| Plugin manifest / lifecycle | 🔄 Revalidated | Plugin API 4 uses flat kind-qualified contributions, generated manifests, capability-gated Host Services, and trusted UI. The 2026-07-07 source map is historical. |
+| Plugin manifest / lifecycle | ✅ Revalidated | Plugin API 4 is a stable family: plugins declare a Synergy semver compatibility range, use flat kind-qualified contributions, generated manifests, capability-gated Host Services, and trusted UI. The runtime protocol is host-owned rather than a plugin compatibility contract. |
 | Tool registration & invocation | ✅ Complete | tool() + ToolContext. Resident/group/search/internal exposure. Subagent task() from within tools. |
 | Agent / subagent interaction | ✅ Revalidated | Plugins can register hidden Agents, await bounded `agent.call`, or start memory-only bounded work with `agent.start`; directed completion arrives through `agent.call.after` without a Session/Cortex record. |
 | Memory / Notes / Agenda | Historical candidate | Available hooks do not make these the correct v0.3 business-data path. VibeLingo uses plugin SQLite and an explicit due queue; no automatic Agenda review. |

@@ -17,7 +17,9 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.7.0",
+      version: "0.7.1",
+      compatibility: { synergy: ">=3.0.11" },
+      repository: "https://github.com/EricSanchezok/vibe-lingo",
       capabilities: [
         { id: "session.read" },
         { id: "settings.read" },
@@ -262,8 +264,8 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
   })
 
   test("the packaged hook contract remains idempotent across budget and final phases", async () => {
-    const transform = contribution("hook", "coach-system") as HookContribution<"experimental.chat.system.transform">
-    const base: PluginHookPointInputs["experimental.chat.system.transform"] = {
+    const transform = contribution("hook", "coach-system") as HookContribution<"chat.system.transform">
+    const base: PluginHookPointInputs["chat.system.transform"] = {
       phase: "budget",
       sessionID: "session-test",
       agent: "synergy",

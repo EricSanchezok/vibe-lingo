@@ -1,5 +1,7 @@
 # Plugin Lifecycle & Hook System
 
+> Historical API2-era source note. The current implementation uses generated Plugin API 4 contributions and the stable `chat.system.transform` hook; see `../source-map/plugin-source-map.md` and `../../60_evidence-bank/docs/2026-08-01-synergy-plugin-api4-stability.md`. The lifecycle and hook inventory below is retained only as chronology, not current implementation guidance.
+
 ## Summary
 
 Synergy plugins follow a simple lifecycle: `init(ctx) → { hooks }`. The `PluginHooks` object returned by `init()` defines what the plugin does — it registers tools, agents, skills, and subscribes to lifecycle hooks. 28 hooks across 10 categories give plugins extensive access to the Synergy runtime, including conversation interception, tool execution interception, storage observation, and permission overrides. VibeLingo can use chat hooks for its three core features (input assistance, expression polish, comprehension support) and storage hooks for persistence.

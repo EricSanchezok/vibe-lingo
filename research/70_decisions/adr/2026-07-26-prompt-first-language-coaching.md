@@ -50,7 +50,7 @@ Composer completion, decorations, selected-text UI, and submission interception 
 
 ### Foreground behavior
 
-Use `experimental.chat.system.transform` to append an idempotent, compact coaching contract.
+Use the stable API4 `chat.system.transform` hook to append an idempotent, compact coaching contract. The earlier `experimental.chat.system.transform` spelling was a pre-GA integration detail and is no longer used by VibeLingo.
 
 The hook runs in both `budget` and `final` phases. The implementation must avoid duplicate insertion when the budget-transformed system reaches the final phase.
 
