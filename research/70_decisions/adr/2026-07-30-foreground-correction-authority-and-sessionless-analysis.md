@@ -45,9 +45,9 @@ Tracking-off messages still use the Tool card for consistent foreground teaching
 
 - VibeLingo requires the paired Synergy runtime with `agent.start`, `agent.call.after`, targeted owned-Tool renderers, and `actor.userMessageId`.
 - V0.5 data is destroyed on startup; no legacy Analyzer, schema migration, repair adapter, or old Prompt marker remains.
-- A Synergy restart may lose one usage analysis. A committed correction remains recoverable as `pending` or stale `queued` and is resubmitted one at a time from a later same-Scope user-message observer.
+- A Synergy restart or terminal-delivery failure may orphan one analysis attempt. A committed correction remains recoverable: fresh `queued` is shown as waiting; `pending` or stale `queued` is projected as interrupted and can be retried explicitly from the card, while the later same-Scope user-message observer remains an opportunistic recovery path. Disabling future foreground coaching does not strand a saved correction while tracking remains enabled.
 - Host capacity is bounded and has no queue. Capacity pressure cannot delay the main Agent.
-- The correction card can show saving, chat-only, analyzing, recorded, pattern-updated, and failed states without exposing internal metadata.
+- The correction card can show saving, chat-only, analyzing, interrupted with an explicit retry when eligible, retry unavailable, recorded, pattern-updated, and failed states without exposing internal metadata.
 
 ## Evidence
 

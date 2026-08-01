@@ -24,9 +24,7 @@ const temporaryDirectories: string[] = []
 function setup() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-lingo-analysis-"))
   temporaryDirectories.push(directory)
-  const services = createServices(
-    new VibeLingoDatabase(path.join(directory, "vibe-lingo.sqlite")),
-  )
+  const services = createServices(new VibeLingoDatabase(path.join(directory, "vibe-lingo.sqlite")))
   const settings = {
     ...DEFAULT_SETTINGS,
     nativeLanguage: "zh-Hans",
@@ -77,7 +75,9 @@ describe("nano language classification", () => {
             expect(input.agent).toBe(LANGUAGE_CLASSIFIER_AGENT_NAME)
             expect(input.modelRole).toBe("nano")
             calls++
-            return { text: calls === 1 ? "not json" : '{"isTargetLanguageAttempt":true}' }
+            return {
+              text: calls === 1 ? "not json" : '{"isTargetLanguageAttempt":true}',
+            }
           },
         },
       }),
@@ -89,9 +89,9 @@ describe("nano language classification", () => {
       targetAttempts: 1,
       totalPatternCount: 0,
     })
-    expect(JSON.stringify(
-      services.database.connection().query("SELECT * FROM message_observations").all(),
-    )).not.toContain("I want add a button")
+    expect(
+      JSON.stringify(services.database.connection().query("SELECT * FROM message_observations").all()),
+    ).not.toContain("I want add a button")
   })
 
   test("does not classify or persist escape-hatch and tracking-off messages", async () => {
@@ -105,13 +105,25 @@ describe("nano language classification", () => {
         },
       },
     })
-    await processUserMessage({
-      message: { id: "escape", text: "I want add a button, just do it", createdAt: 1 },
-    }, context, dependencies)
+    await processUserMessage(
+      {
+        message: {
+          id: "escape",
+          text: "I want add a button, just do it",
+          createdAt: 1,
+        },
+      },
+      context,
+      dependencies,
+    )
     settings.trackingEnabled = false
-    await processUserMessage({
-      message: { id: "off", text: "I want add a panel.", createdAt: 2 },
-    }, context, dependencies)
+    await processUserMessage(
+      {
+        message: { id: "off", text: "I want add a panel.", createdAt: 2 },
+      },
+      context,
+      dependencies,
+    )
     expect(calls).toBe(0)
     expect(services.learning.isObserved("escape", "en")).toBe(false)
     expect(services.learning.isObserved("off", "en")).toBe(false)
@@ -121,28 +133,31 @@ describe("nano language classification", () => {
 describe("lightweight asynchronous teaching analysis", () => {
   test("starts usage analysis only for supplied known patterns and writes its completion once", async () => {
     const { services, dependencies } = setup()
-    seedCorrection(services, {
-      messageId: "seed",
-      scopeId: "scope-test",
-      sessionId: "seed-session",
-      observedAt: 10,
-    }, {
-      nativeLanguage: "zh-Hans",
-      targetLanguage: "en",
-      proficiency: "intermediate",
-    }, {
-      patternKey: "missing_article",
-      category: "grammar",
-      severity: "high_value",
-      label: "Missing article",
-      rule: "Use an article before one singular countable noun.",
-      originalFragment: "add button",
-      correctedFragment: "add a button",
-    })
+    seedCorrection(
+      services,
+      {
+        messageId: "seed",
+        scopeId: "scope-test",
+        sessionId: "seed-session",
+        observedAt: 10,
+      },
+      {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      {
+        patternKey: "missing_article",
+        category: "grammar",
+        severity: "high_value",
+        label: "Missing article",
+        rule: "Use an article before one singular countable noun.",
+        originalFragment: "add button",
+        correctedFragment: "add a button",
+      },
+    )
 
-    let started:
-      | { agent: string; text: string; correlationId: string }
-      | undefined
+    let started: { agent: string; text: string; correlationId: string } | undefined
     const context = invocationContext({
       agent: {
         async call() {
@@ -154,13 +169,17 @@ describe("lightweight asynchronous teaching analysis", () => {
         },
       },
     })
-    await processUserMessage({
-      message: {
-        id: "natural",
-        text: "Add a button to the settings panel.",
-        createdAt: 20,
+    await processUserMessage(
+      {
+        message: {
+          id: "natural",
+          text: "Add a button to the settings panel.",
+          createdAt: 20,
+        },
       },
-    }, context, dependencies)
+      context,
+      dependencies,
+    )
     expect(started?.agent).toBe(USAGE_ANALYZER_AGENT_NAME)
     expect((started as { modelRole?: string } | undefined)?.modelRole).toBe("mini")
     expect(started?.text).toContain("missing_article")
@@ -171,12 +190,14 @@ describe("lightweight asynchronous teaching analysis", () => {
         correlationId: started!.correlationId,
         status: "completed" as const,
         text: JSON.stringify({
-          demonstrations: [{
-            patternKey: "missing_article",
-            fragment: "Add a button",
-            confidence: 0.97,
-            sensitive: false,
-          }],
+          demonstrations: [
+            {
+              patternKey: "missing_article",
+              fragment: "Add a button",
+              confidence: 0.97,
+              sensitive: false,
+            },
+          ],
         }),
         startedAt: 20,
         completedAt: 21,
@@ -194,47 +215,61 @@ describe("lightweight asynchronous teaching analysis", () => {
       targetLanguage: "en",
       proficiency: "intermediate" as const,
     }
-    seedCorrection(services, {
-      messageId: "seed",
-      scopeId: "scope-test",
-      sessionId: "seed-session",
-      observedAt: 10,
-    }, profile, {
-      patternKey: "missing_article",
-      category: "grammar",
-      severity: "high_value",
-      label: "Missing article",
-      rule: "Use an article before one singular countable noun.",
-    })
-    services.learning.recordObservation({
-      messageId: "tool-first",
-      scopeId: "scope-test",
-      sessionId: "session-test",
-      observedAt: 20,
-    }, profile, "target_attempt", "foreground_correction")
+    seedCorrection(
+      services,
+      {
+        messageId: "seed",
+        scopeId: "scope-test",
+        sessionId: "seed-session",
+        observedAt: 10,
+      },
+      profile,
+      {
+        patternKey: "missing_article",
+        category: "grammar",
+        severity: "high_value",
+        label: "Missing article",
+        rule: "Use an article before one singular countable noun.",
+      },
+    )
+    services.learning.recordObservation(
+      {
+        messageId: "tool-first",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: 20,
+      },
+      profile,
+      "target_attempt",
+      "foreground_correction",
+    )
 
     let classifierCalls = 0
     let usageStarts = 0
-    await processUserMessage({
-      message: {
-        id: "tool-first",
-        text: "Add a button, then update settings.",
-        createdAt: 20,
-      },
-    }, invocationContext({
-      agent: {
-        async call() {
-          classifierCalls++
-          return { text: '{"isTargetLanguageAttempt":false}' }
+    await processUserMessage(
+      {
+        message: {
+          id: "tool-first",
+          text: "Add a button, then update settings.",
+          createdAt: 20,
         },
+      },
+      invocationContext({
+        agent: {
+          async call() {
+            classifierCalls++
+            return { text: '{"isTargetLanguageAttempt":false}' }
+          },
           async start(input) {
             expect(input.agent).toBe(USAGE_ANALYZER_AGENT_NAME)
             expect(input.modelRole).toBe("mini")
-          usageStarts++
-          return { callId: "usage-tool-first" }
+            usageStarts++
+            return { callId: "usage-tool-first" }
+          },
         },
-      },
-    }), dependencies)
+      }),
+      dependencies,
+    )
 
     expect(classifierCalls).toBe(0)
     expect(usageStarts).toBe(1)
@@ -266,9 +301,7 @@ describe("lightweight asynchronous teaching analysis", () => {
       },
     })
     if (!created.batch) throw new Error("batch missing")
-    let request:
-      | { agent: string; text: string; correlationId: string }
-      | undefined
+    let request: { agent: string; text: string; correlationId: string } | undefined
     const context = invocationContext({
       agent: {
         async start(input) {
@@ -277,60 +310,134 @@ describe("lightweight asynchronous teaching analysis", () => {
         },
       },
     })
-    expect(await enqueueCorrectionAnalysis(
-      created.batch,
+    expect(
+      await enqueueCorrectionAnalysis(
+        created.batch,
+        {
+          nativeLanguage: "zh-Hans",
+          targetLanguage: "en",
+          proficiency: "intermediate",
+        },
+        context,
+        dependencies,
+      ),
+    ).toBe("queued")
+    expect(request?.agent).toBe(CORRECTION_ANALYZER_AGENT_NAME)
+    expect((request as { modelRole?: string } | undefined)?.modelRole).toBe("mini")
+    expect(request?.text).toBe(
+      correctionAnalyzerRequest(
+        created.batch,
+        {
+          nativeLanguage: "zh-Hans",
+          targetLanguage: "en",
+          proficiency: "intermediate",
+        },
+        [],
+        [],
+      ),
+    )
+    expect(request?.text).not.toContain("Add a button.")
+
+    await handleAgentCallAfter(
       {
-        nativeLanguage: "zh-Hans",
-        targetLanguage: "en",
-        proficiency: "intermediate",
+        call: {
+          callId: "correction-call",
+          correlationId: request!.correlationId,
+          status: "completed",
+          text: JSON.stringify({
+            items: [
+              {
+                correctionIndex: 0,
+                accepted: true,
+                patternKey: "missing_article",
+                category: "grammar",
+                severity: "high_value",
+                label: "Missing article",
+                rule: "Use an article before one singular countable noun.",
+                confidence: 0.98,
+                sensitive: false,
+              },
+            ],
+          }),
+          startedAt: 100,
+          completedAt: 101,
+        },
       },
       context,
       dependencies,
-    )).toBe("queued")
-    expect(request?.agent).toBe(CORRECTION_ANALYZER_AGENT_NAME)
-    expect((request as { modelRole?: string } | undefined)?.modelRole).toBe("mini")
-    expect(request?.text).toBe(correctionAnalyzerRequest(
-      created.batch,
-      {
+    )
+    expect(services.corrections.byId(created.batch.id)).toMatchObject({
+      status: "analyzed",
+      corrections: [
+        {
+          originalFragment: "add button",
+          correctedFragment: "add a button",
+          patternKey: "missing_article",
+          accepted: true,
+        },
+      ],
+    })
+  })
+
+  test("preserves a terminal correction result that arrives before agent.start returns", async () => {
+    const { services, dependencies } = setup()
+    const created = services.corrections.create({
+      profile: {
         nativeLanguage: "zh-Hans",
         targetLanguage: "en",
         proficiency: "intermediate",
       },
-      [],
-      [],
-    ))
-    expect(request?.text).not.toContain("Add a button.")
-
-    await handleAgentCallAfter({
-      call: {
-        callId: "correction-call",
-        correlationId: request!.correlationId,
-        status: "completed",
-        text: JSON.stringify({
-          items: [{
-            correctionIndex: 0,
-            accepted: true,
-            patternKey: "missing_article",
-            category: "grammar",
-            severity: "high_value",
-            label: "Missing article",
-            rule: "Use an article before one singular countable noun.",
-            confidence: 0.98,
-            sensitive: false,
-          }],
-        }),
-        startedAt: 100,
-        completedAt: 101,
+      identity: {
+        messageId: "user-fast-terminal",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: 100,
       },
-    }, context, dependencies)
+      assistantMessageId: "assistant-fast-terminal",
+      correction: {
+        restatement: "Add a button.",
+        corrections: [{ originalFragment: "add button", correctedFragment: "add a button" }],
+      },
+    })
+    if (!created.batch) throw new Error("batch missing")
+    let context: ReturnType<typeof invocationContext>
+    context = invocationContext({
+      agent: {
+        async start(input) {
+          await handleAgentCallAfter(
+            {
+              call: {
+                callId: "fast-terminal-call",
+                correlationId: input.correlationId,
+                status: "completed",
+                text: JSON.stringify({ items: [] }),
+                startedAt: 100,
+                completedAt: 101,
+              },
+            },
+            context,
+            dependencies,
+          )
+          return { callId: "fast-terminal-call" }
+        },
+      },
+    })
+
+    expect(
+      await enqueueCorrectionAnalysis(
+        created.batch,
+        {
+          nativeLanguage: "zh-Hans",
+          targetLanguage: "en",
+          proficiency: "intermediate",
+        },
+        context,
+        dependencies,
+      ),
+    ).toBe("recorded_only")
     expect(services.corrections.byId(created.batch.id)).toMatchObject({
-      status: "analyzed",
-      corrections: [{
-        originalFragment: "add button",
-        correctedFragment: "add a button",
-        patternKey: "missing_article",
-        accepted: true,
-      }],
+      status: "recorded_only",
+      correlationId: created.batch.correlationId,
     })
   })
 
@@ -355,16 +462,20 @@ describe("lightweight asynchronous teaching analysis", () => {
       },
     })
     if (!created.batch) throw new Error("batch missing")
-    await handleAgentCallAfter({
-      call: {
-        callId: "failed",
-        correlationId: created.batch.correlationId,
-        status: "completed",
-        text: "not json",
-        startedAt: 100,
-        completedAt: 101,
+    await handleAgentCallAfter(
+      {
+        call: {
+          callId: "failed",
+          correlationId: created.batch.correlationId,
+          status: "completed",
+          text: "not json",
+          startedAt: 100,
+          completedAt: 101,
+        },
       },
-    }, invocationContext(), dependencies)
+      invocationContext(),
+      dependencies,
+    )
     expect(services.corrections.byId(created.batch.id)?.status).toBe("failed")
     expect(services.learning.patternDetail("en", "missing_article")).toBeUndefined()
   })

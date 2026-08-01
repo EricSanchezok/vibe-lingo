@@ -1,17 +1,17 @@
 import {
   For,
   Show,
+  createEffect,
   createMemo,
   createSignal,
+  untrack,
   onCleanup,
   onMount,
   type Component,
 } from "solid-js"
 import type { PluginToolMessageSurfaceContext } from "@ericsanchezok/synergy-plugin/ui"
 
-type SurfaceInput =
-  | PluginToolMessageSurfaceContext
-  | { context: PluginToolMessageSurfaceContext }
+type SurfaceInput = PluginToolMessageSurfaceContext | { context: PluginToolMessageSurfaceContext }
 
 type CorrectionPair = {
   originalFragment: string
@@ -27,6 +27,9 @@ type CorrectionState =
   | "saving"
   | "not_saved"
   | "analyzing"
+  | "analysis_interrupted"
+  | "retry_unavailable"
+  | "status_unavailable"
   | "recorded"
   | "pattern_updated"
   | "analysis_failed"
@@ -35,6 +38,8 @@ type CorrectionStatus = {
   found: boolean
   status?: "pending" | "queued" | "analyzed" | "recorded_only" | "failed"
   patternKeys: string[]
+  recovery: "none" | "waiting" | "retry_available" | "retry_unavailable"
+  retryAt?: number
 }
 
 const styles = `
@@ -52,12 +57,14 @@ const styles = `
 .vlc-footer{display:flex;min-height:39px;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid color-mix(in srgb,var(--border-base) 48%,transparent);background:var(--surface-inset-base);padding:9px 20px;color:var(--text-weak);font-size:12px}
 .vlc-state{display:flex;min-width:0;align-items:center;gap:8px}
 .vlc-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:var(--text-weaker)}
-.vlc-dot[data-state=saving],.vlc-dot[data-state=analyzing]{background:var(--surface-warning-strong)}
+.vlc-dot[data-state=saving],.vlc-dot[data-state=analyzing],.vlc-dot[data-state=analysis_interrupted],.vlc-dot[data-state=status_unavailable]{background:var(--surface-warning-strong)}
 .vlc-dot[data-state=recorded],.vlc-dot[data-state=pattern_updated]{background:var(--surface-success-strong)}
 .vlc-dot[data-state=analysis_failed]{background:var(--surface-critical-base)}
-.vlc-open{border:0;background:transparent;color:var(--text-interactive-base);padding:3px 0;font:inherit;font-weight:650;white-space:nowrap;cursor:pointer}
-.vlc-open:hover{text-decoration:underline}
-.vlc-open:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+.vlc-actions{display:flex;flex:0 0 auto;align-items:center;gap:12px}
+.vlc-action{border:0;background:transparent;color:var(--text-interactive-base);padding:3px 0;font:inherit;font-weight:650;white-space:nowrap;cursor:pointer}
+.vlc-action:hover:not(:disabled){text-decoration:underline}
+.vlc-action:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+.vlc-action:disabled{cursor:default;opacity:.62}
 @media(max-width:560px){.vlc-body{padding:16px}.vlc-footer{padding-inline:16px}.vlc-pair{grid-template-columns:1fr}.vlc-arrow{text-align:left}.vlc-arrow::after{content:"";}.vlc-arrow{height:12px}}
 `
 
@@ -71,14 +78,14 @@ function text(value: unknown): string {
 
 function parseInput(value: Record<string, unknown>): CorrectionInput {
   const corrections = Array.isArray(value.corrections)
-    ? value.corrections.flatMap((item) => {
-        if (!item || typeof item !== "object") return []
-        const originalFragment = text((item as Record<string, unknown>).originalFragment)
-        const correctedFragment = text((item as Record<string, unknown>).correctedFragment)
-        return originalFragment && correctedFragment
-          ? [{ originalFragment, correctedFragment }]
-          : []
-      }).slice(0, 2)
+    ? value.corrections
+        .flatMap((item) => {
+          if (!item || typeof item !== "object") return []
+          const originalFragment = text((item as Record<string, unknown>).originalFragment)
+          const correctedFragment = text((item as Record<string, unknown>).correctedFragment)
+          return originalFragment && correctedFragment ? [{ originalFragment, correctedFragment }] : []
+        })
+        .slice(0, 2)
     : []
   return {
     restatement: text(value.restatement),
@@ -88,27 +95,33 @@ function parseInput(value: Record<string, unknown>): CorrectionInput {
 
 function pluginMetadata(context: PluginToolMessageSurfaceContext): Record<string, unknown> {
   const value = context.tool.metadata?.vibeLingo
-  return value && typeof value === "object" ? value as Record<string, unknown> : {}
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {}
 }
 
 function stateFromStatus(
   context: PluginToolMessageSurfaceContext,
-  status?: CorrectionStatus,
+  status: CorrectionStatus | undefined,
+  queryFailed: boolean,
 ): CorrectionState {
   const metadata = pluginMetadata(context)
   if (metadata.status === "not_saved") return "not_saved"
   if (metadata.status === "conflict" || context.tool.status === "error") return "analysis_failed"
   if (!metadata.batchId) return "saving"
+  if (queryFailed) return "status_unavailable"
   if (!status) return metadata.status === "analyzing" ? "analyzing" : "saving"
+  if (!status.found) return "status_unavailable"
   if (status.status === "failed") return "analysis_failed"
   if (status.status === "analyzed" && status.patternKeys.length > 0) return "pattern_updated"
   if (status.status === "analyzed" || status.status === "recorded_only") return "recorded"
-  return "analyzing"
+  if (status.recovery === "waiting") return "analyzing"
+  if (status.recovery === "retry_available") return "analysis_interrupted"
+  if (status.recovery === "retry_unavailable") return "retry_unavailable"
+  return "status_unavailable"
 }
 
 const CorrectionCard: Component<SurfaceInput> = (props) => {
   const context = resolveContext(props)
-  const input = parseInput(context.tool.input)
+  const input = createMemo(() => parseInput(context.tool.input))
   const isChinese = (() => {
     try {
       return document.documentElement.lang.toLowerCase().startsWith("zh")
@@ -116,11 +129,17 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
       return false
     }
   })()
-  const metadata = pluginMetadata(context)
-  const batchId = typeof metadata.batchId === "string" ? metadata.batchId : undefined
+  const batchId = createMemo(() => {
+    const value = pluginMetadata(context).batchId
+    return typeof value === "string" ? value : undefined
+  })
   const [status, setStatus] = createSignal<CorrectionStatus>()
-  const [loading, setLoading] = createSignal(false)
-  const state = createMemo(() => stateFromStatus(context, status()))
+  const [queryFailed, setQueryFailed] = createSignal(false)
+  const [checking, setChecking] = createSignal(false)
+  const [retrying, setRetrying] = createSignal(false)
+  let refreshId = 0
+  let boundaryTimer: ReturnType<typeof setTimeout> | undefined
+  const state = createMemo(() => stateFromStatus(context, status(), queryFailed()))
   const patternKey = createMemo(() => status()?.patternKeys[0])
 
   const stateText = createMemo(() => {
@@ -128,37 +147,102 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
       saving: ["正在保存纠正…", "Saving correction…"],
       not_saved: ["未加入学习记录（学习追踪已关闭）", "Not added to learning history (tracking is off)"],
       analyzing: ["正在整理学习记录…", "Organizing your learning record…"],
+      analysis_interrupted: [
+        "学习记录整理已中断，纠正已保存",
+        "Learning analysis was interrupted; the correction is saved",
+      ],
+      retry_unavailable: [
+        "纠正已保存，但当前无法重新整理学习记录",
+        "The correction is saved, but learning analysis cannot be retried now",
+      ],
+      status_unavailable: [
+        "纠正仍可见，暂时无法检查学习记录状态",
+        "The correction remains visible, but its learning status is temporarily unavailable",
+      ],
       recorded: ["纠正已记录", "Correction recorded"],
       pattern_updated: ["学习模式已更新", "Learning pattern updated"],
-      analysis_failed: ["纠正仍可见，但学习记录整理失败", "The correction remains visible, but learning analysis failed"],
+      analysis_failed: ["纠正已保存，但学习记录整理失败", "The correction is saved, but learning analysis failed"],
     }
     return labels[state()][isChinese ? 0 : 1]
   })
 
+  function clearBoundaryTimer() {
+    if (boundaryTimer === undefined) return
+    clearTimeout(boundaryTimer)
+    boundaryTimer = undefined
+  }
+
   async function refresh() {
-    if (!batchId || loading()) return
-    setLoading(true)
+    const currentBatchId = batchId()
+    if (!currentBatchId || retrying()) return
+    const currentRefreshId = ++refreshId
+    setChecking(true)
     try {
-      setStatus(await context.operations.query<CorrectionStatus>(
-        "correction-status",
-        { batchId },
-      ))
+      const next = await context.operations.query<CorrectionStatus>("correction-status", { batchId: currentBatchId })
+      if (currentRefreshId !== refreshId || currentBatchId !== batchId()) return
+      setStatus(next)
+      setQueryFailed(false)
     } catch {
-      // The visible correction remains useful when status refresh is unavailable.
+      if (currentRefreshId === refreshId && currentBatchId === batchId()) setQueryFailed(true)
     } finally {
-      setLoading(false)
+      if (currentRefreshId === refreshId) setChecking(false)
     }
   }
 
+  async function retryAnalysis() {
+    const currentBatchId = batchId()
+    if (!currentBatchId || retrying()) return
+    const currentRefreshId = ++refreshId
+    setRetrying(true)
+    setQueryFailed(false)
+    try {
+      const next = await context.operations.command<CorrectionStatus>("correction-retry", { batchId: currentBatchId })
+      if (currentRefreshId === refreshId && currentBatchId === batchId()) setStatus(next)
+    } catch {
+      if (currentRefreshId === refreshId && currentBatchId === batchId()) setQueryFailed(true)
+    } finally {
+      if (currentRefreshId === refreshId) setRetrying(false)
+    }
+  }
+
+  createEffect(() => {
+    const currentBatchId = batchId()
+    refreshId++
+    clearBoundaryTimer()
+    setStatus()
+    setQueryFailed(false)
+    setChecking(false)
+    setRetrying(false)
+    if (currentBatchId) untrack(() => void refresh())
+  })
+
+  createEffect(() => {
+    clearBoundaryTimer()
+    const current = status()
+    if (current?.recovery !== "waiting" || current.retryAt === undefined) return
+    const delay = Math.max(0, current.retryAt - Date.now())
+    boundaryTimer = setTimeout(() => {
+      boundaryTimer = undefined
+      void refresh()
+    }, delay + 1)
+  })
+
   onMount(() => {
-    void refresh()
     const unsubscribe = context.events.subscribe("learning.changed", () => void refresh())
     onCleanup(unsubscribe)
+  })
+  onCleanup(() => {
+    refreshId++
+    clearBoundaryTimer()
   })
 
   function openPattern() {
     const key = patternKey()
-    if (key) context.host.openPluginPage("learning", { view: "pattern", pattern: key })
+    if (key)
+      context.host.openPluginPage("learning", {
+        view: "pattern",
+        pattern: key,
+      })
   }
 
   return (
@@ -166,19 +250,22 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
       <style>{styles}</style>
       <div class="vlc-body">
         <h3 class="vlc-title">{isChinese ? "更自然的表达" : "A more natural expression"}</h3>
-        <Show when={input.restatement}>
+        <Show when={input().restatement}>
           <p class="vlc-restatement">
-            <span class="vlc-label">Got it</span>
-            “{input.restatement}”
+            <span class="vlc-label">Got it</span>“{input().restatement}”
           </p>
         </Show>
         <div class="vlc-list">
-          <For each={input.corrections}>
+          <For each={input().corrections}>
             {(correction) => (
               <div class="vlc-pair">
                 <div class="vlc-fragment">“{correction.originalFragment}”</div>
-                <div class="vlc-arrow" aria-hidden="true">→</div>
-                <div class="vlc-fragment" data-natural="true">“{correction.correctedFragment}”</div>
+                <div class="vlc-arrow" aria-hidden="true">
+                  →
+                </div>
+                <div class="vlc-fragment" data-natural="true">
+                  “{correction.correctedFragment}”
+                </div>
               </div>
             )}
           </For>
@@ -189,11 +276,29 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
           <span class="vlc-dot" data-state={state()} aria-hidden="true" />
           <span>{stateText()}</span>
         </span>
-        <Show when={state() === "pattern_updated" && patternKey()}>
-          <button class="vlc-open" type="button" onClick={openPattern}>
-            {isChinese ? "查看学习模式" : "View learning pattern"}
-          </button>
-        </Show>
+        <div class="vlc-actions">
+          <Show when={state() === "analysis_interrupted"}>
+            <button
+              class="vlc-action"
+              type="button"
+              disabled={retrying()}
+              aria-busy={retrying()}
+              onClick={retryAnalysis}
+            >
+              {retrying() ? (isChinese ? "正在重试…" : "Retrying…") : isChinese ? "重试整理" : "Retry analysis"}
+            </button>
+          </Show>
+          <Show when={state() === "status_unavailable"}>
+            <button class="vlc-action" type="button" disabled={checking()} aria-busy={checking()} onClick={refresh}>
+              {checking() ? (isChinese ? "正在检查…" : "Checking…") : isChinese ? "重新检查" : "Check again"}
+            </button>
+          </Show>
+          <Show when={state() === "pattern_updated" && patternKey()}>
+            <button class="vlc-action" type="button" onClick={openPattern}>
+              {isChinese ? "查看学习模式" : "View learning pattern"}
+            </button>
+          </Show>
+        </div>
       </footer>
     </article>
   )

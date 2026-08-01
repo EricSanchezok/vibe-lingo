@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type {
-  HookContribution,
-  PluginHookPointInputs,
-} from "@ericsanchezok/synergy-plugin"
+import type { HookContribution, PluginHookPointInputs } from "@ericsanchezok/synergy-plugin"
 import { schemaToJsonSchema } from "@ericsanchezok/synergy-plugin"
 import plugin from "../src"
 import { COACHING_MARKER } from "../src/prompt"
@@ -10,9 +7,7 @@ import { DEFAULT_SETTINGS } from "../src/settings"
 import { invocationContext } from "./helpers"
 
 function contribution<Kind extends string>(kind: Kind, id: string) {
-  const found = plugin.contributions.find(
-    (candidate) => candidate.kind === kind && candidate.id === id,
-  )
+  const found = plugin.contributions.find((candidate) => candidate.kind === kind && candidate.id === id)
   expect(found).toBeDefined()
   return found!
 }
@@ -40,53 +35,53 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
         },
       ],
     })
-    expect(plugin.contributions.map(({ kind, id }) => `${kind}:${id}`)).toEqual(
-      [
-        "event:learning.changed",
-        "event:review.changed",
-        "event:translation.changed",
-        "operation:learning-profiles",
-        "operation:learning-summary",
-        "operation:correction-status",
-        "operation:learning-journey",
-        "operation:learning-record",
-        "operation:learning-patterns",
-        "operation:learning-pattern-detail",
-        "operation:pattern-presentations",
-        "operation:review-queue",
-        "operation:review-state",
-        "operation:review-start",
-        "operation:review-command",
-        "operation:pattern-command",
-        "operation:clear-learning-data",
-        "operation:translate-selection",
-        "operation:translations-list",
-        "operation:translation-summary",
-        "operation:translation-command",
-        "ui.navigationItem:learning",
-        "ui.textAction:translate-selection",
-        "agent:translator",
-        "agent:language-classifier",
-        "agent:usage-analyzer",
-        "agent:correction-analyzer",
-        "agent:review-builder",
-        "agent:review-evaluator",
-        "agent:pattern-presenter",
-        "hook:coach-system",
-        "hook:analyze-user-message",
-        "hook:complete-teaching-analysis",
-        "tool:record-correction",
-        "ui.messageRenderer:correction-card",
-        "tool:progress",
-        "tool:translation-history",
-        "ui.settings:settings",
-        "lifecycle.uninstall:cleanup-data",
-      ],
-    )
+    expect(plugin.contributions.map(({ kind, id }) => `${kind}:${id}`)).toEqual([
+      "event:learning.changed",
+      "event:review.changed",
+      "event:translation.changed",
+      "operation:learning-profiles",
+      "operation:learning-summary",
+      "operation:correction-status",
+      "operation:correction-retry",
+      "operation:learning-journey",
+      "operation:learning-record",
+      "operation:learning-patterns",
+      "operation:learning-pattern-detail",
+      "operation:pattern-presentations",
+      "operation:review-queue",
+      "operation:review-state",
+      "operation:review-start",
+      "operation:review-command",
+      "operation:pattern-command",
+      "operation:clear-learning-data",
+      "operation:translate-selection",
+      "operation:translations-list",
+      "operation:translation-summary",
+      "operation:translation-command",
+      "ui.navigationItem:learning",
+      "ui.textAction:translate-selection",
+      "agent:translator",
+      "agent:language-classifier",
+      "agent:usage-analyzer",
+      "agent:correction-analyzer",
+      "agent:review-builder",
+      "agent:review-evaluator",
+      "agent:pattern-presenter",
+      "hook:coach-system",
+      "hook:analyze-user-message",
+      "hook:complete-teaching-analysis",
+      "tool:record-correction",
+      "ui.messageRenderer:correction-card",
+      "tool:progress",
+      "tool:translation-history",
+      "ui.settings:settings",
+      "lifecycle.uninstall:cleanup-data",
+    ])
     expect(plugin.handlerIds).toEqual([
       "operation:learning-profiles",
       "operation:learning-summary",
       "operation:correction-status",
+      "operation:correction-retry",
       "operation:learning-journey",
       "operation:learning-record",
       "operation:learning-patterns",
@@ -243,16 +238,20 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       display: { toolCard: "visible" },
       requires: ["settings.read", "agent.call"],
     })
-    expect(contribution("ui.messageRenderer", "correction-card")).toMatchObject(
-      {
-        messageType: "tool",
-        tool: "plugin__vibe-lingo__record-correction",
-        component: { source: "./src/ui/correction-card.tsx" },
-      },
-    )
+    expect(contribution("ui.messageRenderer", "correction-card")).toMatchObject({
+      messageType: "tool",
+      tool: "plugin__vibe-lingo__record-correction",
+      component: { source: "./src/ui/correction-card.tsx" },
+    })
     expect(contribution("operation", "correction-status")).toMatchObject({
       type: "query",
       expose: ["ui"],
+      requires: ["settings.read", "agent.call"],
+    })
+    expect(contribution("operation", "correction-retry")).toMatchObject({
+      type: "command",
+      expose: ["ui"],
+      requires: ["settings.read", "agent.call"],
     })
     expect(contribution("tool", "translation-history")).toMatchObject({
       exposure: {
@@ -263,10 +262,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
   })
 
   test("the packaged hook contract remains idempotent across budget and final phases", async () => {
-    const transform = contribution(
-      "hook",
-      "coach-system",
-    ) as HookContribution<"experimental.chat.system.transform">
+    const transform = contribution("hook", "coach-system") as HookContribution<"experimental.chat.system.transform">
     const base: PluginHookPointInputs["experimental.chat.system.transform"] = {
       phase: "budget",
       sessionID: "session-test",
@@ -292,13 +288,8 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       },
     })
     const budget = await transform.handler(base, context)
-    const final = await transform.handler(
-      { ...base, phase: "final", system: budget.system },
-      context,
-    )
+    const final = await transform.handler({ ...base, phase: "final", system: budget.system }, context)
     expect(final.system[0]).toBe("Base system")
-    expect(
-      final.system.filter((part) => part.includes(COACHING_MARKER)),
-    ).toHaveLength(1)
+    expect(final.system.filter((part) => part.includes(COACHING_MARKER))).toHaveLength(1)
   })
 })

@@ -20,6 +20,7 @@ import {
   ReviewCommandResultSchema,
 } from "./application/dashboard-contracts"
 import { defaultServices } from "./application/services"
+import { CorrectionStatusOutputSchema, correctionStatus, retryCorrectionAnalysis } from "./correction-recovery"
 import { LearningEventTypeSchema, PatternDisplayStatusSchema } from "./domain/types"
 import { LanguageTagSchema, canonicalLanguageTag } from "./language"
 import { configuredProfile, readSettings, type LearningProfile } from "./settings"
@@ -33,8 +34,8 @@ async function activeProfile(
   const targetLanguage = canonicalLanguageTag(requested)
   if (!targetLanguage) return undefined
   if (current?.targetLanguage === targetLanguage) return current
-  const historical = defaultServices().learning
-    .profileList()
+  const historical = defaultServices()
+    .learning.profileList()
     .find((profile) => profile.targetLanguage === targetLanguage)
   return historical
     ? {
@@ -49,11 +50,7 @@ function scopeId(input: { scope?: "all" | "current" }, context: PluginInvocation
   return input.scope === "current" ? context.scopeId : undefined
 }
 
-async function publishSafely(
-  context: PluginInvocationContext,
-  eventId: string,
-  payload: unknown,
-): Promise<void> {
+async function publishSafely(context: PluginInvocationContext, eventId: string, payload: unknown): Promise<void> {
   try {
     await context.events.publish(eventId, payload)
   } catch (error) {
@@ -99,31 +96,29 @@ const learningSummaryOperation = operation({
   },
 })
 
+const CorrectionBatchInputSchema = z.object({ batchId: z.string().uuid() })
+
 const correctionStatusOperation = operation({
   id: "correction-status",
   type: "query",
   expose: ["ui"],
-  input: z.object({ batchId: z.string().uuid() }),
-  output: z.object({
-    found: z.boolean(),
-    status: z.enum(["pending", "queued", "analyzed", "recorded_only", "failed"]).optional(),
-    patternKeys: z.array(z.string()),
-  }),
-  async handler(input) {
-    const batch = defaultServices().corrections.byId(input.batchId)
-    return batch
-      ? {
-          found: true,
-          status: batch.status,
-          patternKeys: [
-            ...new Set(
-              batch.corrections
-                .filter((item) => item.accepted && item.patternKey)
-                .map((item) => item.patternKey!),
-            ),
-          ],
-        }
-      : { found: false, patternKeys: [] }
+  requires: ["settings.read", "agent.call"],
+  input: CorrectionBatchInputSchema,
+  output: CorrectionStatusOutputSchema,
+  handler(input, context) {
+    return correctionStatus(input.batchId, context)
+  },
+})
+
+const correctionRetryOperation = operation({
+  id: "correction-retry",
+  type: "command",
+  expose: ["ui"],
+  requires: ["settings.read", "agent.call"],
+  input: CorrectionBatchInputSchema,
+  output: CorrectionStatusOutputSchema,
+  handler(input, context) {
+    return retryCorrectionAnalysis(input.batchId, context)
   },
 })
 
@@ -137,10 +132,9 @@ const learningJourneyOperation = operation({
     types: z.array(LearningEventTypeSchema).max(LearningEventTypeSchema.options.length).optional(),
     from: z.number().int().nonnegative().optional(),
     to: z.number().int().nonnegative().optional(),
-  }).refine(
-    (input) => input.from == null || input.to == null || input.from <= input.to,
-    { message: "from must be earlier than or equal to to" },
-  ),
+  }).refine((input) => input.from == null || input.to == null || input.from <= input.to, {
+    message: "from must be earlier than or equal to to",
+  }),
   output: LearningJourneyOutputSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
@@ -189,15 +183,12 @@ const learningRecordOperation = operation({
       try {
         const session = await context.session.get(sessionId)
         if (session && typeof session === "object") {
-          sessionTitle = "title" in session && typeof session.title === "string"
-            ? session.title
-            : undefined
-          const category = "category" in session && typeof session.category === "string"
-            ? session.category
-            : undefined
-          const time = "time" in session && session.time && typeof session.time === "object"
-            ? session.time as { created?: unknown; updated?: unknown }
-            : undefined
+          sessionTitle = "title" in session && typeof session.title === "string" ? session.title : undefined
+          const category = "category" in session && typeof session.category === "string" ? session.category : undefined
+          const time =
+            "time" in session && session.time && typeof session.time === "object"
+              ? (session.time as { created?: unknown; updated?: unknown })
+              : undefined
           const createdAt = typeof time?.created === "number" ? time.created : undefined
           const updatedAt = typeof time?.updated === "number" ? time.updated : undefined
           sourceSession = {
@@ -206,9 +197,7 @@ const learningRecordOperation = operation({
             category,
             createdAt,
             updatedAt,
-            durationMs: createdAt != null && updatedAt != null
-              ? Math.max(0, updatedAt - createdAt)
-              : undefined,
+            durationMs: createdAt != null && updatedAt != null ? Math.max(0, updatedAt - createdAt) : undefined,
           }
         }
       } catch {
@@ -218,9 +207,7 @@ const learningRecordOperation = operation({
     return {
       found: true,
       ...record,
-      review: record.event.reviewId
-        ? services.reviews.state(record.event.reviewId)
-        : undefined,
+      review: record.event.reviewId ? services.reviews.state(record.event.reviewId) : undefined,
       sessionTitle,
       sessionTitleAvailable: Boolean(sessionTitle),
       sourceSession,
@@ -233,11 +220,7 @@ const learningPatternsOperation = operation({
   type: "query",
   expose: ["ui"],
   input: QueryBaseSchema.extend({
-    status: z.union([
-      PatternDisplayStatusSchema,
-      z.literal("ignored"),
-      z.literal("rejected"),
-    ]).optional(),
+    status: z.union([PatternDisplayStatusSchema, z.literal("ignored"), z.literal("rejected")]).optional(),
     query: z.string().max(200).optional(),
     sort: z.enum(["priority", "recent", "frequency", "due"]).default("priority"),
     cursor: z.string().max(500).optional(),
@@ -282,11 +265,7 @@ const learningPatternDetailOperation = operation({
     }
     const learning = defaultServices().learning
     const currentScopeId = scopeId(input, context)
-    const pattern = learning.patternDetail(
-      profile.targetLanguage,
-      input.patternKey,
-      currentScopeId,
-    )
+    const pattern = learning.patternDetail(profile.targetLanguage, input.patternKey, currentScopeId)
     if (!pattern) {
       return {
         found: false,
@@ -302,22 +281,13 @@ const learningPatternDetailOperation = operation({
       evidenceTimeline: learning.patternEvidence(profile.targetLanguage, input.patternKey, {
         scopeId: currentScopeId,
       }),
-      reviewHistory: learning.patternReviewHistory(
-        profile.targetLanguage,
-        input.patternKey,
-        20,
-        currentScopeId,
-      ),
+      reviewHistory: learning.patternReviewHistory(profile.targetLanguage, input.patternKey, 20, currentScopeId),
       trend: learning.patternTrend(profile.targetLanguage, input.patternKey, {
         scopeId: currentScopeId,
         timeZone: input.timeZone,
         days: input.days,
       }),
-      contexts: learning.patternContexts(
-        profile.targetLanguage,
-        input.patternKey,
-        currentScopeId,
-      ),
+      contexts: learning.patternContexts(profile.targetLanguage, input.patternKey, currentScopeId),
     }
   },
 })
@@ -328,9 +298,10 @@ const patternPresentationsOperation = operation({
   expose: ["ui"],
   input: z.object({
     targetLanguage: OptionalLanguageSchema,
-    patternKeys: z.array(
-      z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
-    ).min(1).max(20),
+    patternKeys: z
+      .array(z.string().regex(/^[a-z][a-z0-9_]{2,63}$/))
+      .min(1)
+      .max(20),
   }),
   output: PatternPresentationsOutputSchema,
   async handler(input, context) {
@@ -339,20 +310,17 @@ const patternPresentationsOperation = operation({
     const services = defaultServices()
     try {
       return {
-        items: await services.presentationService.present(
-          profile,
-          input.patternKeys,
-          context,
-        ),
+        items: await services.presentationService.present(profile, input.patternKeys, context),
       }
     } catch (error) {
       context.log.debug("VibeLingo pattern presentation fell back to canonical metadata", {
         reason: error instanceof Error ? error.message : String(error),
       })
       return {
-        items: services.learning
-          .presentationSources(profile.targetLanguage, input.patternKeys)
-          .map((source) => ({ ...source, source: "canonical_fallback" as const })),
+        items: services.learning.presentationSources(profile.targetLanguage, input.patternKeys).map((source) => ({
+          ...source,
+          source: "canonical_fallback" as const,
+        })),
       }
     }
   },
@@ -371,10 +339,7 @@ const reviewQueueOperation = operation({
     if (!profile) return { setupRequired: true, due: [], upcoming: [] }
     return {
       due: defaultServices().learning.reviewQueue(profile.targetLanguage, input.limit),
-      upcoming: defaultServices().learning.upcomingReviewQueue(
-        profile.targetLanguage,
-        input.limit,
-      ),
+      upcoming: defaultServices().learning.upcomingReviewQueue(profile.targetLanguage, input.limit),
       activeReview: defaultServices().reviews.openReview(profile.targetLanguage),
     }
   },
@@ -407,24 +372,35 @@ const reviewStartOperation = operation({
   expose: ["ui"],
   input: z.object({
     targetLanguage: OptionalLanguageSchema,
-    patternKeys: z.array(z.string().regex(/^[a-z][a-z0-9_]{2,63}$/)).max(10).optional(),
+    patternKeys: z
+      .array(z.string().regex(/^[a-z][a-z0-9_]{2,63}$/))
+      .max(10)
+      .optional(),
     limit: z.number().int().min(1).max(10).default(3),
   }),
   output: ReviewCommandResultSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
-    if (!profile) return {
-      ok: false as const,
-      error: { code: "SETUP_REQUIRED", retryable: false, message: "Complete VibeLingo setup first." },
-    }
+    if (!profile)
+      return {
+        ok: false as const,
+        error: {
+          code: "SETUP_REQUIRED",
+          retryable: false,
+          message: "Complete VibeLingo setup first.",
+        },
+      }
     const services = defaultServices()
     const existing = services.reviews.openReview(profile.targetLanguage)
-    const result = await services.reviewService.start({
-      profile,
-      scopeId: context.scopeId,
-      patternKeys: input.patternKeys,
-      limit: input.limit,
-    }, context)
+    const result = await services.reviewService.start(
+      {
+        profile,
+        scopeId: context.scopeId,
+        patternKeys: input.patternKeys,
+        limit: input.limit,
+      },
+      context,
+    )
     if (result.ok && !existing) {
       await publishSafely(context, "review.changed", {
         targetLanguage: profile.targetLanguage,
@@ -453,7 +429,7 @@ const ReviewCommandInputSchema = z.discriminatedUnion("action", [
       reviewId: z.string().uuid(),
       requestId: z.string().trim().min(1).max(100),
       expectedRevision: z.number().int().nonnegative(),
-    })
+    }),
   ),
 ])
 
@@ -465,10 +441,15 @@ const reviewCommandOperation = operation({
   output: ReviewCommandResultSchema,
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
-    if (!profile) return {
-      ok: false as const,
-      error: { code: "SETUP_REQUIRED" as const, retryable: false, message: "Complete VibeLingo setup first." },
-    }
+    if (!profile)
+      return {
+        ok: false as const,
+        error: {
+          code: "SETUP_REQUIRED" as const,
+          retryable: false,
+          message: "Complete VibeLingo setup first.",
+        },
+      }
     const services = defaultServices()
     const before = services.reviews.state(input.reviewId)
     const previousResult = services.reviews.commandResult(input.reviewId, input.requestId)
@@ -481,9 +462,9 @@ const reviewCommandOperation = operation({
         reason: input.action,
       })
       if (
-        input.action === "submit_answer"
-        || input.action === "abandon"
-        || (input.action === "next_item" && result.data.status === "completed")
+        input.action === "submit_answer" ||
+        input.action === "abandon" ||
+        (input.action === "next_item" && result.data.status === "completed")
       ) {
         await publishSafely(context, "learning.changed", {
           targetLanguage: profile.targetLanguage,
@@ -496,22 +477,23 @@ const reviewCommandOperation = operation({
   },
 })
 
-const PatternCommandInputSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.enum(["ignore", "restore", "not_error", "delete"]),
-    targetLanguage: OptionalLanguageSchema,
-    patternKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
-  }),
-  z.object({
-    action: z.literal("merge"),
-    targetLanguage: OptionalLanguageSchema,
-    sourceKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
-    targetKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
-  }),
-]).refine(
-  (input) => input.action !== "merge" || input.sourceKey !== input.targetKey,
-  { message: "sourceKey and targetKey must be different" },
-)
+const PatternCommandInputSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      action: z.enum(["ignore", "restore", "not_error", "delete"]),
+      targetLanguage: OptionalLanguageSchema,
+      patternKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
+    }),
+    z.object({
+      action: z.literal("merge"),
+      targetLanguage: OptionalLanguageSchema,
+      sourceKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
+      targetKey: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
+    }),
+  ])
+  .refine((input) => input.action !== "merge" || input.sourceKey !== input.targetKey, {
+    message: "sourceKey and targetKey must be different",
+  })
 
 const patternCommandOperation = operation({
   id: "pattern-command",
@@ -528,25 +510,35 @@ const patternCommandOperation = operation({
   ]),
   async handler(input, context) {
     const profile = await activeProfile(context, input.targetLanguage)
-    if (!profile) return {
-      ok: false as const,
-      error: {
-        code: "SETUP_REQUIRED" as const,
-        retryable: false,
-        message: "Complete VibeLingo setup first.",
-      },
-    }
+    if (!profile)
+      return {
+        ok: false as const,
+        error: {
+          code: "SETUP_REQUIRED" as const,
+          retryable: false,
+          message: "Complete VibeLingo setup first.",
+        },
+      }
     const result = defaultServices().learning.patternCommand(profile.targetLanguage, input)
-    if (!result) return {
-      ok: false as const,
-      error: { code: "NOT_FOUND" as const, retryable: false, message: "Learning pattern not found." },
-    }
+    if (!result)
+      return {
+        ok: false as const,
+        error: {
+          code: "NOT_FOUND" as const,
+          retryable: false,
+          message: "Learning pattern not found.",
+        },
+      }
     await publishSafely(context, "learning.changed", {
       targetLanguage: profile.targetLanguage,
       revision: result.revision,
       reason: input.action,
     })
-    return { ok: true as const, revision: result.revision, data: result.pattern }
+    return {
+      ok: true as const,
+      revision: result.revision,
+      data: result.pattern,
+    }
   },
 })
 
@@ -577,9 +569,13 @@ const clearLearningDataOperation = operation({
   ]),
   async handler(input, context) {
     const services = defaultServices()
-    const clearInput = input.scope === "target"
-      ? { ...input, targetLanguage: LanguageTagSchema.parse(input.targetLanguage) }
-      : input
+    const clearInput =
+      input.scope === "target"
+        ? {
+            ...input,
+            targetLanguage: LanguageTagSchema.parse(input.targetLanguage),
+          }
+        : input
     const result = services.learning.clearLearningData(clearInput)
     services.translationService.clearMemory()
     if (clearInput.scope === "target") {
@@ -603,6 +599,7 @@ export const dashboardOperations = [
   learningProfilesOperation,
   learningSummaryOperation,
   correctionStatusOperation,
+  correctionRetryOperation,
   learningJourneyOperation,
   learningRecordOperation,
   learningPatternsOperation,

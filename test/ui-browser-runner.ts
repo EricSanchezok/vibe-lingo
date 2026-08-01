@@ -21,9 +21,9 @@ const bundled = await import(pathToFileURL(`${process.cwd()}/dist/ui/index.js`).
 const App = bundled[navigation.component.exportName]
 const correctionRenderer = manifest.contributions.find(
   (item: any) =>
-    item.kind === "ui.messageRenderer"
-    && item.id === "correction-card"
-    && item.tool === "plugin__vibe-lingo__record-correction",
+    item.kind === "ui.messageRenderer" &&
+    item.id === "correction-card" &&
+    item.tool === "plugin__vibe-lingo__record-correction",
 )
 if (!correctionRenderer?.component?.exportName) {
   throw new Error("Built correction-card export was not found")
@@ -116,44 +116,51 @@ const summary = {
   trends: { "7": trends.slice(-7), "30": trends.slice(-30), "90": trends },
 }
 const journey = {
-  items: [{
-    id: eventId,
-    type: "practice_started",
-    occurredAt: now,
-    scopeId: "scope-test",
-    sessionId: "session-test",
-    attemptCount: 4,
-    findingMessageCount: 1,
-    findingCount: 1,
-    demonstrationCount: 1,
-  }, {
-    id: "44444444-4444-4444-8444-444444444444",
-    type: "pattern_reviewable",
-    occurredAt: now - DAY,
-    patternKey: pattern.patternKey,
-  }],
+  items: [
+    {
+      id: eventId,
+      type: "practice_started",
+      occurredAt: now,
+      scopeId: "scope-test",
+      sessionId: "session-test",
+      attemptCount: 4,
+      findingMessageCount: 1,
+      findingCount: 1,
+      demonstrationCount: 1,
+    },
+    {
+      id: "44444444-4444-4444-8444-444444444444",
+      type: "pattern_reviewable",
+      occurredAt: now - DAY,
+      patternKey: pattern.patternKey,
+    },
+  ],
 }
 const queue = {
-  due: [{
-    patternKey: pattern.patternKey,
-    label: pattern.label,
-    rule: pattern.rule,
-    severity: "high_value",
-    dueAt: now,
-    overdueDays: 0,
-    occurrenceCount: 6,
-    lapseCount: 0,
-  }],
-  upcoming: [{
-    patternKey: "natural_request",
-    label: "Natural requests",
-    rule: "Prefer direct verbs for task instructions.",
-    severity: "high_value",
-    dueAt: now + DAY,
-    overdueDays: 0,
-    occurrenceCount: 4,
-    lapseCount: 0,
-  }],
+  due: [
+    {
+      patternKey: pattern.patternKey,
+      label: pattern.label,
+      rule: pattern.rule,
+      severity: "high_value",
+      dueAt: now,
+      overdueDays: 0,
+      occurrenceCount: 6,
+      lapseCount: 0,
+    },
+  ],
+  upcoming: [
+    {
+      patternKey: "natural_request",
+      label: "Natural requests",
+      rule: "Prefer direct verbs for task instructions.",
+      severity: "high_value",
+      dueAt: now + DAY,
+      overdueDays: 0,
+      occurrenceCount: 4,
+      lapseCount: 0,
+    },
+  ],
 }
 const reviewBase = {
   id: reviewId,
@@ -196,7 +203,9 @@ const context: any = {
   scopeId: "scope-test",
   surface: { kind: "ui.navigationItem", id: "learning" },
   settings: {
-    async get() { return currentSettings },
+    async get() {
+      return currentSettings
+    },
     async replace(values: Record<string, unknown>) {
       currentSettings = values
       subscribers.forEach((listener) => listener(values))
@@ -206,7 +215,11 @@ const context: any = {
       return () => subscribers.delete(listener)
     },
   },
-  events: { subscribe() { return () => undefined } },
+  events: {
+    subscribe() {
+      return () => undefined
+    },
+  },
   host: {
     openPluginPage(_path: string, params: Record<string, string>) {
       const query = new URLSearchParams(params).toString()
@@ -217,92 +230,106 @@ const context: any = {
     openWorkbenchPanel() {},
     openResource() {},
     notify() {},
-    async confirm() { return true },
+    async confirm() {
+      return true
+    },
   },
   operations: {
     async query(id: string) {
-      if (id === "learning-profiles") return {
-        current: configuredSettings,
-        profiles: [{
-          nativeLanguage: "zh-Hans",
-          targetLanguage: "en",
-          proficiency: "intermediate",
-          firstUsedAt: now - 40 * DAY,
-          lastUsedAt: now,
-        }, {
-          nativeLanguage: "en",
-          targetLanguage: "es",
-          proficiency: "beginner",
-          firstUsedAt: now - 10 * DAY,
-          lastUsedAt: now - DAY,
-        }],
-      }
+      if (id === "learning-profiles")
+        return {
+          current: configuredSettings,
+          profiles: [
+            {
+              nativeLanguage: "zh-Hans",
+              targetLanguage: "en",
+              proficiency: "intermediate",
+              firstUsedAt: now - 40 * DAY,
+              lastUsedAt: now,
+            },
+            {
+              nativeLanguage: "en",
+              targetLanguage: "es",
+              proficiency: "beginner",
+              firstUsedAt: now - 10 * DAY,
+              lastUsedAt: now - DAY,
+            },
+          ],
+        }
       if (id === "learning-summary") return summary
       if (id === "learning-journey") return journey
-      if (id === "review-queue") return {
-        ...queue,
-        due: emptyCollections ? [] : queue.due,
-        upcoming: emptyCollections ? [] : queue.upcoming,
-        activeReview: currentReview,
-      }
+      if (id === "review-queue")
+        return {
+          ...queue,
+          due: emptyCollections ? [] : queue.due,
+          upcoming: emptyCollections ? [] : queue.upcoming,
+          activeReview: currentReview,
+        }
       if (id === "review-state") return { state: currentReview }
       if (id === "learning-patterns") return { items: emptyCollections ? [] : [pattern] }
-      if (id === "learning-pattern-detail") return {
-        found: true,
-        pattern,
-        evidenceTimeline: [{
-          id: "55555555-5555-4555-8555-555555555555",
-          kind: "error",
-          outcome: "incorrect",
-          confidence: .98,
-          observedAt: now - DAY,
-          originalFragment: "add button",
-          correctedFragment: "add a button",
-        }],
-        reviewHistory: [],
-        trend: trends.slice(-30).map((point) => ({
-          date: point.date,
-          errors: point.findings,
-          naturalCorrectUses: point.naturalCorrectUses,
-          independentReviews: point.independentReviews,
-        })),
-        contexts: [{
-          scopeId: "scope-test",
-          sessionCount: 4,
-          evidenceCount: 8,
-          errorCount: 6,
-          naturalCorrectCount: 2,
-          reviewCount: 1,
-          lastSeenAt: now,
-        }],
-      }
-      if (id === "learning-record") return {
-        found: true,
-        event: journey.items[0],
-        patterns: [pattern],
-        evidence: [],
-        review: currentReview?.status === "completed" ? currentReview : undefined,
-        sessionSummary: {
-          analyzedMessages: 8,
-          targetAttempts: 8,
-          findingMessages: 2,
-          findings: 2,
-          demonstrations: 2,
-          discoveredPatterns: 1,
-        },
-        sourceSession: { id: "session-test", title: "Refine checkout flow" },
-      }
+      if (id === "learning-pattern-detail")
+        return {
+          found: true,
+          pattern,
+          evidenceTimeline: [
+            {
+              id: "55555555-5555-4555-8555-555555555555",
+              kind: "error",
+              outcome: "incorrect",
+              confidence: 0.98,
+              observedAt: now - DAY,
+              originalFragment: "add button",
+              correctedFragment: "add a button",
+            },
+          ],
+          reviewHistory: [],
+          trend: trends.slice(-30).map((point) => ({
+            date: point.date,
+            errors: point.findings,
+            naturalCorrectUses: point.naturalCorrectUses,
+            independentReviews: point.independentReviews,
+          })),
+          contexts: [
+            {
+              scopeId: "scope-test",
+              sessionCount: 4,
+              evidenceCount: 8,
+              errorCount: 6,
+              naturalCorrectCount: 2,
+              reviewCount: 1,
+              lastSeenAt: now,
+            },
+          ],
+        }
+      if (id === "learning-record")
+        return {
+          found: true,
+          event: journey.items[0],
+          patterns: [pattern],
+          evidence: [],
+          review: currentReview?.status === "completed" ? currentReview : undefined,
+          sessionSummary: {
+            analyzedMessages: 8,
+            targetAttempts: 8,
+            findingMessages: 2,
+            findings: 2,
+            demonstrations: 2,
+            discoveredPatterns: 1,
+          },
+          sourceSession: { id: "session-test", title: "Refine checkout flow" },
+        }
       throw new Error(`Unexpected query ${id}`)
     },
     async command(id: string, input: any) {
-      if (id === "pattern-presentations") return {
-        items: input.patternKeys.map((patternKey: string) => ({
-          patternKey,
-          label: patternKey === "missing_article" ? "单数名词前的冠词" : "更自然的请求表达",
-          rule: "根据语境使用自然、可迁移的表达。",
-          source: "localized",
-        })),
-      }
+      if (id === "pattern-presentations")
+        return {
+          items: input.patternKeys.map((patternKey: string) => ({
+            patternKey,
+            label: patternKey === "missing_article" ? "单数名词前的冠词" : "更自然的请求表达",
+            rule: "根据语境使用自然、可迁移的表达。",
+            source: "localized",
+          })),
+        }
       throw new Error(`Unexpected command ${id}`)
     },
   },
@@ -332,31 +359,58 @@ function assertText(target: HTMLElement, text: string) {
 const screens: Array<[string, string, any?]> = [
   ["view=overview", "学习证据"],
   ["view=review", "你的表达", review("awaiting_response")],
-  ["view=review", "提示", review("awaiting_response", { hintLevel: 1, visibleHints: ["想一想单数名词前的词。"] })],
-  ["view=review", "用正确形式再写一次", review("awaiting_repair", { latestFeedback: "缺少冠词。", referenceAnswer: "Add a button." })],
-  ["view=review", "在新场景中使用它", review("awaiting_transfer", { latestFeedback: "很好。", referenceAnswer: "Add a button." })],
-  ["view=review", "本次复习完成", {
-    ...reviewBase,
-    status: "completed",
-    completionEventId: eventId,
-    currentItem: undefined,
-    completedItems: [{
-      id: itemId,
-      patternKey: pattern.patternKey,
-      label: pattern.label,
-      outcome: "independent",
-      hintCount: 0,
-      scheduleStep: 1,
-      dueAt: now + 3 * DAY,
-      completedAt: now,
-    }],
-    summary: {
-      completedPatternCount: 1,
-      independentRecallCount: 1,
-      assistedPatternCount: 0,
-      successfulTransferCount: 1,
+  [
+    "view=review",
+    "提示",
+    review("awaiting_response", {
+      hintLevel: 1,
+      visibleHints: ["想一想单数名词前的词。"],
+    }),
+  ],
+  [
+    "view=review",
+    "用正确形式再写一次",
+    review("awaiting_repair", {
+      latestFeedback: "缺少冠词。",
+      referenceAnswer: "Add a button.",
+    }),
+  ],
+  [
+    "view=review",
+    "在新场景中使用它",
+    review("awaiting_transfer", {
+      latestFeedback: "很好。",
+      referenceAnswer: "Add a button.",
+    }),
+  ],
+  [
+    "view=review",
+    "本次复习完成",
+    {
+      ...reviewBase,
+      status: "completed",
+      completionEventId: eventId,
+      currentItem: undefined,
+      completedItems: [
+        {
+          id: itemId,
+          patternKey: pattern.patternKey,
+          label: pattern.label,
+          outcome: "independent",
+          hintCount: 0,
+          scheduleStep: 1,
+          dueAt: now + 3 * DAY,
+          completedAt: now,
+        },
+      ],
+      summary: {
+        completedPatternCount: 1,
+        independentRecallCount: 1,
+        assistedPatternCount: 0,
+        successfulTransferCount: 1,
+      },
     },
-  }],
+  ],
   ["view=patterns", "从真实工作表达中整理出的个人学习档案"],
   ["view=pattern&pattern=missing_article", "证据时间线"],
   ["view=pattern&pattern=missing_article", "模式操作"],
@@ -402,7 +456,11 @@ await new Promise((resolve) => setTimeout(resolve, 35))
 assertText(mounted.target, "当前没有到期复习。今天已完成 5 次目标语言表达，4 个模式仍在观察中。")
 emptyCollections = false
 
-await context.settings.replace({ ...configuredSettings, nativeLanguage: "", targetLanguage: "" })
+await context.settings.replace({
+  ...configuredSettings,
+  nativeLanguage: "",
+  targetLanguage: "",
+})
 await new Promise((resolve) => setTimeout(resolve, 20))
 assertText(mounted.target, "设置你的学习档案")
 mounted.dispose()
@@ -412,34 +470,50 @@ let correctionStatus: any = {
   found: true,
   status: "queued",
   patternKeys: [],
+  recovery: "waiting",
+  retryAt: Date.now() + 100,
 }
+let correctionQueryCount = 0
+let correctionRetryCount = 0
+let finishCorrectionRetry: (() => void) | undefined
+const [correctionTool, setCorrectionTool] = store.createStore({
+  name: "plugin__vibe-lingo__record-correction",
+  input: {} as Record<string, unknown>,
+  metadata: {} as Record<string, unknown>,
+  status: "running",
+})
 const learningListeners = new Set<() => void>()
 const correctionContext: any = {
   ...context,
   surface: { kind: "ui.messageRenderer", id: "correction-card" },
   message: { id: "assistant-one", role: "assistant" },
-  tool: {
-    name: "plugin__vibe-lingo__record-correction",
-    input: {
-      restatement: "Add a button to the settings page.",
-      corrections: [{
-        originalFragment: "add button",
-        correctedFragment: "add a button",
-      }],
-    },
-    metadata: {
-      vibeLingo: {
-        status: "analyzing",
-        batchId: "66666666-6666-4666-8666-666666666666",
-      },
-    },
-    status: "completed",
+  get tool() {
+    return correctionTool
   },
   operations: {
     ...context.operations,
     async query(id: string) {
-      if (id === "correction-status") return correctionStatus
+      if (id === "correction-status") {
+        correctionQueryCount++
+        return { ...correctionStatus }
+      }
       return context.operations.query(id)
+    },
+    async command(id: string, input: any) {
+      if (id === "correction-retry") {
+        correctionRetryCount++
+        return new Promise((resolve) => {
+          finishCorrectionRetry = () =>
+            resolve({
+              found: true,
+              status: "queued",
+              patternKeys: [],
+              recovery: "waiting",
+              retryAt: Date.now() + 1_000,
+            })
+        })
+      }
+      return context.operations.command(id, input)
     },
   },
   events: {
@@ -451,19 +525,58 @@ const correctionContext: any = {
 }
 const correctionTarget = document.createElement("div")
 document.body.append(correctionTarget)
-const disposeCorrection = web.render(
-  () => solid.createComponent(CorrectionCard, correctionContext),
-  correctionTarget,
-)
+const disposeCorrection = web.render(() => solid.createComponent(CorrectionCard, correctionContext), correctionTarget)
 await new Promise((resolve) => setTimeout(resolve, 10))
 assertText(correctionTarget, "更自然的表达")
+assertText(correctionTarget, "正在保存纠正")
+setCorrectionTool({
+  input: {
+    restatement: "Add a button to the settings page.",
+    corrections: [
+      {
+        originalFragment: "add button",
+        correctedFragment: "add a button",
+      },
+    ],
+  },
+  metadata: {
+    vibeLingo: {
+      status: "analyzing",
+      batchId: "66666666-6666-4666-8666-666666666666",
+    },
+  },
+  status: "completed",
+})
+await new Promise((resolve) => setTimeout(resolve, 10))
 assertText(correctionTarget, "add button")
+assertText(correctionTarget, "正在整理学习记录")
+
+correctionStatus = {
+  found: true,
+  status: "queued",
+  patternKeys: [],
+  recovery: "retry_available",
+}
+await new Promise((resolve) => setTimeout(resolve, 110))
+assertText(correctionTarget, "学习记录整理已中断")
+const retryButton = [...correctionTarget.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+  button.textContent?.includes("重试整理"),
+)
+if (!retryButton) throw new Error("Correction retry action was not rendered")
+retryButton.click()
+retryButton.click()
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(correctionTarget, "正在重试")
+if (correctionRetryCount !== 1) throw new Error(`Expected one correction retry, received ${correctionRetryCount}`)
+finishCorrectionRetry?.()
+await new Promise((resolve) => setTimeout(resolve, 10))
 assertText(correctionTarget, "正在整理学习记录")
 
 correctionStatus = {
   found: true,
   status: "analyzed",
   patternKeys: ["missing_article"],
+  recovery: "none",
 }
 learningListeners.forEach((listener) => listener())
 await new Promise((resolve) => setTimeout(resolve, 10))
@@ -472,4 +585,24 @@ assertText(correctionTarget, "查看学习模式")
 disposeCorrection()
 correctionTarget.remove()
 
-console.log("16 VibeLingo UI states and correction card rendered successfully")
+correctionStatus = {
+  found: true,
+  status: "queued",
+  patternKeys: [],
+  recovery: "waiting",
+  retryAt: Date.now() + 100,
+}
+const cleanupTarget = document.createElement("div")
+document.body.append(cleanupTarget)
+const disposeCleanup = web.render(() => solid.createComponent(CorrectionCard, correctionContext), cleanupTarget)
+await new Promise((resolve) => setTimeout(resolve, 10))
+const queryCountBeforeDispose = correctionQueryCount
+disposeCleanup()
+cleanupTarget.remove()
+await new Promise((resolve) => setTimeout(resolve, 120))
+if (correctionQueryCount !== queryCountBeforeDispose) {
+  throw new Error("Correction card queried after its retry boundary timer was disposed")
+}
+
+console.log("19 VibeLingo UI states and correction recovery interactions rendered successfully")
+GlobalRegistrator.unregister()

@@ -58,14 +58,10 @@ describe("v0.7 destructive schema", () => {
   test("creates one current schema with WAL, foreign keys, and a busy timeout", () => {
     const { service } = services()
     const db = service.database.connection()
-    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)
-      .toBe(SCHEMA_VERSION)
-    expect(db.query<{ journal_mode: string }, []>("PRAGMA journal_mode").get()?.journal_mode)
-      .toBe("wal")
-    expect(db.query<{ foreign_keys: number }, []>("PRAGMA foreign_keys").get()?.foreign_keys)
-      .toBe(1)
-    expect(db.query<{ timeout: number }, []>("PRAGMA busy_timeout").get()?.timeout)
-      .toBe(5_000)
+    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(SCHEMA_VERSION)
+    expect(db.query<{ journal_mode: string }, []>("PRAGMA journal_mode").get()?.journal_mode).toBe("wal")
+    expect(db.query<{ foreign_keys: number }, []>("PRAGMA foreign_keys").get()?.foreign_keys).toBe(1)
+    expect(db.query<{ timeout: number }, []>("PRAGMA busy_timeout").get()?.timeout).toBe(5_000)
   })
 
   test("replaces every non-current database instead of migrating legacy data", () => {
@@ -73,16 +69,22 @@ describe("v0.7 destructive schema", () => {
     service.database.close()
     fs.rmSync(filename, { force: true })
     const legacy = new Database(filename, { create: true })
-    legacy.exec("CREATE TABLE legacy_messages (body TEXT); INSERT INTO legacy_messages VALUES ('private message'); PRAGMA user_version = 2")
+    legacy.exec(
+      "CREATE TABLE legacy_messages (body TEXT); INSERT INTO legacy_messages VALUES ('private message'); PRAGMA user_version = 2",
+    )
     legacy.close()
 
     service.database.initialize()
     const db = service.database.connection()
-    expect(db.query<{ present: number }, []>(
-      "SELECT COUNT(*) AS present FROM sqlite_master WHERE type='table' AND name='legacy_messages'",
-    ).get()?.present).toBe(0)
-    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version)
-      .toBe(SCHEMA_VERSION)
+    expect(
+      db
+        .query<
+          { present: number },
+          []
+        >("SELECT COUNT(*) AS present FROM sqlite_master WHERE type='table' AND name='legacy_messages'")
+        .get()?.present,
+    ).toBe(0)
+    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(SCHEMA_VERSION)
   })
 
   test("recreates a version-matching database when required structure is missing", () => {
@@ -94,13 +96,15 @@ describe("v0.7 destructive schema", () => {
 
     service.database.initialize()
     const rebuilt = service.database.connection()
-    expect(rebuilt.query<{ count: number }, []>(
-      "SELECT COUNT(*) AS count FROM learning_profiles",
-    ).get()?.count).toBe(0)
-    expect(rebuilt.query<{ count: number }, []>(
-      `SELECT COUNT(*) AS count FROM sqlite_master
+    expect(rebuilt.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM learning_profiles").get()?.count).toBe(0)
+    expect(
+      rebuilt
+        .query<{ count: number }, []>(
+          `SELECT COUNT(*) AS count FROM sqlite_master
        WHERE type='index' AND name='corrections_status_time'`,
-    ).get()?.count).toBe(1)
+        )
+        .get()?.count,
+    ).toBe(1)
     expect(fs.existsSync(filename)).toBe(true)
   })
 })
@@ -127,10 +131,16 @@ describe("activity, corrections, and evidence convergence", () => {
     const message = identity(1)
     service.learning.recordObservation(message, profile, "target_attempt", "foreground_correction")
     service.learning.recordObservation(message, profile, "not_target", "not_target_language")
-    const row = service.database.connection().query<{
-      classification: string
-      reason: string
-    }, []>("SELECT classification, reason FROM message_observations").get()
+    const row = service.database
+      .connection()
+      .query<
+        {
+          classification: string
+          reason: string
+        },
+        []
+      >("SELECT classification, reason FROM message_observations")
+      .get()
     expect(row).toEqual({
       classification: "target_attempt",
       reason: "foreground_correction",
@@ -142,10 +152,12 @@ describe("activity, corrections, and evidence convergence", () => {
     const message = identity(1)
     const input = {
       restatement: "Please add a button.",
-      corrections: [{
-        originalFragment: "add button",
-        correctedFragment: "add a button",
-      }],
+      corrections: [
+        {
+          originalFragment: "add button",
+          correctedFragment: "add a button",
+        },
+      ],
     }
     const first = service.corrections.create({
       profile,
@@ -171,15 +183,21 @@ describe("activity, corrections, and evidence convergence", () => {
     expect(first.kind).toBe("created")
     expect(duplicate.kind).toBe("existing")
     expect(conflict.kind).toBe("conflict")
-    expect(service.database.connection().query<{ count: number }, []>(
-      "SELECT COUNT(*) AS count FROM correction_batches",
-    ).get()?.count).toBe(1)
-    const schema = service.database.connection().query<{ sql: string }, []>(
-      "SELECT sql FROM sqlite_master WHERE name='correction_batches'",
-    ).get()?.sql ?? ""
+    expect(
+      service.database
+        .connection()
+        .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM correction_batches")
+        .get()?.count,
+    ).toBe(1)
+    const schema =
+      service.database
+        .connection()
+        .query<{ sql: string }, []>("SELECT sql FROM sqlite_master WHERE name='correction_batches'")
+        .get()?.sql ?? ""
     expect(schema).not.toContain("restatement")
-    expect(JSON.stringify(service.database.connection().query("SELECT * FROM correction_batches").all()))
-      .not.toContain("Please add a button")
+    expect(JSON.stringify(service.database.connection().query("SELECT * FROM correction_batches").all())).not.toContain(
+      "Please add a button",
+    )
   })
 
   test("reports unresolved correction analysis across history while keeping today counts local", () => {
@@ -201,12 +219,18 @@ describe("activity, corrections, and evidence convergence", () => {
       correction,
     })
     if (!pending.batch || !failed.batch) throw new Error("correction batch missing")
-    service.corrections.markFailed(failed.batch.id)
+    service.corrections.failAnalysisAttempt({
+      batchId: failed.batch.id,
+      scopeId: failed.batch.scopeId,
+      correlationId: failed.batch.correlationId,
+    })
 
-    expect(service.learning.learningSummary("en", {
-      now: 10 * 86_400_000,
-      timeZone: "UTC",
-    })).toMatchObject({
+    expect(
+      service.learning.learningSummary("en", {
+        now: 10 * 86_400_000,
+        timeZone: "UTC",
+      }),
+    ).toMatchObject({
       correctionsToday: 0,
       correctionsAnalyzing: 1,
       correctionsFailed: 1,
@@ -237,30 +261,52 @@ describe("activity, corrections, and evidence convergence", () => {
     const message = identity(2)
     service.learning.recordObservation(message, profile, "target_attempt", "target_attempt")
     service.learning.markUsageQueued("en", message.messageId, "usage:en:message-2", "usage-call")
-    service.learning.recordUsageAnalysis(message, profile, [{
-      patternKey: "missing_article",
-      fragment: "Add a button.",
-      confidence: 0.99,
-      sensitive: false,
-    }], "usage:en:message-2")
+    service.learning.recordUsageAnalysis(
+      message,
+      profile,
+      [
+        {
+          patternKey: "missing_article",
+          fragment: "Add a button.",
+          confidence: 0.99,
+          sensitive: false,
+        },
+      ],
+      "usage:en:message-2",
+    )
     seedCorrection(service, message, profile, articleFinding)
 
-    const rows = service.database.connection().query<{ kind: string }, []>(
-      `SELECT kind FROM pattern_evidence
+    const rows = service.database
+      .connection()
+      .query<{ kind: string }, []>(
+        `SELECT kind FROM pattern_evidence
        WHERE target_language='en' AND pattern_key='missing_article' AND user_message_id='message-2'`,
-    ).all()
+      )
+      .all()
     expect(rows).toEqual([{ kind: "error" }])
 
-    service.learning.recordUsageAnalysis(message, profile, [{
-      patternKey: "missing_article",
-      fragment: "Add a button.",
-      confidence: 0.99,
-      sensitive: false,
-    }], "usage:en:message-2")
-    expect(service.database.connection().query<{ count: number }, []>(
-      `SELECT COUNT(*) AS count FROM pattern_evidence
+    service.learning.recordUsageAnalysis(
+      message,
+      profile,
+      [
+        {
+          patternKey: "missing_article",
+          fragment: "Add a button.",
+          confidence: 0.99,
+          sensitive: false,
+        },
+      ],
+      "usage:en:message-2",
+    )
+    expect(
+      service.database
+        .connection()
+        .query<{ count: number }, []>(
+          `SELECT COUNT(*) AS count FROM pattern_evidence
        WHERE user_message_id='message-2'`,
-    ).get()?.count).toBe(1)
+        )
+        .get()?.count,
+    ).toBe(1)
   })
 
   test("retains only five concrete correction pairs per pattern", () => {
@@ -272,16 +318,22 @@ describe("activity, corrections, and evidence convergence", () => {
         correctedFragment: `add a button ${index}`,
       })
     }
-    const rows = service.database.connection().query<{
-      original_fragment: string | null
-      corrected_fragment: string | null
-    }, []>(
-      `SELECT ci.original_fragment, ci.corrected_fragment
+    const rows = service.database
+      .connection()
+      .query<
+        {
+          original_fragment: string | null
+          corrected_fragment: string | null
+        },
+        []
+      >(
+        `SELECT ci.original_fragment, ci.corrected_fragment
        FROM correction_items ci
        JOIN correction_batches cb ON cb.id=ci.batch_id
        WHERE ci.pattern_key='missing_article'
        ORDER BY cb.created_at DESC`,
-    ).all()
+      )
+      .all()
     expect(rows.filter((row) => row.original_fragment || row.corrected_fragment)).toHaveLength(5)
   })
 
@@ -293,16 +345,31 @@ describe("activity, corrections, and evidence convergence", () => {
       correctedFragment: "open the private URL",
       sensitive: true,
     })
-    const item = service.database.connection().query<{
-      original_fragment: string | null
-      corrected_fragment: string | null
-    }, []>("SELECT original_fragment, corrected_fragment FROM correction_items").get()
+    const item = service.database
+      .connection()
+      .query<
+        {
+          original_fragment: string | null
+          corrected_fragment: string | null
+        },
+        []
+      >("SELECT original_fragment, corrected_fragment FROM correction_items")
+      .get()
     expect(item).toEqual({ original_fragment: null, corrected_fragment: null })
-    const evidence = service.database.connection().query<{
-      original_fragment: string | null
-      corrected_fragment: string | null
-    }, []>("SELECT original_fragment, corrected_fragment FROM pattern_evidence").get()
-    expect(evidence).toEqual({ original_fragment: null, corrected_fragment: null })
+    const evidence = service.database
+      .connection()
+      .query<
+        {
+          original_fragment: string | null
+          corrected_fragment: string | null
+        },
+        []
+      >("SELECT original_fragment, corrected_fragment FROM pattern_evidence")
+      .get()
+    expect(evidence).toEqual({
+      original_fragment: null,
+      corrected_fragment: null,
+    })
   })
 
   test("rejects metadata when the visible correction is not in the target script", () => {
@@ -313,8 +380,9 @@ describe("activity, corrections, and evidence convergence", () => {
       correctedFragment: "添加一个按钮",
     })
     expect(service.learning.patternDetail("en", "missing_article")).toBeUndefined()
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-1")?.corrections[0])
-      .toMatchObject({ accepted: false })
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-1")?.corrections[0]).toMatchObject({
+      accepted: false,
+    })
   })
 
   test("keeps visible correction history aligned with merge, not-error, and delete commands", () => {
@@ -330,17 +398,21 @@ describe("activity, corrections, and evidence convergence", () => {
       sourceKey: "article_alias",
       targetKey: "missing_article",
     })
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-2")?.corrections[0])
-      .toMatchObject({ patternKey: "missing_article", accepted: true })
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-2")?.corrections[0]).toMatchObject({
+      patternKey: "missing_article",
+      accepted: true,
+    })
 
     service.learning.patternCommand("en", {
       action: "not_error",
       patternKey: "missing_article",
     })
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-1")?.corrections[0])
-      .toMatchObject({ accepted: false })
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-1")?.corrections[0])
-      .not.toHaveProperty("patternKey")
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-1")?.corrections[0]).toMatchObject({
+      accepted: false,
+    })
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-1")?.corrections[0]).not.toHaveProperty(
+      "patternKey",
+    )
 
     seedCorrection(service, identity(3), profile, {
       ...articleFinding,
@@ -350,10 +422,12 @@ describe("activity, corrections, and evidence convergence", () => {
       action: "delete",
       patternKey: "temporary_pattern",
     })
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-3")?.corrections[0])
-      .toMatchObject({ accepted: false })
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-3")?.corrections[0])
-      .not.toHaveProperty("patternKey")
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-3")?.corrections[0]).toMatchObject({
+      accepted: false,
+    })
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-3")?.corrections[0]).not.toHaveProperty(
+      "patternKey",
+    )
   })
 
   test("does not accumulate new pattern evidence while a pattern is ignored", () => {
@@ -369,8 +443,9 @@ describe("activity, corrections, and evidence convergence", () => {
       disposition: "ignored",
       occurrenceCount: 1,
     })
-    expect(service.corrections.byAssistantMessage("en", "assistant-message-2")?.corrections[0])
-      .toMatchObject({ accepted: false })
+    expect(service.corrections.byAssistantMessage("en", "assistant-message-2")?.corrections[0]).toMatchObject({
+      accepted: false,
+    })
   })
 })
 
@@ -387,9 +462,88 @@ describe("retry and cleanup invariants", () => {
       },
     })
     if (!created.batch) throw new Error("batch missing")
-    service.corrections.markQueued(created.batch.id, "call", 10_000)
+    const claimed = service.corrections.claimAnalysisAttempt({
+      batchId: created.batch.id,
+      scopeId: created.batch.scopeId,
+      expectedCorrelationId: created.batch.correlationId,
+      correlationId: created.batch.correlationId,
+      now: 10_000,
+    })
+    if (!claimed) throw new Error("correction batch was not claimed")
+    service.corrections.attachAnalysisCall({
+      batchId: created.batch.id,
+      scopeId: created.batch.scopeId,
+      correlationId: created.batch.correlationId,
+      callId: "call",
+    })
     expect(service.corrections.retryable(20_000, 30_000)).toBeUndefined()
     expect(service.corrections.retryable(40_001, 30_000)?.id).toBe(created.batch.id)
+  })
+
+  test("claims one stale correction attempt atomically and rotates its correlation", () => {
+    const { service } = services()
+    const created = service.corrections.create({
+      profile,
+      identity: identity(1),
+      assistantMessageId: "assistant-claim",
+      correction: {
+        restatement: "Add a button.",
+        corrections: [{ originalFragment: "add button", correctedFragment: "add a button" }],
+      },
+    })
+    if (!created.batch) throw new Error("batch missing")
+    const initiallyClaimed = service.corrections.claimAnalysisAttempt({
+      batchId: created.batch.id,
+      scopeId: created.batch.scopeId,
+      expectedCorrelationId: created.batch.correlationId,
+      correlationId: created.batch.correlationId,
+      now: 10_000,
+    })
+    if (!initiallyClaimed) throw new Error("correction batch was not claimed")
+    service.corrections.attachAnalysisCall({
+      batchId: created.batch.id,
+      scopeId: created.batch.scopeId,
+      correlationId: created.batch.correlationId,
+      callId: "orphaned-call",
+    })
+
+    expect(
+      service.corrections.claimAnalysisAttempt({
+        batchId: created.batch.id,
+        scopeId: "scope-a",
+        expectedCorrelationId: created.batch.correlationId,
+        correlationId: "correction:retry:one",
+        now: 20_000,
+        queuedGraceMs: 30_000,
+      }),
+    ).toBeUndefined()
+
+    expect(
+      service.corrections.claimAnalysisAttempt({
+        batchId: created.batch.id,
+        scopeId: "scope-a",
+        expectedCorrelationId: created.batch.correlationId,
+        correlationId: "correction:retry:one",
+        now: 40_001,
+        queuedGraceMs: 30_000,
+      }),
+    ).toMatchObject({
+      status: "queued",
+      correlationId: "correction:retry:one",
+      queuedAt: 40_001,
+    })
+    expect(service.corrections.byId(created.batch.id)).not.toHaveProperty("callId")
+
+    expect(
+      service.corrections.claimAnalysisAttempt({
+        batchId: created.batch.id,
+        scopeId: "scope-a",
+        expectedCorrelationId: created.batch.correlationId,
+        correlationId: "correction:retry:two",
+        now: 40_001,
+        queuedGraceMs: 30_000,
+      }),
+    ).toBeUndefined()
   })
 
   test("clears one language transactionally without touching another namespace", () => {
@@ -402,12 +556,18 @@ describe("retry and cleanup invariants", () => {
       originalFragment: "añade botón",
       correctedFragment: "añade un botón",
     })
-    const result = service.learning.clearLearningData({ scope: "target", targetLanguage: "en" })
+    const result = service.learning.clearLearningData({
+      scope: "target",
+      targetLanguage: "en",
+    })
     expect(result.deletedPatterns).toBe(1)
     expect(service.learning.patternDetail("en", "missing_article")).toBeUndefined()
     expect(service.learning.patternDetail("es", "spanish_article")).toBeDefined()
-    expect(service.database.connection().query<{ count: number }, []>(
-      `SELECT COUNT(*) AS count FROM correction_batches WHERE target_language='en'`,
-    ).get()?.count).toBe(0)
+    expect(
+      service.database
+        .connection()
+        .query<{ count: number }, []>(`SELECT COUNT(*) AS count FROM correction_batches WHERE target_language='en'`)
+        .get()?.count,
+    ).toBe(0)
   })
 })

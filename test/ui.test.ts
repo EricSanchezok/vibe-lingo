@@ -1,23 +1,16 @@
 import { expect, test } from "bun:test"
 
-test("renders the 16 Figma product states through the bundled Solid surface contract", async () => {
+test("renders product states and correction recovery through the bundled Solid surface contract", async () => {
   const build = Bun.spawn([process.execPath, "run", "build"], {
     cwd: import.meta.dir + "/..",
     stdout: "pipe",
     stderr: "pipe",
   })
-  const [buildExit, buildStderr] = await Promise.all([
-    build.exited,
-    new Response(build.stderr).text(),
-  ])
+  const [buildExit, buildStderr] = await Promise.all([build.exited, new Response(build.stderr).text()])
   if (buildExit !== 0) throw new Error(buildStderr)
   expect(buildExit).toBe(0)
 
-  const child = Bun.spawn([
-    process.execPath,
-    "--conditions=browser",
-    "test/ui-browser-runner.ts",
-  ], {
+  const child = Bun.spawn([process.execPath, "--conditions=browser", "test/ui-browser-runner.ts"], {
     cwd: import.meta.dir + "/..",
     stdout: "pipe",
     stderr: "pipe",
@@ -28,6 +21,6 @@ test("renders the 16 Figma product states through the bundled Solid surface cont
     new Response(child.stderr).text(),
   ])
   expect(stderr).toBe("")
-  expect(stdout).toContain("16 VibeLingo UI states and correction card rendered successfully")
+  expect(stdout).toContain("19 VibeLingo UI states and correction recovery interactions rendered successfully")
   expect(exitCode).toBe(0)
 }, 30_000)

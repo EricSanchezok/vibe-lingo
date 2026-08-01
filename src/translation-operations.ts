@@ -5,18 +5,15 @@ import {
 } from "@ericsanchezok/synergy-plugin"
 import { z } from "zod"
 import { defaultServices } from "./application/services"
-import type {
-  TranslationDestination,
-  TranslationResult,
-} from "./domain/translation"
+import type { TranslationDestination, TranslationResult } from "./domain/translation"
 import type { TranslationRow } from "./infrastructure/translation-repository"
 import { canonicalLanguageTag } from "./language"
 import { configuredProfile, modelRoleFor, readSettings } from "./settings"
 
 type TranslateSelectionInput = {
   selection: PluginTextSelectionSnapshot
-  destination: TranslationDestination
-  bypassCache: boolean
+  destination?: TranslationDestination
+  bypassCache?: boolean
 }
 
 type TranslationListInput = {
@@ -27,10 +24,7 @@ type TranslationListInput = {
   limit: number
 }
 
-type TranslationListItem = Omit<
-  TranslationRow,
-  "sourceHash" | "contractVersion"
->
+type TranslationListItem = Omit<TranslationRow, "sourceHash" | "contractVersion">
 
 type TranslationListOutput = {
   setupRequired: boolean
@@ -63,10 +57,7 @@ const SelectionSchema = z
       .string()
       .min(1)
       .max(8_000)
-      .refine(
-        (value) => [...value].length <= 4_000,
-        "Selection must be at most 4,000 Unicode code points",
-      ),
+      .refine((value) => [...value].length <= 4_000, "Selection must be at most 4,000 Unicode code points"),
     source: z.enum(["document", "code", "terminal"]),
     origin: z.enum(["user_message", "assistant_message", "editable", "other"]),
     editable: z.boolean(),
@@ -83,12 +74,7 @@ const TranslationResultSchema = z.discriminatedUnion("status", [
       destinationLanguage: z.string(),
       translatedText: z.string(),
       cache: z.enum(["persistent_hit", "memory_hit", "miss"]),
-      persistence: z.enum([
-        "saved",
-        "disabled",
-        "privacy_excluded",
-        "write_failed",
-      ]),
+      persistence: z.enum(["saved", "disabled", "privacy_excluded", "write_failed"]),
     })
     .strict(),
   z.object({ status: z.literal("setup_required") }).strict(),
@@ -100,11 +86,7 @@ const TranslationResultSchema = z.discriminatedUnion("status", [
     .strict(),
 ])
 
-async function publishChanged(
-  context: PluginInvocationContext,
-  targetLanguage: string,
-  reason: string,
-) {
+async function publishChanged(context: PluginInvocationContext, targetLanguage: string, reason: string) {
   try {
     await context.events.publish("translation.changed", {
       targetLanguage,
@@ -122,10 +104,7 @@ function canonicalOptional(value: string | undefined, field: string) {
   return canonical
 }
 
-export const translateSelectionOperation = operation<
-  TranslateSelectionInput,
-  TranslationResult
->({
+export const translateSelectionOperation = operation<TranslateSelectionInput, TranslationResult>({
   id: "translate-selection",
   type: "command",
   expose: ["ui"],
@@ -133,8 +112,8 @@ export const translateSelectionOperation = operation<
   input: z
     .object({
       selection: SelectionSchema,
-      destination: z.enum(["adaptive", "native", "target"]).default("adaptive"),
-      bypassCache: z.boolean().default(false),
+      destination: z.enum(["adaptive", "native", "target"]).default("adaptive").optional(),
+      bypassCache: z.boolean().default(false).optional(),
     })
     .strict(),
   output: TranslationResultSchema,
@@ -142,12 +121,14 @@ export const translateSelectionOperation = operation<
     const settings = await readSettings(context)
     const profile = configuredProfile(settings)
     if (!profile) return { status: "setup_required" as const }
+    const destination = input.destination ?? "adaptive"
+    const bypassCache = input.bypassCache ?? false
     const result = await defaultServices().translationService.translate(
       {
         profile,
         selection: input.selection,
-        destination: input.destination,
-        bypassCache: input.bypassCache,
+        destination,
+        bypassCache,
         historyEnabled: settings.translationHistoryEnabled,
         modelRole: modelRoleFor(settings, "translation"),
       },
@@ -160,10 +141,7 @@ export const translateSelectionOperation = operation<
   },
 })
 
-export const translationsListOperation = operation<
-  TranslationListInput,
-  TranslationListOutput
->({
+export const translationsListOperation = operation<TranslationListInput, TranslationListOutput>({
   id: "translations-list",
   type: "query",
   expose: ["ui"],
@@ -201,17 +179,12 @@ export const translationsListOperation = operation<
     const settings = await readSettings(context)
     const profile = configuredProfile(settings)
     if (!profile) return { setupRequired: true, items: [] }
-    const targetLanguage =
-      canonicalOptional(input.targetLanguage, "target language") ??
-      profile.targetLanguage
+    const targetLanguage = canonicalOptional(input.targetLanguage, "target language") ?? profile.targetLanguage
     return {
       setupRequired: false,
       ...defaultServices().translations.list({
         profileTargetLanguage: targetLanguage,
-        destinationLanguage: canonicalOptional(
-          input.destinationLanguage,
-          "destination language",
-        ),
+        destinationLanguage: canonicalOptional(input.destinationLanguage, "destination language"),
         query: input.query,
         cursor: input.cursor,
         limit: input.limit,
@@ -220,10 +193,7 @@ export const translationsListOperation = operation<
   },
 })
 
-export const translationSummaryOperation = operation<
-  TranslationSummaryInput,
-  TranslationSummaryOutput
->({
+export const translationSummaryOperation = operation<TranslationSummaryInput, TranslationSummaryOutput>({
   id: "translation-summary",
   type: "query",
   expose: ["ui"],
@@ -244,17 +214,14 @@ export const translationSummaryOperation = operation<
     return {
       setupRequired: false,
       ...defaultServices().translations.summary(
-        canonicalOptional(input.targetLanguage, "target language") ??
-          profile.targetLanguage,
+        canonicalOptional(input.targetLanguage, "target language") ?? profile.targetLanguage,
       ),
     }
   },
 })
 
 const TranslationCommandSchema = z.discriminatedUnion("action", [
-  z
-    .object({ action: z.literal("delete"), translationId: z.string().uuid() })
-    .strict(),
+  z.object({ action: z.literal("delete"), translationId: z.string().uuid() }).strict(),
   z
     .object({
       action: z.literal("clear_target"),
@@ -264,10 +231,7 @@ const TranslationCommandSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("clear_all") }).strict(),
 ])
 
-export const translationCommandOperation = operation<
-  TranslationCommand,
-  TranslationCommandOutput
->({
+export const translationCommandOperation = operation<TranslationCommand, TranslationCommandOutput>({
   id: "translation-command",
   type: "command",
   expose: ["ui"],
@@ -296,8 +260,7 @@ export const translationCommandOperation = operation<
       }).deletedTranslations
     }
     defaultServices().translationService.clearMemory()
-    if (deletedTranslations > 0)
-      await publishChanged(context, targetLanguage, input.action)
+    if (deletedTranslations > 0) await publishChanged(context, targetLanguage, input.action)
     return { ok: true, deletedTranslations }
   },
 })
