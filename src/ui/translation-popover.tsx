@@ -14,6 +14,7 @@ import {
   type VibeLingoSettings,
 } from "../settings"
 import { localeForSettings, type UiLocale } from "./i18n"
+import { learningThemeDeclarations } from "./learning-theme"
 
 type SurfaceInput =
   PluginTextActionSurfaceContext | { context: PluginTextActionSurfaceContext }
@@ -23,15 +24,15 @@ function resolveContext(input: SurfaceInput): PluginTextActionSurfaceContext {
 }
 
 const styles = `
-.vlt{box-sizing:border-box;min-width:0;color:var(--text-base);font-family:var(--font-family-sans,system-ui,sans-serif)}
+.vlt{${learningThemeDeclarations}box-sizing:border-box;min-width:0;color:var(--text-base);font-family:var(--font-family-sans,system-ui,sans-serif)}
 .vlt *{box-sizing:border-box}.vlt-head{display:flex;align-items:center;gap:12px;padding:13px 17px;border-bottom:1px solid var(--border-base)}
 .vlt-direction{min-width:0;color:var(--text-weak);font-size:12px}.vlt-action:hover{background:var(--surface-base-hover)}.vlt-body{padding:18px}.vlt-text{margin:0;color:var(--text-strong);font-size:15px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
 .vlt-status{margin:11px 0 0;color:var(--text-weaker);font-size:11px}.vlt-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:0 17px 16px}
 .vlt-action{min-height:36px;border:1px solid var(--border-base);border-radius:7px;background:var(--surface-base);color:var(--text-base);padding:7px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
-.vlt-action[data-primary=true]{border-color:var(--surface-interactive-solid);background:var(--surface-interactive-solid);color:var(--text-on-interactive-base)}
+.vlt-action[data-primary=true]{border-color:var(--vibe-sage-action);background:var(--vibe-sage-action);color:var(--text-on-interactive-base)}
 .vlt-action:disabled{cursor:not-allowed;opacity:.5}.vlt-action:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
 .vlt-error{margin:0 17px 14px;border-radius:8px;background:var(--surface-critical-weak);color:var(--text-on-critical-base);padding:10px 12px;font-size:12px}
-.vlt-loading{display:flex;min-height:120px;align-items:center;justify-content:center;gap:9px;color:var(--text-weak);font-size:13px}.vlt-spinner{width:16px;height:16px;border:2px solid var(--border-base);border-top-color:var(--text-strong);border-radius:50%;animation:vlt-spin .8s linear infinite}
+.vlt-loading{display:flex;min-height:120px;align-items:center;justify-content:center;gap:9px;background:var(--vibe-sage-surface);color:var(--text-weak);font-size:13px}.vlt-spinner{width:16px;height:16px;border:2px solid color-mix(in srgb,var(--vibe-sage-strong) 22%,var(--border-base));border-top-color:var(--vibe-sage-action);border-radius:50%;animation:vlt-spin .8s linear infinite}
 @keyframes vlt-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.vlt-spinner{animation:none}}`
 
 const COPY = {

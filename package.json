@@ -1,6 +1,6 @@
 {
   "name": "vibe-lingo",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Work-first multilingual coaching, selected-text translation, and evidence-based review for Synergy",
   "type": "module",
   "main": "./src/index.ts",

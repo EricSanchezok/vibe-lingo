@@ -183,7 +183,9 @@ describe("progress output", () => {
       }),
       database,
     )
-    expect(unconfigured.metadata).toMatchObject({ setupRequired: true })
+    expect(unconfigured.metadata).toMatchObject({
+      vibeLingo: { kind: "progress", state: "setup_required" },
+    })
 
     const service = createServices(database.database)
     seedCorrection(
@@ -231,13 +233,15 @@ describe("progress output", () => {
     )
     expect(configured.title).toContain("Spanish")
     expect(configured.metadata).toMatchObject({
-      language: "es",
-      targetAttempts: 1,
-      analyzedMessagesToday: 1,
-      targetAttemptsToday: 1,
-      targetSessionsToday: 1,
-      findingMessagesToday: 1,
-      findingsToday: 1,
+      vibeLingo: {
+        kind: "progress",
+        state: "ready",
+        targetLanguage: "es",
+        summary: {
+          targetAttemptsToday: 1,
+          targetSessionsToday: 1,
+        },
+      },
     })
   })
 })

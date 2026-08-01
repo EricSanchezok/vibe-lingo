@@ -79,7 +79,7 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.7.1",
+  version: "0.7.2",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   compatibility: { synergy: ">=3.0.11" },
   author: "Eric Sanchez",
@@ -347,6 +347,13 @@ export default definePlugin({
       async handler(input, context) {
         return progressTool(input, context)
       },
+    }),
+    messageRenderer({
+      id: "progress-card",
+      label: "VibeLingo learning progress",
+      messageType: "tool",
+      tool: "plugin__vibe-lingo__progress",
+      component: { source: "./src/ui/progress-card.tsx" },
     }),
     tool<TranslationHistoryInput>({
       id: "translation-history",

@@ -10,6 +10,7 @@ import {
   type Component,
 } from "solid-js"
 import type { PluginToolMessageSurfaceContext } from "@ericsanchezok/synergy-plugin/ui"
+import { learningThemeDeclarations } from "./learning-theme"
 
 type SurfaceInput = PluginToolMessageSurfaceContext | { context: PluginToolMessageSurfaceContext }
 
@@ -43,25 +44,25 @@ type CorrectionStatus = {
 }
 
 const styles = `
-.vlc-card{box-sizing:border-box;width:min(680px,100%);margin:8px 0;border:1px solid color-mix(in srgb,var(--border-base) 72%,transparent);border-radius:12px;background:var(--surface-base);color:var(--text-base);font-family:var(--font-family-sans,system-ui,-apple-system,sans-serif);overflow:hidden}
+.vlc-card{${learningThemeDeclarations}box-sizing:border-box;width:min(680px,100%);margin:8px 0;border:1px solid var(--vibe-warm-border);border-radius:12px;background:color-mix(in srgb,var(--surface-base) 96%,var(--vibe-sage-surface));color:var(--text-base);font-family:var(--font-family-sans,system-ui,-apple-system,sans-serif);overflow:hidden}
 .vlc-card *{box-sizing:border-box}
 .vlc-body{padding:18px 20px 16px}
 .vlc-title{margin:0;color:var(--text-strong);font-size:15px;line-height:1.35;font-weight:680}
 .vlc-restatement{margin:12px 0 0;color:var(--text-base);font-size:14px;line-height:1.58;overflow-wrap:anywhere}
-.vlc-label{display:block;margin-bottom:3px;color:var(--text-weaker);font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}
+.vlc-label{display:block;margin-bottom:3px;color:var(--vibe-sage-ink);font-size:11px;font-weight:680;letter-spacing:.055em;text-transform:uppercase}
 .vlc-list{display:grid;gap:10px;margin-top:14px}
 .vlc-pair{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:8px;align-items:start;border-top:1px solid color-mix(in srgb,var(--border-base) 45%,transparent);padding-top:10px}
 .vlc-fragment{min-width:0;color:var(--text-weak);font-size:13px;line-height:1.52;overflow-wrap:anywhere}
-.vlc-fragment[data-natural=true]{color:var(--text-strong)}
+.vlc-fragment[data-natural=true]{border-radius:7px;background:var(--vibe-sage-surface);color:var(--text-strong);padding:5px 8px;margin:-5px -8px}
 .vlc-arrow{color:var(--text-weaker);font-size:13px;line-height:1.52;text-align:center}
-.vlc-footer{display:flex;min-height:39px;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid color-mix(in srgb,var(--border-base) 48%,transparent);background:var(--surface-inset-base);padding:9px 20px;color:var(--text-weak);font-size:12px}
+.vlc-footer{display:flex;min-height:39px;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid color-mix(in srgb,var(--vibe-warm-border) 76%,transparent);background:var(--vibe-sage-surface);padding:9px 20px;color:var(--text-weak);font-size:12px}
 .vlc-state{display:flex;min-width:0;align-items:center;gap:8px}
 .vlc-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:var(--text-weaker)}
-.vlc-dot[data-state=saving],.vlc-dot[data-state=analyzing],.vlc-dot[data-state=analysis_interrupted],.vlc-dot[data-state=status_unavailable]{background:var(--surface-warning-strong)}
-.vlc-dot[data-state=recorded],.vlc-dot[data-state=pattern_updated]{background:var(--surface-success-strong)}
+.vlc-dot[data-state=saving],.vlc-dot[data-state=analyzing],.vlc-dot[data-state=analysis_interrupted],.vlc-dot[data-state=status_unavailable]{background:var(--vibe-amber-strong)}
+.vlc-dot[data-state=recorded],.vlc-dot[data-state=pattern_updated]{background:var(--vibe-sage-strong)}
 .vlc-dot[data-state=analysis_failed]{background:var(--surface-critical-base)}
 .vlc-actions{display:flex;flex:0 0 auto;align-items:center;gap:12px}
-.vlc-action{border:0;background:transparent;color:var(--text-interactive-base);padding:3px 0;font:inherit;font-weight:650;white-space:nowrap;cursor:pointer}
+.vlc-action{border:0;background:transparent;color:var(--vibe-sage-ink);padding:3px 0;font:inherit;font-weight:680;white-space:nowrap;cursor:pointer}
 .vlc-action:hover:not(:disabled){text-decoration:underline}
 .vlc-action:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
 .vlc-action:disabled{cursor:default;opacity:.62}

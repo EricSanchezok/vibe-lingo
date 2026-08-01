@@ -29,6 +29,16 @@ if (!correctionRenderer?.component?.exportName) {
   throw new Error("Built correction-card export was not found")
 }
 const CorrectionCard = bundled[correctionRenderer.component.exportName]
+const progressRenderer = manifest.contributions.find(
+  (item: any) =>
+    item.kind === "ui.messageRenderer" &&
+    item.id === "progress-card" &&
+    item.tool === "plugin__vibe-lingo__progress",
+)
+if (!progressRenderer?.component?.exportName) {
+  throw new Error("Built progress-card export was not found")
+}
+const ProgressCard = bundled[progressRenderer.component.exportName]
 const DAY = 86_400_000
 const now = Date.now()
 const reviewId = "11111111-1111-4111-8111-111111111111"
@@ -585,6 +595,62 @@ assertText(correctionTarget, "查看学习模式")
 disposeCorrection()
 correctionTarget.remove()
 
+const progressContext: any = {
+  ...context,
+  surface: { kind: "ui.messageRenderer", id: "progress-card" },
+  message: { id: "assistant-progress", role: "assistant" },
+  tool: {
+    name: "plugin__vibe-lingo__progress",
+    input: {},
+    metadata: {
+      vibeLingo: {
+        kind: "progress",
+        state: "ready",
+        targetLanguage: "en",
+        targetName: "English",
+        scope: "all",
+        summary: {
+          targetAttemptsToday: 5,
+          targetSessionsToday: 2,
+          correctionsToday: 2,
+          correctionsAnalyzing: 1,
+          activeDays: 16,
+          learningWeek: 6,
+          candidatePatternCount: 4,
+          practicingPatternCount: 4,
+          verifiedPatternCount: 3,
+          duePatternCount: 2,
+        },
+        patterns: [
+          {
+            patternKey: pattern.patternKey,
+            label: "单数名词前的冠词",
+            rule: "指一个可数事物时，根据语境使用 a 或 the。",
+            stage: "practicing",
+            occurrenceCount: 6,
+          },
+        ],
+      },
+    },
+    status: "completed",
+  },
+}
+const progressTarget = document.createElement("div")
+document.body.append(progressTarget)
+const disposeProgress = web.render(() => solid.createComponent(ProgressCard, progressContext), progressTarget)
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(progressTarget, "你的学习进展")
+assertText(progressTarget, "第 6 周")
+assertText(progressTarget, "5")
+assertText(progressTarget, "单数名词前的冠词")
+assertText(progressTarget, "1 条纠正正在整理为学习记录")
+assertText(progressTarget, "查看完整进展")
+if (progressTarget.textContent?.includes("missing_article")) {
+  throw new Error("Progress card exposed an internal pattern key")
+}
+disposeProgress()
+progressTarget.remove()
+
 correctionStatus = {
   found: true,
   status: "queued",
@@ -604,5 +670,5 @@ if (correctionQueryCount !== queryCountBeforeDispose) {
   throw new Error("Correction card queried after its retry boundary timer was disposed")
 }
 
-console.log("19 VibeLingo UI states and correction recovery interactions rendered successfully")
+console.log("20 VibeLingo UI states and tool-card interactions rendered successfully")
 GlobalRegistrator.unregister()

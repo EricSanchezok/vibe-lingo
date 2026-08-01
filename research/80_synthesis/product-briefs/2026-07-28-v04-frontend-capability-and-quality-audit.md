@@ -53,6 +53,13 @@
 
 Automated browser-DOM coverage renders and asserts all fourteen states from the actual packaged Solid bundle. Full conformance still requires manual screen-reader and theme checks in the approved running Synergy generation.
 
+### V0.7 conversation-surface supplement
+
+- The foreground correction and explicit Progress Tool now use dedicated trusted renderers instead of generic Tool chrome.
+- Progress summarizes authentic practice, active days, due review, verified evidence, and leading patterns; it does not show confidence, canonical keys, or provenance in the primary card.
+- Both cards and the workspace derive sage, amber, and warm-neutral roles from Synergy semantic tokens, matching the Figma product tone without creating a light-only theme.
+- Narrow cards collapse four metrics to two columns, wrap localized content, retain visible focus, and disable skeleton animation under reduced motion.
+
 An isolated approved Synergy generation was also exercised at 1440 px, 1280 px, and 390 px widths. First-run activation, the populated Overview, desktop and mobile pattern lists, and the manual Review queue rendered without horizontal overflow, clipped Chinese text, or nested scrolling. This runtime pass found and corrected duplicate low-value chart ticks and an empty upcoming-review sidebar. Dark/custom-theme and screen-reader sessions remain explicit follow-up checks rather than inferred claims.
 
 ## Maintainability Audit

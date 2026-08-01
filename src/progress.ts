@@ -12,6 +12,40 @@ export type ProgressInput = {
   includeExamples?: boolean
 }
 
+export type ProgressCardPattern = {
+  patternKey: string
+  label: string
+  rule: string
+  stage: "candidate" | "practicing" | "verified"
+  occurrenceCount: number
+}
+
+export type ProgressCardMetadata =
+  | {
+      kind: "progress"
+      state: "setup_required" | "invalid_language"
+    }
+  | {
+      kind: "progress"
+      state: "ready"
+      targetLanguage: string
+      targetName: string
+      scope: "all" | "current"
+      summary: {
+        targetAttemptsToday: number
+        targetSessionsToday: number
+        correctionsToday: number
+        correctionsAnalyzing: number
+        activeDays: number
+        learningWeek: number
+        candidatePatternCount: number
+        practicingPatternCount: number
+        verifiedPatternCount: number
+        duePatternCount: number
+      }
+      patterns: ProgressCardPattern[]
+    }
+
 function day(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10)
 }
@@ -78,7 +112,12 @@ export async function progressTool(
     return {
       title: "VibeLingo setup required",
       output: "Complete your native language, target language, and proficiency in VibeLingo settings first.",
-      metadata: { setupRequired: true },
+      metadata: {
+        vibeLingo: {
+          kind: "progress",
+          state: "setup_required",
+        } satisfies ProgressCardMetadata,
+      },
     }
   }
   const scope = input.scope ?? "all"
@@ -91,7 +130,12 @@ export async function progressTool(
     return {
       title: "Invalid language",
       output: "Use a valid BCP-47 language tag, such as en, zh-Hans, or pt-BR.",
-      metadata: { setupRequired: false },
+      metadata: {
+        vibeLingo: {
+          kind: "progress",
+          state: "invalid_language",
+        } satisfies ProgressCardMetadata,
+      },
     }
   }
   const snapshot = learning.progress({
@@ -101,28 +145,37 @@ export async function progressTool(
     includeExamples,
   })
   const targetName = languageDisplayName(targetLanguage, "en")
+  const progressMetadata: ProgressCardMetadata = {
+    kind: "progress",
+    state: "ready",
+    targetLanguage,
+    targetName,
+    scope,
+    summary: {
+      targetAttemptsToday: snapshot.summary.targetAttemptsToday,
+      targetSessionsToday: snapshot.summary.targetSessionsToday,
+      correctionsToday: snapshot.summary.correctionsToday,
+      correctionsAnalyzing: snapshot.summary.correctionsAnalyzing,
+      activeDays: snapshot.summary.activeDays,
+      learningWeek: snapshot.summary.learningWeek,
+      candidatePatternCount: snapshot.summary.candidatePatternCount,
+      practicingPatternCount: snapshot.summary.practicingPatternCount,
+      verifiedPatternCount: snapshot.summary.verifiedPatternCount,
+      duePatternCount: snapshot.summary.duePatternCount,
+    },
+    patterns: snapshot.patterns.map((pattern) => ({
+      patternKey: pattern.patternKey,
+      label: pattern.label,
+      rule: pattern.rule,
+      stage: pattern.stage,
+      occurrenceCount: pattern.occurrenceCount,
+    })),
+  }
   return {
     title: `VibeLingo ${targetName} patterns`,
     output: renderProgress(snapshot, includeExamples, targetName),
     metadata: {
-      scope,
-      language: targetLanguage,
-      targetAttempts: snapshot.summary.targetAttempts,
-      analyzedMessagesToday: snapshot.summary.analyzedMessagesToday,
-      targetAttemptsToday: snapshot.summary.targetAttemptsToday,
-      targetSessionsToday: snapshot.summary.targetSessionsToday,
-      findingMessagesToday: snapshot.summary.findingMessagesToday,
-      findingsToday: snapshot.summary.findingsToday,
-      correctionsToday: snapshot.summary.correctionsToday,
-      acceptedFindingsToday: snapshot.summary.acceptedFindingsToday,
-      correctionsAnalyzing: snapshot.summary.correctionsAnalyzing,
-      correctionsFailed: snapshot.summary.correctionsFailed,
-      activeDays: snapshot.summary.activeDays,
-      duePatternCount: snapshot.summary.duePatternCount,
-      independentRecallCountLast30Days: snapshot.summary.independentRecallCountLast30Days,
-      reviewRecallCountLast30Days: snapshot.summary.reviewRecallCountLast30Days,
-      successfulTransferCountLast30Days: snapshot.summary.successfulTransferCountLast30Days,
-      patternCount: snapshot.patterns.length,
+      vibeLingo: progressMetadata,
     },
   }
 }

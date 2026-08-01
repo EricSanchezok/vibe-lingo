@@ -17,7 +17,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.7.1",
+      version: "0.7.2",
       compatibility: { synergy: ">=3.0.11" },
       repository: "https://github.com/EricSanchezok/vibe-lingo",
       capabilities: [
@@ -75,6 +75,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       "tool:record-correction",
       "ui.messageRenderer:correction-card",
       "tool:progress",
+      "ui.messageRenderer:progress-card",
       "tool:translation-history",
       "ui.settings:settings",
       "lifecycle.uninstall:cleanup-data",
@@ -244,6 +245,11 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       messageType: "tool",
       tool: "plugin__vibe-lingo__record-correction",
       component: { source: "./src/ui/correction-card.tsx" },
+    })
+    expect(contribution("ui.messageRenderer", "progress-card")).toMatchObject({
+      messageType: "tool",
+      tool: "plugin__vibe-lingo__progress",
+      component: { source: "./src/ui/progress-card.tsx" },
     })
     expect(contribution("operation", "correction-status")).toMatchObject({
       type: "query",

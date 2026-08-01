@@ -17,7 +17,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.7.1` aligns foreground teaching with durable learning history, uses the stable API4 system-context hook, and adds explicit selected-text translation. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
+VibeLingo `0.7.2` aligns foreground teaching with durable learning history, uses the stable API4 system-context hook, and adds explicit selected-text translation. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
 
 ## Install for Local Development
 
@@ -35,7 +35,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.7.1` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The v0.7 development line performs a destructive schema-v8 reset: every earlier local learning and translation database is deleted instead of migrated. Stop the old Synergy/plugin generation before starting v0.7.
+Version `0.7.2` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The v0.7 development line performs a destructive schema-v8 reset: every earlier local learning and translation database is deleted instead of migrated. Stop the old Synergy/plugin generation before starting v0.7.
 
 ## First-Time Setup
 
@@ -112,6 +112,8 @@ plugin__vibe-lingo__progress
 
 The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It distinguishes target-language practice, visible corrections, accepted pattern evidence, natural correct use, and review evidence. It also reports pending/failed correction analysis without exposing models, confidence, or a technical queue. It does not call a no-correction message “correct,” estimate proficiency, or claim permanent mastery.
 
+In Synergy clients with trusted Tool renderers, Progress appears as a compact learning card rather than raw Markdown. The card summarizes today's authentic practice, active days, due review, verified evidence, and up to three leading patterns; internal keys and provenance remain out of the primary view. The full Markdown result remains available as the portable Tool output for the primary Agent and clients without the renderer.
+
 The settings view intentionally shows only a compact summary for the active target language. Detailed history belongs to the learning workspace. Settings can clear that language's records or all VibeLingo learning records through a Synergy host confirmation. Clearing data does not change settings.
 
 ## Learning Workspace
@@ -124,6 +126,8 @@ The `VibeLingo` sidebar entry is a single host page with horizontal product tabs
 - **Learning journey** provides event/time/Scope filters, keyset pagination, bounded record details, and current-Scope Session navigation when the host can resolve it.
 - **Translations** provides cached translation history, direction/search filters, keyset pagination, copy/delete actions, and translation-only cleanup. Missing source previews are shown honestly.
 - **Settings** embeds the same trusted settings implementation used by Synergy's native settings surface; there is no second settings controller or schema.
+
+The learning workspace and conversation cards share a restrained, theme-aware palette derived from Synergy semantic tokens: sage for learning progress and primary actions, warm amber for findings and pending work, and warm neutral borders and backgrounds. The implementation follows [`DESIGN.md`](./DESIGN.md) and does not introduce a separate light-only brand theme.
 
 Routes are represented by validated query parameters and opened through `context.host.openPluginPage()`. Invalid pattern, review, or event identifiers fall back to a recoverable parent view instead of entering a broken state. Query work is abortable, and `learning.changed` / `review.changed` events invalidate snapshots without duplicating domain state in the browser.
 

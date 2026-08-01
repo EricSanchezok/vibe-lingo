@@ -25,6 +25,7 @@ import type { ClearLearningDataResult, LearningSummary } from "../domain/types"
 import { localeForSettings, type UiLocale } from "./i18n"
 import { createSettingsController } from "./settings-controller"
 import { createSettingsPopoverMount } from "./settings-popover"
+import { learningThemeDeclarations } from "./learning-theme"
 
 type SurfaceInput = (PluginSurfaceContext | { context: PluginSurfaceContext }) & {
   embedded?: boolean
@@ -252,15 +253,15 @@ const COPY: Record<UiLocale, Copy> = {
 }
 
 const styles = `
-.vl-settings{box-sizing:border-box;width:min(100%,720px);padding:36px 48px 52px;color:var(--text-base);font-family:var(--font-family-sans,system-ui,sans-serif);font-size:var(--type-ui-body-size,.875rem);line-height:var(--type-ui-body-line-height,1.5)}
+.vl-settings{${learningThemeDeclarations}box-sizing:border-box;width:min(100%,720px);padding:36px 48px 52px;color:var(--text-base);font-family:var(--font-family-sans,system-ui,sans-serif);font-size:var(--type-ui-body-size,.875rem);line-height:var(--type-ui-body-line-height,1.5)}
 .vl-settings[data-embedded=true] .vl-header{display:none}
 .vl-settings *{box-sizing:border-box}
 .vl-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:20px;border-bottom:1px solid color-mix(in srgb,var(--border-base) 42%,transparent)}
 .vl-title{margin:0;color:var(--text-strong);font-size:var(--type-ui-page-title-size,1.5rem);line-height:var(--type-ui-page-title-line-height,1.25);font-weight:var(--font-weight-semibold,600)}
 .vl-subtitle{max-width:62ch;margin:5px 0 0;color:var(--text-weak);line-height:1.5}
 .vl-header-state{display:flex;align-items:center;gap:7px;min-height:28px;padding:4px 9px;border-radius:999px;background:var(--surface-inset-base);color:var(--text-weak);font-size:var(--type-ui-caption-size,.75rem);white-space:nowrap}
-.vl-state-dot{width:7px;height:7px;border-radius:50%;background:var(--surface-warning-strong)}
-.vl-header-state[data-active=true] .vl-state-dot{background:var(--surface-success-strong)}
+.vl-state-dot{width:7px;height:7px;border-radius:50%;background:var(--vibe-amber-strong)}
+.vl-header-state[data-active=true] .vl-state-dot{background:var(--vibe-sage-strong)}
 .vl-save-state{min-height:20px;margin-top:8px;color:var(--text-weak);font-size:var(--type-ui-caption-size,.75rem);text-align:right}
 .vl-section{padding:28px 0;border-bottom:1px solid color-mix(in srgb,var(--border-base) 34%,transparent)}
 .vl-section:last-child{border-bottom:0;padding-bottom:0}
@@ -289,15 +290,15 @@ const styles = `
 .vl-segmented{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .vl-segment{min-height:44px;border:1px solid var(--border-weaker-base);border-radius:8px;background:var(--surface-base);color:var(--text-base);padding:8px 10px;font:inherit;font-weight:var(--font-weight-medium,500);cursor:pointer;transition:background-color 160ms ease,border-color 160ms ease}
 .vl-segment:hover{background:var(--surface-base-hover)}
-.vl-segment[data-selected=true]{border-color:var(--border-selected);background:var(--surface-interactive-selected);color:var(--text-interactive-base)}
+.vl-segment[data-selected=true]{border-color:color-mix(in srgb,var(--vibe-sage-strong) 42%,var(--border-base));background:var(--vibe-sage-surface);color:var(--vibe-sage-ink)}
 .vl-segment:focus-visible,.vl-button:focus-visible,.vl-switch:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
 .vl-segment:disabled,.vl-switch:disabled{cursor:not-allowed;opacity:.5}
 .vl-selection-help{min-height:20px;margin:8px 0 0;color:var(--text-weak);font-size:var(--type-ui-caption-size,.75rem)}
 .vl-primary-row{display:flex;justify-content:flex-end;margin-top:22px}
 .vl-button{min-height:40px;border:1px solid var(--border-base);border-radius:8px;background:var(--surface-base);color:var(--text-base);padding:8px 13px;font:inherit;font-weight:var(--font-weight-medium,500);cursor:pointer;transition:background-color 160ms ease,border-color 160ms ease}
 .vl-button:hover{background:var(--surface-base-hover)}
-.vl-button[data-primary=true]{border-color:var(--surface-interactive-solid);background:var(--surface-interactive-solid);color:var(--text-on-interactive-base)}
-.vl-button[data-primary=true]:hover{border-color:var(--surface-interactive-solid-hover);background:var(--surface-interactive-solid-hover)}
+.vl-button[data-primary=true]{border-color:var(--vibe-sage-action);background:var(--vibe-sage-action);color:var(--text-on-interactive-base)}
+.vl-button[data-primary=true]:hover{filter:brightness(.94)}
 .vl-button[data-danger=true]{color:var(--text-on-critical-base);border-color:var(--surface-critical-base);background:var(--surface-critical-weak)}
 .vl-button:disabled{cursor:not-allowed;opacity:.5}
 .vl-setting-row{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:64px;padding:10px 0}
@@ -310,7 +311,7 @@ const styles = `
 .vl-switch-wrap{display:flex;align-items:center;gap:8px;color:var(--text-weak);font-size:var(--type-ui-caption-size,.75rem)}
 .vl-switch{position:relative;width:44px;height:44px;border:0;background:transparent;padding:0;cursor:pointer}
 .vl-switch-track{position:absolute;left:2px;top:11px;width:40px;height:22px;border-radius:999px;background:var(--surface-disabled);transition:background-color 160ms ease}
-.vl-switch[aria-checked=true] .vl-switch-track{background:var(--surface-interactive-solid)}
+.vl-switch[aria-checked=true] .vl-switch-track{background:var(--vibe-sage-action)}
 .vl-switch-knob{position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--text-on-interactive-base);transition:transform 160ms ease}
 .vl-switch[aria-checked=true] .vl-switch-knob{transform:translateX(18px)}
 .vl-data-summary{display:flex;align-items:center;flex-wrap:wrap;gap:8px;color:var(--text-weak)}

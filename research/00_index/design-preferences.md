@@ -47,6 +47,13 @@ The user does NOT want a separate "learning mode" or "lesson time." They want to
 
 ## Design Principles (Derived from the Above)
 
+### Visual language update (2026-08-01)
+
+- Use the Figma product experience as the tonal reference: restrained sage green for learning and progress, warm amber for discoveries and pending attention, and warm near-neutral surfaces.
+- Avoid generic blue/purple AI branding, gradients, glow, and debug-console presentation.
+- Conversation cards should feel like small learning artifacts inside the work stream, while detailed exploration remains in the Dashboard.
+- Color roles must be derived from Synergy semantic tokens so light, dark, and custom themes remain usable.
+
 ### Principle 1: In-Flow, Not Side-Quest
 
 Language support must happen INSIDE the conversation flow. Opening a separate tool, switching windows, or entering a "learning mode" breaks the vibe. The plugin should feel like a natural extension of the Agent conversation.
