@@ -537,6 +537,13 @@ const correctionTarget = document.createElement("div")
 document.body.append(correctionTarget)
 const disposeCorrection = web.render(() => solid.createComponent(CorrectionCard, correctionContext), correctionTarget)
 await new Promise((resolve) => setTimeout(resolve, 10))
+const correctionStyles = correctionTarget.querySelector("style")?.textContent ?? ""
+if (!correctionStyles.includes("--vibe-sage-ref-ink:light-dark(#4a613b,#a2b394)")) {
+  throw new Error("Correction card did not use the Figma-aligned sage palette")
+}
+if (correctionStyles.includes("--surface-success-strong")) {
+  throw new Error("Correction card still derives its learning palette from the host success color")
+}
 assertText(correctionTarget, "更自然的表达")
 assertText(correctionTarget, "正在保存纠正")
 setCorrectionTool({
@@ -639,6 +646,10 @@ const progressTarget = document.createElement("div")
 document.body.append(progressTarget)
 const disposeProgress = web.render(() => solid.createComponent(ProgressCard, progressContext), progressTarget)
 await new Promise((resolve) => setTimeout(resolve, 0))
+const progressStyles = progressTarget.querySelector("style")?.textContent ?? ""
+if (!progressStyles.includes("--vibe-sage-ref-surface:light-dark(#edf0e5,#252b22)")) {
+  throw new Error("Progress card did not use the Figma-aligned sage surface")
+}
 assertText(progressTarget, "你的学习进展")
 assertText(progressTarget, "第 6 周")
 assertText(progressTarget, "5")

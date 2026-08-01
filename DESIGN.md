@@ -9,7 +9,7 @@ VibeLingo inherits Synergy's typography, theme, and interaction tokens. Its own 
 - Warm amber: new findings, pending analysis, hints, and attention states.
 - Warm neutral: page backgrounds, borders, secondary copy, and inactive controls.
 
-The implementation derives these roles from Synergy semantic tokens so light, dark, and custom themes remain legible. Figma colors (`#4a613b`, `#edf0e5`, `#b06e1f`, and `#f7f0de`) are reference intent, not hardcoded page colors.
+The implementation keeps these roles separate from Synergy's generic success colors: learning progress uses the muted Figma sage anchors (`#4a613b` and `#edf0e5`) with dedicated dark-theme counterparts, while failure and destructive states continue to use host semantic tokens. This prevents a custom theme's bright success green from changing VibeLingo's learning identity.
 
 ## Surface rules
 

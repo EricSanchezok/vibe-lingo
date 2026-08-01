@@ -52,10 +52,10 @@ export const dashboardStyles = `
 .vld-heatmap-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
 .vld-heatmap{display:grid;grid-template-columns:repeat(10,18px);gap:6px}
 .vld-heat-cell{width:18px;height:18px;border-radius:5px;background:var(--surface-inset-base)}
-.vld-heat-cell[data-level="1"]{background:color-mix(in srgb,var(--surface-success-strong) 24%,var(--surface-inset-base))}
-.vld-heat-cell[data-level="2"]{background:color-mix(in srgb,var(--surface-success-strong) 48%,var(--surface-inset-base))}
-.vld-heat-cell[data-level="3"]{background:color-mix(in srgb,var(--surface-success-strong) 72%,var(--surface-inset-base))}
-.vld-heat-cell[data-level="4"]{background:var(--surface-success-strong)}
+.vld-heat-cell[data-level="1"]{background:color-mix(in oklab,var(--vibe-sage-strong) 24%,var(--surface-inset-base))}
+.vld-heat-cell[data-level="2"]{background:color-mix(in oklab,var(--vibe-sage-strong) 48%,var(--surface-inset-base))}
+.vld-heat-cell[data-level="3"]{background:color-mix(in oklab,var(--vibe-sage-strong) 72%,var(--surface-inset-base))}
+.vld-heat-cell[data-level="4"]{background:var(--vibe-sage-strong)}
 .vld-range-tabs,.vld-filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .vld-chip{min-height:34px;border:1px solid transparent;border-radius:999px;background:var(--surface-inset-base);color:var(--text-weak);padding:6px 11px;cursor:pointer}
 .vld-chip:hover{color:var(--text-base)}
