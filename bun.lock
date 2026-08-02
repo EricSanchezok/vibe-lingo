@@ -5,12 +5,12 @@
     "": {
       "name": "vibe-lingo",
       "dependencies": {
-        "@ericsanchezok/synergy-plugin": "^3.0.0",
+        "@ericsanchezok/synergy-plugin": "^3.0.11",
         "solid-js": "^1.9.0",
         "zod": "^4.4.3",
       },
       "devDependencies": {
-        "@ericsanchezok/synergy-plugin-kit": "^3.0.2",
+        "@ericsanchezok/synergy-plugin-kit": "^3.0.11",
         "@happy-dom/global-registrator": "^20.0.11",
         "@types/bun": "^1.3.14",
         "typescript": "^6.0.3",
@@ -74,11 +74,11 @@
 
     "@babel/types": ["@babel/types@7.29.7", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA=="],
 
-    "@ericsanchezok/synergy-plugin": ["@ericsanchezok/synergy-plugin@3.0.7", "", { "dependencies": { "@ericsanchezok/synergy-sdk": "3.0.7" }, "peerDependencies": { "zod": ">=4.0.0" } }, "sha512-UUPgAZINBRyfPIBPcrJSOwW+6z1Tn9P+6ZhDXvJ/LZhl2uRu461DorsBYgEngPGGDwePuXRlCm6nNsmALgoKDg=="],
+    "@ericsanchezok/synergy-plugin": ["@ericsanchezok/synergy-plugin@3.0.11", "", { "dependencies": { "@ericsanchezok/synergy-sdk": "3.0.11" }, "peerDependencies": { "zod": ">=4.0.0" } }, "sha512-JMQU3Ax9TUcD8qxpBXVycH2s/r8Ma5kdwPtrWcA6ofbL18H+uFEcCiibmQoM7gf0Fyo2nnkZHYHcItVAhT3EhA=="],
 
-    "@ericsanchezok/synergy-plugin-kit": ["@ericsanchezok/synergy-plugin-kit@3.0.7", "", { "dependencies": { "@babel/core": "7.28.4", "@babel/preset-typescript": "7.28.5", "@ericsanchezok/synergy-plugin": "3.0.7", "babel-preset-solid": "1.9.10", "yargs": "18.0.0" }, "peerDependencies": { "zod": ">=4.0.0" }, "bin": { "synergy-plugin": "dist/cli.js", "synergy-plugin-kit": "dist/cli.js" } }, "sha512-QrLBVPEBVlU44JdHjW44Sf/DUF2kTMPW1qlIlzmP1AzC8pXQPl1dMgKbaHJ6JVHwLVhCGKpW1WkGnUG0pyQaFw=="],
+    "@ericsanchezok/synergy-plugin-kit": ["@ericsanchezok/synergy-plugin-kit@3.0.11", "", { "dependencies": { "@babel/core": "7.28.4", "@babel/preset-typescript": "7.28.5", "@ericsanchezok/synergy-plugin": "3.0.11", "babel-preset-solid": "1.9.10", "yargs": "18.0.0" }, "peerDependencies": { "zod": ">=4.0.0" }, "bin": { "synergy-plugin": "dist/cli.js", "synergy-plugin-kit": "dist/cli.js" } }, "sha512-mhduL+pqM/Hd7FjW0CO3xucWmctgxekWg+4MM2ZkPhnszOIU73ZKejrT+1V+6sIP2tya86lX0Uxr2IyRPUZqRA=="],
 
-    "@ericsanchezok/synergy-sdk": ["@ericsanchezok/synergy-sdk@3.0.7", "", {}, "sha512-QkEk/P4xn5d8YAoKF+9PUAJWO9C1oe56uCjySCOKSQImMszpS/uqwKTebHn6lZwGUpjk+4uxZ5yiZSfQIEPQfg=="],
+    "@ericsanchezok/synergy-sdk": ["@ericsanchezok/synergy-sdk@3.0.11", "", {}, "sha512-U2Cqt0tCFK4uGKg7bx+5tQvSY1W/Ku59HC9Q4Z6XP1bQ/RMNcAv9kblP4fQ5PCU9tnyeE9V/+vMcDlOuT82Sjg=="],
 
     "@happy-dom/global-registrator": ["@happy-dom/global-registrator@20.11.1", "", { "dependencies": { "@types/node": ">=20.0.0", "happy-dom": "^20.11.1" } }, "sha512-1C0wwHiyMlEdsbrJqff5ORE2PwaXBOam5rMqkZVOReAezd5nt6Tl/WGg28UAo75Ziuwchs0KaF8lvnn2oAtvJA=="],
 
