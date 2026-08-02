@@ -50,6 +50,24 @@ type TranslationCommandOutput = {
   deletedTranslations: number
 }
 
+export function toTranslationListItem(row: TranslationRow): TranslationListItem {
+  return {
+    id: row.id,
+    profileTargetLanguage: row.profileTargetLanguage,
+    nativeLanguage: row.nativeLanguage,
+    destinationPolicy: row.destinationPolicy,
+    detectedSourceLanguage: row.detectedSourceLanguage,
+    destinationLanguage: row.destinationLanguage,
+    sourceText: row.sourceText,
+    sourceCharCount: row.sourceCharCount,
+    translatedText: row.translatedText,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lastUsedAt: row.lastUsedAt,
+    useCount: row.useCount,
+  }
+}
+
 const SelectionSchema = z
   .object({
     selectionId: z.string().min(1).max(100),
@@ -157,38 +175,42 @@ export const translationsListOperation = operation<TranslationListInput, Transla
   output: z.object({
     setupRequired: z.boolean(),
     items: z.array(
-      z.object({
-        id: z.string().uuid(),
-        profileTargetLanguage: z.string(),
-        nativeLanguage: z.string(),
-        destinationPolicy: z.enum(["adaptive", "native", "target"]),
-        detectedSourceLanguage: z.string(),
-        destinationLanguage: z.string(),
-        sourceText: z.string(),
-        sourceCharCount: z.number().int(),
-        translatedText: z.string(),
-        createdAt: z.number().int(),
-        updatedAt: z.number().int(),
-        lastUsedAt: z.number().int(),
-        useCount: z.number().int(),
-      }),
+      z
+        .object({
+          id: z.string().uuid(),
+          profileTargetLanguage: z.string(),
+          nativeLanguage: z.string(),
+          destinationPolicy: z.enum(["adaptive", "native", "target"]),
+          detectedSourceLanguage: z.string(),
+          destinationLanguage: z.string(),
+          sourceText: z.string(),
+          sourceCharCount: z.number().int(),
+          translatedText: z.string(),
+          createdAt: z.number().int(),
+          updatedAt: z.number().int(),
+          lastUsedAt: z.number().int(),
+          useCount: z.number().int(),
+        })
+        .strict(),
     ),
     nextCursor: z.string().optional(),
-  }),
+  }).strict(),
   async handler(input, context) {
     const settings = await readSettings(context)
     const profile = configuredProfile(settings)
     if (!profile) return { setupRequired: true, items: [] }
     const targetLanguage = canonicalOptional(input.targetLanguage, "target language") ?? profile.targetLanguage
+    const result = defaultServices().translations.list({
+      profileTargetLanguage: targetLanguage,
+      destinationLanguage: canonicalOptional(input.destinationLanguage, "destination language"),
+      query: input.query,
+      cursor: input.cursor,
+      limit: input.limit,
+    })
     return {
       setupRequired: false,
-      ...defaultServices().translations.list({
-        profileTargetLanguage: targetLanguage,
-        destinationLanguage: canonicalOptional(input.destinationLanguage, "destination language"),
-        query: input.query,
-        cursor: input.cursor,
-        limit: input.limit,
-      }),
+      items: result.items.map(toTranslationListItem),
+      nextCursor: result.nextCursor,
     }
   },
 })
