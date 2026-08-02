@@ -8,6 +8,7 @@ stable Plugin API 4 contract.
 Requirements:
 
 - Synergy `>=3.0.11`
+- Synergy plugin and plugin-kit npm packages `>=3.0.11` (the packages follow the Synergy product version; generated artifacts remain Plugin API `4.0`)
 - Bun `>=1.3.0`
 
 ```bash
@@ -58,6 +59,8 @@ bun run build
 bun run validate
 bun run pack
 ```
+
+`bun run release:check` runs the complete sequence against the published authoring packages.
 
 Do not edit generated `dist/plugin.json` by hand and do not commit local plugin
 archives, databases, or Synergy home directories.
