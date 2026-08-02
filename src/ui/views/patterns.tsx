@@ -22,6 +22,7 @@ import {
   LoadingBlock,
   Pagination,
   PatternText,
+  RefreshButton,
   StatusBadge,
 } from "../components"
 import {
@@ -123,6 +124,9 @@ export const PatternsView: Component = () => {
               ? "从真实工作表达中整理出的个人学习档案。"
               : "A personal learning record built from real work expressions."}
           </p>
+        </div>
+        <div class="vld-page-actions">
+          <RefreshButton loading={resource().loading || summaryResource().loading} onRefresh={dashboard.refresh} />
         </div>
       </div>
 

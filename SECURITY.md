@@ -17,11 +17,14 @@ VibeLingo handles selected text, bounded correction fragments, model output,
 Scope/Session/message identifiers, and local learning history. Changes involving
 these areas should preserve the following invariants:
 
-- complete user messages and Agent responses are not persisted;
+- complete user messages and Agent responses are not persisted by background
+  learning analysis;
 - private Agent prompts and raw model output are not persisted;
-- sensitive fragments are omitted from durable content fields;
-- translation source text is identified by hash and, when safe, a bounded
-  preview rather than stored in full;
+- sensitive learning and review fragments are omitted from durable content
+  fields;
+- an explicit translation action may store the complete normalized selected
+  source and validated translation in the local plugin database when translation
+  history is enabled;
 - plugin-owned data is removed during normal uninstall;
 - background analysis failures cannot interrupt the main Session.
 

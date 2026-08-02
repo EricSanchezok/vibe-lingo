@@ -328,6 +328,27 @@ const context: any = {
           },
           sourceSession: { id: "session-test", title: "Refine checkout flow" },
         }
+      if (id === "translations-list")
+        return {
+          setupRequired: false,
+          items: [
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              profileTargetLanguage: "en",
+              nativeLanguage: "zh-Hans",
+              destinationPolicy: "adaptive",
+              detectedSourceLanguage: "en",
+              destinationLanguage: "zh-Hans",
+              sourceText: "The complete selected source is visible here.",
+              sourceCharCount: 45,
+              translatedText: "完整的选区原文会显示在这里。",
+              createdAt: now,
+              updatedAt: now,
+              lastUsedAt: now,
+              useCount: 2,
+            },
+          ],
+        }
       throw new Error(`Unexpected query ${id}`)
     },
     async command(id: string, input: any) {
@@ -425,6 +446,7 @@ const screens: Array<[string, string, any?]> = [
   ["view=pattern&pattern=missing_article", "证据时间线"],
   ["view=pattern&pattern=missing_article", "模式操作"],
   ["view=journey", "按时间回看真实工作"],
+  ["view=translations", "完整的选区原文会显示在这里。"],
   [`view=record&event=${eventId}`, "来源会话摘要"],
   ["view=settings", "复习只会在你主动"],
 ]
@@ -440,6 +462,9 @@ for (const [route, expected, state] of screens) {
   assertText(mounted.target, expected)
   if (route === "view=journey") {
     assertText(mounted.target, "4 次目标语言表达 · 1 条学习发现")
+  }
+  if (["view=overview", "view=review", "view=patterns", "view=journey", "view=translations"].includes(route)) {
+    assertText(mounted.target, "刷新")
   }
   if (state?.status === "completed") assertText(mounted.target, "查看学习记录")
   if (route === "view=review") {
@@ -681,5 +706,5 @@ if (correctionQueryCount !== queryCountBeforeDispose) {
   throw new Error("Correction card queried after its retry boundary timer was disposed")
 }
 
-console.log("20 VibeLingo UI states and tool-card interactions rendered successfully")
+console.log("21 VibeLingo UI states and tool-card interactions rendered successfully")
 GlobalRegistrator.unregister()

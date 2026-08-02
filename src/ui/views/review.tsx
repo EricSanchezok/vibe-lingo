@@ -22,6 +22,7 @@ import {
   ErrorBlock,
   LoadingBlock,
   PatternText,
+  RefreshButton,
 } from "../components"
 import {
   copy,
@@ -230,6 +231,9 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
               : copy(dashboard.locale(), "reviewQueue")}
           </h1>
           <p class="vld-page-copy">{copy(dashboard.locale(), "reviewQueueHelp")}</p>
+        </div>
+        <div class="vld-page-actions">
+          <RefreshButton loading={resource().loading} onRefresh={dashboard.refresh} />
         </div>
       </div>
 

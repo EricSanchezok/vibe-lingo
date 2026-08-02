@@ -2,7 +2,10 @@ import { Buffer } from "node:buffer"
 import type { Database } from "bun:sqlite"
 import { canonicalLanguageTag } from "../language"
 import { truncateCodePoints } from "../domain/privacy"
-import { MAX_TRANSLATION_CODEPOINTS } from "../domain/translation"
+import {
+  MAX_TRANSLATION_CODEPOINTS,
+  MAX_TRANSLATION_SOURCE_CODEPOINTS,
+} from "../domain/translation"
 import type { TranslationDestination } from "../domain/translation"
 import type { VibeLingoDatabase } from "./database"
 
@@ -14,7 +17,7 @@ export type TranslationRow = {
   detectedSourceLanguage: string
   destinationLanguage: string
   sourceHash: string
-  sourcePreview?: string
+  sourceText: string
   sourceCharCount: number
   translatedText: string
   contractVersion: number
@@ -32,7 +35,7 @@ type StoredTranslationRow = {
   detected_source_language: string
   destination_language: string
   source_hash: string
-  source_preview: string | null
+  source_text: string
   source_char_count: number
   translated_text: string
   contract_version: number
@@ -59,7 +62,7 @@ function mapRow(row: StoredTranslationRow): TranslationRow {
     detectedSourceLanguage: row.detected_source_language,
     destinationLanguage: row.destination_language,
     sourceHash: row.source_hash,
-    sourcePreview: row.source_preview ?? undefined,
+    sourceText: row.source_text,
     sourceCharCount: row.source_char_count,
     translatedText: row.translated_text,
     contractVersion: row.contract_version,
@@ -76,6 +79,9 @@ function validRow(row: TranslationRow) {
     Boolean(canonicalLanguageTag(row.nativeLanguage)) &&
     Boolean(canonicalLanguageTag(row.detectedSourceLanguage)) &&
     Boolean(canonicalLanguageTag(row.destinationLanguage)) &&
+    row.sourceText.trim().length > 0 &&
+    [...row.sourceText].length <= MAX_TRANSLATION_SOURCE_CODEPOINTS &&
+    row.sourceCharCount === [...row.sourceText].length &&
     row.translatedText.trim().length > 0 &&
     [...row.translatedText].length <= MAX_TRANSLATION_CODEPOINTS
   )
@@ -135,7 +141,7 @@ export class TranslationRepository {
     identity: CacheIdentity
     detectedSourceLanguage: string
     destinationLanguage: string
-    sourcePreview?: string
+    sourceText: string
     sourceCharCount: number
     translatedText: string
     scopeId: string
@@ -151,7 +157,7 @@ export class TranslationRepository {
         INSERT INTO translations (
           id, profile_target_language, native_language, destination_policy,
           detected_source_language, destination_language, source_hash,
-          source_preview, source_char_count, translated_text, contract_version,
+          source_text, source_char_count, translated_text, contract_version,
           created_at, updated_at, last_used_at, use_count
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT (
@@ -160,7 +166,7 @@ export class TranslationRepository {
         ) DO UPDATE SET
           detected_source_language = excluded.detected_source_language,
           destination_language = excluded.destination_language,
-          source_preview = excluded.source_preview,
+          source_text = excluded.source_text,
           source_char_count = excluded.source_char_count,
           translated_text = excluded.translated_text,
           updated_at = excluded.updated_at,
@@ -175,7 +181,7 @@ export class TranslationRepository {
         input.detectedSourceLanguage,
         input.destinationLanguage,
         input.identity.sourceHash,
-        input.sourcePreview ?? null,
+        input.sourceText,
         input.sourceCharCount,
         truncateCodePoints(input.translatedText, MAX_TRANSLATION_CODEPOINTS),
         input.identity.contractVersion,
@@ -252,7 +258,7 @@ export class TranslationRepository {
     }
     if (input.query?.trim()) {
       clauses.push(
-        "(source_preview LIKE ? ESCAPE '\\' OR translated_text LIKE ? ESCAPE '\\')",
+        "(source_text LIKE ? ESCAPE '\\' OR translated_text LIKE ? ESCAPE '\\')",
       )
       const needle = `%${input.query.trim().replaceAll("%", "\\%").replaceAll("_", "\\_")}%`
       values.push(needle, needle)

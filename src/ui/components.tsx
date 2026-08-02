@@ -47,6 +47,31 @@ export const ErrorBlock: Component<{ message?: string; onRetry?: () => void }> =
   )
 }
 
+export const RefreshButton: Component<{
+  loading: boolean
+  onRefresh: () => void
+}> = (props) => {
+  const dashboard = useDashboard()
+  return (
+    <button
+      class="vld-secondary vld-refresh-button"
+      type="button"
+      disabled={props.loading}
+      aria-busy={props.loading}
+      onClick={props.onRefresh}
+    >
+      <span
+        class="vld-refresh-icon"
+        data-spinning={props.loading ? "true" : "false"}
+        aria-hidden="true"
+      >
+        ↻
+      </span>
+      {copy(dashboard.locale(), props.loading ? "refreshing" : "refresh")}
+    </button>
+  )
+}
+
 export const EmptyState: Component<{
   title: string
   copy: string

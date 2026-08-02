@@ -33,9 +33,7 @@ export function renderTranslationHistory(
     "",
     ...items.flatMap((item) => [
       `### ${languageDisplayName(item.detectedSourceLanguage, "en")} → ${languageDisplayName(item.destinationLanguage, "en")}`,
-      item.sourcePreview
-        ? `Source: ${inlineText(item.sourcePreview)}`
-        : "Source: not stored",
+      `Source: ${inlineText(item.sourceText)}`,
       "Translation:",
       ...indentedBlock(item.translatedText),
       `Used ${item.useCount} time${item.useCount === 1 ? "" : "s"} · ${new Date(item.lastUsedAt).toISOString()}`,

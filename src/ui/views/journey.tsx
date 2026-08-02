@@ -11,6 +11,7 @@ import {
   LoadingBlock,
   Pagination,
   PatternText,
+  RefreshButton,
 } from "../components"
 import {
   copy,
@@ -101,7 +102,8 @@ export const JourneyView: Component = () => {
               : "A chronological record of real work, pattern formation, and review evidence."}
           </p>
         </div>
-        <div class="vld-filter-row">
+        <div class="vld-filter-row vld-page-actions">
+          <RefreshButton loading={resource().loading} onRefresh={dashboard.refresh} />
           <select aria-label={copy(dashboard.locale(), "allEvents")} class="vld-select" value={eventFilter()} onChange={(event) => setEventFilter(event.currentTarget.value as EventFilter)}>
             <option value="all">{copy(dashboard.locale(), "allEvents")}</option>
             <option value="work">{copy(dashboard.locale(), "realWork")}</option>

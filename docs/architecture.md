@@ -42,7 +42,7 @@ does not send automatic review invitations.
 
 Synergy owns selection capture, context-menu composition, popover placement,
 focus, cancellation, and responsive behavior. VibeLingo owns language
-direction, translation generation, privacy decisions, caching, and history.
+direction, translation generation, caching, and local history.
 
 Translation is an assistance feature. It does not count as independent
 target-language output and cannot create learning evidence or review items.
@@ -73,11 +73,13 @@ Learning state is namespaced by canonical target-language tag and may aggregate
 across Scopes where the plugin is enabled. Scope, Session, and message IDs are
 provenance, not a second learning profile.
 
-The database never stores complete user messages, Agent responses, Session
-titles, asynchronous prompts, or raw model output. Bounded correction and
-review fragments are sanitized before persistence. Translation history stores
-a bounded source preview and a validated translated artifact, never the full
-selected source.
+The database never stores complete user messages as part of background
+analysis, Agent responses, Session titles, asynchronous prompts, or raw model
+output. Bounded correction and review fragments are sanitized before
+persistence. Explicit translation history is the single exception: when the
+user enables it and invokes translation, the complete normalized selection and
+validated translation artifact are stored locally within their public length
+limits.
 
 ## Failure boundaries
 

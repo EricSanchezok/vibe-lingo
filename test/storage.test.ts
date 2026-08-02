@@ -54,7 +54,7 @@ const articleFinding = {
   sensitive: false,
 }
 
-describe("v0.7 destructive schema", () => {
+describe("current destructive schema", () => {
   test("creates one current schema with WAL, foreign keys, and a busy timeout", () => {
     const { service } = services()
     const db = service.database.connection()

@@ -74,7 +74,7 @@ const TranslationResultSchema = z.discriminatedUnion("status", [
       destinationLanguage: z.string(),
       translatedText: z.string(),
       cache: z.enum(["persistent_hit", "memory_hit", "miss"]),
-      persistence: z.enum(["saved", "disabled", "privacy_excluded", "write_failed"]),
+      persistence: z.enum(["saved", "disabled", "write_failed"]),
     })
     .strict(),
   z.object({ status: z.literal("setup_required") }).strict(),
@@ -164,7 +164,7 @@ export const translationsListOperation = operation<TranslationListInput, Transla
         destinationPolicy: z.enum(["adaptive", "native", "target"]),
         detectedSourceLanguage: z.string(),
         destinationLanguage: z.string(),
-        sourcePreview: z.string().optional(),
+        sourceText: z.string(),
         sourceCharCount: z.number().int(),
         translatedText: z.string(),
         createdAt: z.number().int(),

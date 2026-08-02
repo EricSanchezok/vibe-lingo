@@ -3,7 +3,7 @@ import fs from "fs"
 import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 const REQUIRED_TABLES = [
   "learning_profiles",
@@ -70,6 +70,7 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
     "native_language",
     "destination_policy",
     "source_hash",
+    "source_text",
     "translated_text",
   ],
 }
@@ -438,7 +439,7 @@ export class VibeLingoDatabase {
         detected_source_language TEXT NOT NULL,
         destination_language TEXT NOT NULL,
         source_hash TEXT NOT NULL,
-        source_preview TEXT,
+        source_text TEXT NOT NULL,
         source_char_count INTEGER NOT NULL,
         translated_text TEXT NOT NULL,
         contract_version INTEGER NOT NULL,
@@ -488,7 +489,7 @@ export class VibeLingoDatabase {
       CREATE INDEX translation_occurrences_time
         ON translation_occurrences(translation_id, used_at DESC);
 
-      PRAGMA user_version = 8;
+      PRAGMA user_version = 9;
       COMMIT;
     `)
   }

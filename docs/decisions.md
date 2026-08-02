@@ -74,14 +74,18 @@ attempts, learning patterns, natural-use evidence, or review items.
 **Why:** selected or translated text does not prove that the learner produced
 or independently understood the expression.
 
-## Privacy-bounded local persistence
+## Explicit local translation history
 
 VibeLingo uses plugin-owned SQLite. It stores typed metadata, provenance, and
-bounded sanitized fragments; it does not persist complete messages, Agent
-responses, Session titles, private Agent prompts, or raw model output.
+bounded sanitized learning fragments; it does not persist background-analysis
+messages, Agent responses, Session titles, private Agent prompts, or raw model
+output. When translation history is enabled, an explicit translation action
+stores the complete normalized selection and validated translation locally.
 
-**Why:** learning history needs durable evidence, but conversation storage is
-unnecessary and would create disproportionate privacy risk.
+**Why:** a reusable translation cache and understandable history require the
+actual source text. The translation is explicitly requested and the plugin
+database is local, so a preview-only storage model adds complexity while making
+history and search materially less useful.
 
 ## Role-based models
 

@@ -23,8 +23,10 @@ documentation. Do not design around undocumented behavior.
 - The user's real task always has higher priority than language coaching.
 - Foreground correction cards are authoritative; asynchronous analysis may add
   metadata but must not alter what the user saw.
-- Do not persist complete user messages, Agent responses, Session titles,
-  private Agent prompts, or raw model output.
+- Do not persist complete messages from background learning analysis, Agent
+  responses, Session titles, private Agent prompts, or raw model output. Explicit
+  selected-text translation history is the only exception: store the bounded
+  normalized source and validated translation when history is enabled.
 - Keep model calls outside SQLite transactions and make completion writes
   idempotent.
 - Keep translation separate from independent learning evidence.

@@ -12,11 +12,7 @@ import {
   type TranslationArtifact,
   type TranslationResult,
 } from "../domain/translation"
-import {
-  containsSensitiveContent,
-  sanitizeFragment,
-  truncateCodePoints,
-} from "../domain/privacy"
+import { truncateCodePoints } from "../domain/privacy"
 import {
   canonicalLanguageTag,
   hasCompatibleTargetScript,
@@ -43,7 +39,7 @@ type Dependencies = {
 type MemoryEntry = {
   artifact: TranslationArtifact
   expiresAt: number
-  persistence: "disabled" | "privacy_excluded" | "write_failed" | "saved"
+  persistence: "disabled" | "write_failed" | "saved"
 }
 
 class InvalidTranslatorOutputError extends Error {
@@ -275,7 +271,6 @@ export class TranslationService {
         translation,
         MAX_TRANSLATION_CODEPOINTS,
       ),
-      sensitive: containsSensitiveContent(translation),
     }
   }
 
@@ -416,27 +411,17 @@ export class TranslationService {
     if ("reason" in generated)
       return { status: "not_translatable", reason: generated.reason }
 
-    const sourceSensitive = containsSensitiveContent(normalized)
-    const privacyExcluded = sourceSensitive || generated.sensitive
-    let persistence: MemoryEntry["persistence"] = privacyExcluded
-      ? "privacy_excluded"
-      : request.historyEnabled
-        ? "saved"
-        : "disabled"
+    let persistence: MemoryEntry["persistence"] = request.historyEnabled
+      ? "saved"
+      : "disabled"
     let translationId: string | undefined
-    if (!privacyExcluded && request.historyEnabled) {
+    if (request.historyEnabled) {
       try {
         const row = this.repository.save({
           identity,
           detectedSourceLanguage: generated.sourceLanguage,
           destinationLanguage: generated.destinationLanguage,
-          sourcePreview:
-            request.selection.wholeContainer &&
-            ["user_message", "assistant_message"].includes(
-              request.selection.origin,
-            )
-              ? undefined
-              : sanitizeFragment(normalized),
+          sourceText: normalized,
           sourceCharCount: [...normalized].length,
           translatedText: generated.translatedText,
           scopeId: context.scopeId,
@@ -451,10 +436,9 @@ export class TranslationService {
         persistence = "write_failed"
       }
     }
-    const ttl = privacyExcluded ? 5 * 60_000 : 30 * 60_000
     this.memorySet(key, {
       artifact: generated,
-      expiresAt: now + ttl,
+      expiresAt: now + 30 * 60_000,
       persistence,
     })
     return {

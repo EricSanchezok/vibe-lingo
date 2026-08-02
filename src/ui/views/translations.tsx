@@ -8,6 +8,7 @@ import {
   type Component,
 } from "solid-js"
 import { languageDisplayName } from "../../language"
+import { RefreshButton } from "../components"
 import { copy, formatDate } from "../i18n"
 import { useDashboard } from "../app-context"
 
@@ -18,7 +19,7 @@ type TranslationItem = {
   destinationPolicy: "adaptive" | "native" | "target"
   detectedSourceLanguage: string
   destinationLanguage: string
-  sourcePreview?: string
+  sourceText: string
   sourceCharCount: number
   translatedText: string
   createdAt: number
@@ -151,7 +152,8 @@ export const TranslationsView: Component = () => {
             {copy(dashboard.locale(), "translationHistoryHelp")}
           </p>
         </div>
-        <div class="vld-inline-actions">
+        <div class="vld-inline-actions vld-page-actions">
+          <RefreshButton loading={loading()} onRefresh={dashboard.refresh} />
           <button
             class="vld-secondary"
             type="button"
@@ -273,8 +275,7 @@ export const TranslationsView: Component = () => {
                         )}
                       </span>
                       <p>
-                        {item.sourcePreview ??
-                          copy(dashboard.locale(), "sourceNotStored")}
+                        {item.sourceText}
                       </p>
                     </div>
                     <div class="vld-translation-output">

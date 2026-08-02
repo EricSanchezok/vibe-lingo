@@ -155,7 +155,7 @@ describe("translation service", () => {
     expect(callTranslator).toHaveBeenCalledTimes(1)
   })
 
-  test("normalizes cache identity without persisting the full source text", async () => {
+  test("normalizes cache identity and persists the full normalized source text", async () => {
     const { database, repository } = setup()
     let calls = 0
     const service = new TranslationService(repository, {
@@ -204,12 +204,14 @@ describe("translation service", () => {
     expect(calls).toBe(1)
     const stored = database
       .connection()
-      .query<{ translated_text: string }, []>(
-        "SELECT translated_text FROM translations",
+      .query<{ source_text: string; translated_text: string }, []>(
+        "SELECT source_text, translated_text FROM translations",
       )
       .all()
-    expect(stored).toEqual([{ translated_text: "你好" }])
-    expect(JSON.stringify(stored)).not.toContain("hello")
+    expect(stored).toEqual([{
+      source_text: "hello\nworld",
+      translated_text: "你好",
+    }])
   })
 
   test("uses one model call for concurrent identical misses", async () => {
@@ -247,7 +249,7 @@ describe("translation service", () => {
     expect((await second).status).toBe("translated")
   })
 
-  test("keeps sensitive translations in the short memory cache only", async () => {
+  test("persists selected credentials and reuses them from the durable cache", async () => {
     const { database, repository } = setup()
     const callTranslator = mock(async () =>
       JSON.stringify({
@@ -270,24 +272,24 @@ describe("translation service", () => {
     const second = await service.translate(input, invocationContext())
     expect(first).toMatchObject({
       cache: "miss",
-      persistence: "privacy_excluded",
+      persistence: "saved",
     })
     expect(second).toMatchObject({
-      cache: "memory_hit",
-      persistence: "privacy_excluded",
+      cache: "persistent_hit",
+      persistence: "saved",
     })
     expect(callTranslator).toHaveBeenCalledTimes(1)
     expect(
       database
         .connection()
-        .query<{ count: number }, []>(
-          "SELECT COUNT(*) AS count FROM translations",
+        .query<{ source_text: string }, []>(
+          "SELECT source_text FROM translations",
         )
-        .get()?.count,
-    ).toBe(0)
+        .get(),
+    ).toEqual({ source_text: "api_key=abcdefghijklmnopqrstuvwxyz123456" })
   })
 
-  test("keeps whole chat-message sources out of history previews", async () => {
+  test("persists the complete source for a whole chat-message selection", async () => {
     const { database, repository } = setup()
     const service = new TranslationService(repository, {
       callTranslator: async () =>
@@ -314,11 +316,11 @@ describe("translation service", () => {
     expect(
       database
         .connection()
-        .query<{ source_preview: string | null }, []>(
-          "SELECT source_preview FROM translations",
+        .query<{ source_text: string }, []>(
+          "SELECT source_text FROM translations",
         )
         .get(),
-    ).toEqual({ source_preview: null })
+    ).toEqual({ source_text: "the entire assistant message" })
   })
 
   test("reuses existing persistent cache while history is disabled without recording a use", async () => {
@@ -625,7 +627,7 @@ describe("translation service", () => {
         detectedSourceLanguage: "en",
         destinationLanguage: "zh-Hans",
         sourceHash: "hash",
-        sourcePreview: "`source`\nheading",
+        sourceText: "`source`\nheading",
         sourceCharCount: 16,
         translatedText: "# injected\n```danger```",
         contractVersion: 1,

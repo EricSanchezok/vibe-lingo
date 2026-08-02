@@ -14,6 +14,7 @@ import {
   Heatmap,
   LoadingBlock,
   PatternText,
+  RefreshButton,
 } from "../components"
 import {
   copy,
@@ -141,6 +142,9 @@ export const OverviewView: Component = () => {
               ? "这里记录你在真实工作中使用目标语言的过程。"
               : "This is your history of using the target language in real work."}
           </p>
+        </div>
+        <div class="vld-page-actions">
+          <RefreshButton loading={resource().loading} onRefresh={dashboard.refresh} />
         </div>
       </div>
 

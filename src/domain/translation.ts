@@ -11,7 +11,7 @@ export const MAX_TRANSLATION_SOURCE_CODEPOINTS = 4_000
 export type TranslationDestination = "adaptive" | "native" | "target"
 export type TranslationCache = "persistent_hit" | "memory_hit" | "miss"
 export type TranslationPersistence =
-  "saved" | "disabled" | "privacy_excluded" | "write_failed"
+  "saved" | "disabled" | "write_failed"
 
 export type TranslationResult =
   | {
@@ -39,7 +39,6 @@ export type TranslationArtifact = {
   sourceLanguage: string
   destinationLanguage: string
   translatedText: string
-  sensitive: boolean
 }
 
 export function normalizeTranslationSource(text: string): string {

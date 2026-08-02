@@ -48,7 +48,6 @@ const COPY = {
     loading: "Translating…",
     failed: "Translation failed. Try again.",
     notSaved: "Not added to translation history.",
-    private: "Kept out of history for privacy.",
     writeFailed: "Shown now, but the history record could not be saved.",
     cache: "Loaded from translation history.",
   },
@@ -64,7 +63,6 @@ const COPY = {
     loading: "正在翻译…",
     failed: "翻译失败，请重试。",
     notSaved: "未加入翻译记录。",
-    private: "为保护隐私，本次翻译未保存。",
     writeFailed: "译文可正常使用，但未能写入翻译记录。",
     cache: "已从翻译记录中读取。",
   },
@@ -138,7 +136,6 @@ const TranslationPopover: Component<SurfaceInput> = (input) => {
     if (!value) return undefined
     if (value.cache !== "miss") return t().cache
     if (value.persistence === "disabled") return t().notSaved
-    if (value.persistence === "privacy_excluded") return t().private
     if (value.persistence === "write_failed") return t().writeFailed
     return undefined
   }
