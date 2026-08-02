@@ -2,6 +2,24 @@
   "name": "vibe-lingo",
   "version": "0.7.2",
   "description": "Work-first multilingual coaching, selected-text translation, and evidence-based review for Synergy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EricSanchezok/vibe-lingo.git"
+  },
+  "homepage": "https://github.com/EricSanchezok/vibe-lingo#readme",
+  "bugs": {
+    "url": "https://github.com/EricSanchezok/vibe-lingo/issues"
+  },
+  "keywords": [
+    "synergy",
+    "language-learning",
+    "translation",
+    "coaching",
+    "spaced-review"
+  ],
+  "engines": {
+    "bun": ">=1.3.0"
+  },
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {

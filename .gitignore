@@ -2,3 +2,12 @@ node_modules/
 dist/
 *.tgz
 coverage/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.synergy/
