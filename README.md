@@ -78,8 +78,8 @@ The complete settings shape is:
 - `beginner` prioritizes simple, usable phrasing and foundational corrections.
 - `intermediate` prioritizes clear, transferable high-value feedback.
 - `advanced` prioritizes nuance, collocation, register, and natural phrasing.
-- `focused` ignores isolated minor slips and shows at most one compact correction.
-- `strict` handles every certain target-language error and shows at most two compact corrections.
+- `focused` ignores isolated minor slips and, when correction is warranted, shows exactly one consequential, clearly unnatural, or recurring issue.
+- `strict` handles every certain target-language issue and shows one or two prioritized corrections.
 - `off` disables foreground coaching without deleting or disabling background tracking.
 - Turning tracking off stops new analysis but retains existing local data.
 - Turning recurring focus off stops injecting established patterns but does not delete them.
@@ -93,6 +93,8 @@ plugin__vibe-lingo__record-correction
 ```
 
 Its input contains only the natural restatement and one or two visible original/corrected fragment pairs. The Tool card renders those exact values immediately; the Agent then continues the real task. Pattern keys, categories, severity, rules, and confidence are assigned later by a private asynchronous Agent. The main Agent must not duplicate the card as ordinary `Got it`/`💡` text or postpone correction until the final answer.
+
+A message still counts as a target-language attempt when the target language provides its main structure and a short fragment from another language fills an ordinary expression gap. In focused mode, VibeLingo corrects that mixing only when it noticeably interrupts the target-language expression or matches a recurring focus; strict mode corrects every clear instance. Intentional bilingual phrasing, proper names, quotations, code, commands, paths, identifiers, product names, and technical terms normally kept in their original language are left unchanged.
 
 Turning tracking off does not suppress foreground teaching: the same Tool card is shown, but it is marked as chat-only and neither SQLite nor a metadata Agent call is used.
 

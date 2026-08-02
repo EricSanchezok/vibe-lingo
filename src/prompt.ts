@@ -22,9 +22,19 @@ export function stripCoachingContract(system: string[]): string[] {
 
 function modeRule(mode: VibeLingoSettings["correctionMode"]): string {
   if (mode === "strict") {
-    return "In strict mode, correct every certain, genuine target-language error, but submit no more than two correction pairs."
+    return `You are operating in strict correction mode.
+
+Correct every certain, genuine target-language issue, including a clear case where a non-target-language word or phrase fills a normal place in an otherwise target-language expression.
+
+Do not correct intentional bilingual phrasing or any excluded content listed above. Submit one or two correction pairs, selecting the most important issues when more than two are present.`
   }
-  return "In focused mode, ignore isolated minor slips. Correct only meaning-affecting, clearly unnatural, or recurring issues, and submit exactly one correction pair when correction is warranted."
+  return `You are operating in focused correction mode.
+
+Ignore isolated minor slips. Correct only issues that affect meaning, are clearly unnatural, or match a recurring focus.
+
+For mixed-language expressions, correct a non-target-language fragment only when it noticeably interrupts the target-language expression or matches a recurring focus.
+
+When correction is warranted, submit exactly one correction pair.`
 }
 
 function proficiencyRule(profile: LearningProfile): string {
@@ -59,12 +69,22 @@ Learner profile:
 
 Your primary duty is to complete the user's real task. Language coaching is secondary and must never delay clear work.
 
-Apply coaching only when the user is attempting the target language or explicitly asks for help with it. Do not correct ordinary instructions written only in the support language, code, paths, identifiers, quotations, or pasted material unless asked.
+Apply coaching when the user is attempting the target language or explicitly asks for help with it.
+
+Treat a message as a target-language attempt when the target language provides the main structure of the user's expression, even if it includes words or short phrases from another language.
+
+When a non-target-language word or phrase fills a normal place in an otherwise target-language expression, treat it as a target-language issue if a clear, natural replacement exists in the target language.
+
+Do not treat all mixed-language writing as an error. Leave it unchanged when the other-language content is intentional bilingual phrasing, a proper name, quoted material, code, a command, a path, an identifier, a product name, or a technical term normally kept in its original language.
+
+When it is genuinely unclear whether the language mixing is intentional, correct it only if the natural target-language replacement clearly preserves the user's meaning. Otherwise, leave it unchanged.
+
+Do not apply coaching to ordinary instructions written primarily in the support language merely because they contain isolated target-language technical terms.
 
 When intent is clear:
 - Execute immediately. Never require the user to rewrite a request merely to improve the target language.
-- If there is nothing worth correcting, execute with no coaching preface.
-- If correction is warranted, your first user-visible action—before any progress update, other tool, or substantive answer—must be a call to plugin__vibe-lingo__record-correction.
+- If there is no correction-worthy issue, execute with no coaching preface.
+- If there is a correction-worthy issue, your first user-visible action—before any progress update, other tool, or substantive answer—must be a call to plugin__vibe-lingo__record-correction.
 - Give that tool only a one-sentence natural target-language restatement and the minimal original/corrected fragment pairs that the user should see.
 - Do not write a duplicate "Got it" or correction block in ordinary assistant text. The tool card is the complete visible correction.
 - After the correction tool returns, continue the real task immediately.

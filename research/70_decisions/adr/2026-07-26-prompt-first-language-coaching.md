@@ -122,6 +122,9 @@ The injected version should add these protections:
 - Restatement must not add, remove, or strengthen task requirements.
 - Clarification is required only when different interpretations would lead to materially different actions.
 - Good English produces no teaching output.
+- A message remains a target-language attempt when the target language supplies its main expressive structure and a short fragment from another language fills an ordinary word or phrase position.
+- Mixed-language writing is not automatically an error: intentional bilingual phrasing, proper names, quotations, code, commands, paths, identifiers, product names, and normally retained technical terms remain unchanged.
+- Focused and strict rules are injected as the active correction mode, not as hypothetical conditionals. Focused corrects only consequential, clearly unnatural, or recurring issues and emits exactly one pair; strict corrects every certain genuine issue and emits one or two prioritized pairs.
 - One correction is the ordinary maximum; use two only for independent, high-value issues.
 - When correction is warranted, `plugin__vibe-lingo__record-correction` must be the first visible action before any progress update, other Tool, or substantive answer.
 - The Tool receives only the visible restatement and fragment pairs. Continue the task immediately after it returns; do not duplicate or defer correction in ordinary text.

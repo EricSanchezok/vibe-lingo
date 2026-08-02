@@ -62,12 +62,16 @@ describe("coaching contract", () => {
     const focused = buildCoachingContract("focused", profile, [recurring])
     const strict = buildCoachingContract("strict", profile, [])
     expect(focused).toContain(COACHING_MARKER)
-    expect(focused).toContain("ignore isolated minor slips")
+    expect(focused).toContain("You are operating in focused correction mode")
+    expect(focused).toContain("Ignore isolated minor slips")
+    expect(focused).toContain("submit exactly one correction pair")
     expect(focused).toContain("offer 2–3 correctly phrased target-language interpretations")
     expect(focused).toContain('"just do it"')
     expect(focused).toContain("missing_article")
-    expect(strict).toContain("every certain, genuine target-language error")
-    expect(strict).toContain("no more than two")
+    expect(strict).toContain("You are operating in strict correction mode")
+    expect(strict).toContain("every certain, genuine target-language issue")
+    expect(strict).toContain("Submit one or two correction pairs")
+    expect(strict).toContain("selecting the most important issues when more than two are present")
     expect(focused).toContain("Chinese")
     expect(focused).toContain("English (en)")
     expect(focused).toContain("intermediate")
@@ -79,6 +83,24 @@ describe("coaching contract", () => {
     expect(focused).toContain("Do not invent or submit pattern keys")
     expect(focused).not.toContain("After completing the main task")
     expect(focused).not.toContain("optionally add")
+  })
+
+  test("defines mixed-language attempts without overfitting to one language pair", () => {
+    const focused = buildCoachingContract("focused", profile, [])
+    const strict = buildCoachingContract("strict", profile, [])
+
+    for (const contract of [focused, strict]) {
+      expect(contract).toContain("the target language provides the main structure")
+      expect(contract).toContain("a clear, natural replacement exists in the target language")
+      expect(contract).toContain("intentional bilingual phrasing")
+      expect(contract).toContain("a proper name, quoted material, code, a command, a path, an identifier")
+      expect(contract).toContain("isolated target-language technical terms")
+      expect(contract).not.toContain("what's there")
+      expect(contract).not.toContain("功能")
+    }
+
+    expect(focused).toContain("only when it noticeably interrupts the target-language expression")
+    expect(strict).toContain("where a non-target-language word or phrase fills a normal place")
   })
 
   test("removes only the current V4 contract entry", () => {
