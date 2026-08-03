@@ -351,11 +351,11 @@ export const OverviewView: Component = () => {
                     </Show>
                   </div>
                   <Show when={queue()?.activeReview || reviewBatch().length > 0}>
-                    <button class="vld-primary" type="button" disabled={starting()} onClick={() => void startReview()}>
+                    <button class="vld-primary" type="button" disabled={starting()} aria-busy={starting()} onClick={() => void startReview()}>
                       {queue()?.activeReview
                         ? copy(dashboard.locale(), "resumeReview")
                         : starting()
-                          ? copy(dashboard.locale(), "loading")
+                          ? copy(dashboard.locale(), "preparingFirstReview")
                           : copy(dashboard.locale(), "startReview")}
                       <span aria-hidden="true">→</span>
                     </button>

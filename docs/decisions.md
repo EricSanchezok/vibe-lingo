@@ -75,10 +75,16 @@ sequence.
 Review operations explicitly declare `settings.read` and `agent.call`. Model
 availability is therefore resolved by the host before the operation runs, and
 user-facing failures are localized without exposing raw runtime messages.
+Synchronous review work also exposes the learner-facing phase that is actually
+in progress: preparing an exercise, considering an expression, moving to a new
+scenario, finding a hint, preserving progress, returning, or wrapping up. Only
+the initial queue and summary read is described as loading learning data.
 
 **Why:** a stable scaffold makes the learning sequence legible, while explicit
 capability requirements prevent the UI from misdiagnosing a missing injected
-service as a model outage.
+service as a model outage. Honest, approachable phase copy prevents a slow
+model call from looking like a stuck data query without exposing implementation
+details such as Agent generation.
 
 ## One learning workspace, no nested navigation
 

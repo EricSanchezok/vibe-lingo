@@ -282,6 +282,7 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
   const [mergeOpen, setMergeOpen] = createSignal(false)
   const [mergeQuery, setMergeQuery] = createSignal("")
   const [mutating, setMutating] = createSignal(false)
+  const [reviewStarting, setReviewStarting] = createSignal(false)
   const [actionError, setActionError] = createSignal("")
   const resource = createAbortableResource<PatternDetailOutput>(
     () => [dashboard.profile()?.targetLanguage, props.patternKey, dashboard.refreshVersion()],
@@ -373,6 +374,7 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
     const active = dashboard.profile()
     if (!active || !pattern()) return
     setMutating(true)
+    setReviewStarting(true)
     try {
       const result = await dashboard.context.operations.command<CommandResult<ReviewState>>(
         "review-start",
@@ -387,6 +389,7 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
     } catch (error) {
       setActionError(error instanceof Error ? error.message : copy(dashboard.locale(), "actionFailed"))
     } finally {
+      setReviewStarting(false)
       setMutating(false)
     }
   }
@@ -542,8 +545,8 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
                     && pattern()!.dueAt
                     && pattern()!.dueAt! <= Date.now() + 7 * 86_400_000
                   }>
-                    <button class="vld-primary vld-full-button" style={{ "margin-top": "16px" }} type="button" disabled={mutating()} onClick={() => void startPatternReview()}>
-                      {copy(dashboard.locale(), "review")}
+                    <button class="vld-primary vld-full-button" style={{ "margin-top": "16px" }} type="button" disabled={mutating()} aria-busy={reviewStarting()} onClick={() => void startPatternReview()}>
+                      {reviewStarting() ? copy(dashboard.locale(), "preparingFirstReview") : copy(dashboard.locale(), "review")}
                     </button>
                   </Show>
                 </section>

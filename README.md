@@ -18,7 +18,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Target-language writing that is both correct and natural for its context, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.7.7` restores model-backed review and brings the complete review experience in line with the product design. Review now uses a stable learning rail and work stage across recall, hints, feedback and repair, transfer, pause, and completion; it preserves the learner's submitted expression for the feedback comparison and collapses cleanly at narrow widths. Review operations explicitly declare their settings and Agent capabilities, so the host provides the configured review model instead of returning a false unavailable state. Infrastructure errors are localized and actionable. The 120-second model budget and resilient correction-analysis behavior introduced in `0.7.6` remain unchanged.
+VibeLingo `0.7.8` keeps review generation synchronous while making every wait understandable. Initial queue reads still identify themselves as learning-data loading, while starting a review, checking an expression, preparing a fresh scenario, finding a hint, saving a pause, resuming, and wrapping up each use a distinct learner-facing status. The same state drives the live status region and relevant action label, so long model calls no longer look like a stuck data query. The complete review workspace introduced in `0.7.7`, its 120-second model budget, and resilient correction analysis remain unchanged.
 
 ## Install for Local Development
 
@@ -36,7 +36,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.7.7` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Synergy atomically replaces the active plugin generation when the package is updated or reloaded.
+Version `0.7.8` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Synergy atomically replaces the active plugin generation when the package is updated or reloaded.
 
 ## First-Time Setup
 

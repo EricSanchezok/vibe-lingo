@@ -57,6 +57,9 @@ const configuredSettings = {
 let currentSettings: Record<string, unknown> = configuredSettings
 let currentReview: any
 let emptyCollections = false
+let deferReviewCommands = false
+let pendingReviewCommand: { id: string; input: any } | undefined
+let settleReviewCommand: ((result: any) => void) | undefined
 
 const pattern = {
   patternKey: "missing_article",
@@ -362,6 +365,12 @@ const context: any = {
             source: "localized",
           })),
         }
+      if (deferReviewCommands && ["review-start", "review-command"].includes(id)) {
+        pendingReviewCommand = { id, input }
+        return new Promise((resolve) => {
+          settleReviewCommand = resolve
+        })
+      }
       throw new Error(`Unexpected command ${id}`)
     },
   },
@@ -385,6 +394,13 @@ function assertText(target: HTMLElement, text: string) {
     const copy = target.cloneNode(true) as HTMLElement
     copy.querySelectorAll("style").forEach((style) => style.remove())
     throw new Error(`Expected "${text}" in ${copy.textContent?.slice(0, 1200)}`)
+  }
+}
+
+function assertPendingReviewCommand(id: string, action?: string) {
+  const pending = pendingReviewCommand as { id: string; input: any } | undefined
+  if (pending?.id !== id || (action !== undefined && pending.input.action !== action)) {
+    throw new Error(`Expected pending ${id}${action ? `:${action}` : ""} review command`)
   }
 }
 
@@ -523,6 +539,65 @@ if (!reviewLanding || !reviewLanding.firstElementChild?.classList.contains("vld-
 }
 assertText(reviewLanding, "本次复习")
 assertText(reviewLanding, "主动回忆")
+
+deferReviewCommands = true
+const startReviewButton = mounted.target.querySelector<HTMLButtonElement>(".vld-review-start-stage .vld-primary")
+if (!startReviewButton) throw new Error("Review start action was not rendered")
+startReviewButton.click()
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(mounted.target, "正在为你准备第一道练习…")
+if (mounted.target.textContent?.includes("正在加载学习数据…")) {
+  throw new Error("Review generation was still described as loading learning data")
+}
+const activityStatus = mounted.target.querySelector<HTMLElement>('[role="status"][aria-live="polite"]')
+if (!activityStatus || activityStatus.getAttribute("aria-busy") !== "true") {
+  throw new Error("Review generation status was not exposed as a live busy region")
+}
+assertPendingReviewCommand("review-start")
+settleReviewCommand?.({
+  ok: false,
+  error: { code: "GENERATION_FAILED", retryable: true, message: "generation failed" },
+})
+await new Promise((resolve) => setTimeout(resolve, 0))
+
+currentReview = review("awaiting_response")
+context.host.openPluginPage("learning", { view: "review", review: reviewId })
+await new Promise((resolve) => setTimeout(resolve, 35))
+const reviewAnswer = mounted.target.querySelector<HTMLTextAreaElement>("#vld-review-answer")
+if (!reviewAnswer) throw new Error("Review answer field was not rendered")
+reviewAnswer.value = "Add a button."
+reviewAnswer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: "Add a button." }))
+const submitReviewButton = mounted.target.querySelector<HTMLButtonElement>(".vld-review-actions .vld-primary")
+if (!submitReviewButton) throw new Error("Review submit action was not rendered")
+submitReviewButton.click()
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(mounted.target, "正在仔细看看你的表达…")
+assertPendingReviewCommand("review-command", "submit_answer")
+settleReviewCommand?.({
+  ok: false,
+  error: { code: "EVALUATION_FAILED", retryable: true, message: "evaluation failed" },
+})
+await new Promise((resolve) => setTimeout(resolve, 0))
+
+currentReview = {
+  ...review("item_completed", { outcome: "independent" }),
+  totalItems: 2,
+}
+context.host.openPluginPage("learning", { view: "review", review: reviewId })
+await new Promise((resolve) => setTimeout(resolve, 35))
+const nextReviewButton = mounted.target.querySelector<HTMLButtonElement>(".vld-review-stage-actions-end .vld-primary")
+if (!nextReviewButton) throw new Error("Review next-item action was not rendered")
+nextReviewButton.click()
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(mounted.target, "正在换一个新场景给你练习…")
+assertPendingReviewCommand("review-command", "next_item")
+settleReviewCommand?.({
+  ok: false,
+  error: { code: "GENERATION_FAILED", retryable: true, message: "generation failed" },
+})
+await new Promise((resolve) => setTimeout(resolve, 0))
+deferReviewCommands = false
+currentReview = undefined
 
 context.host.openPluginPage("learning", { view: "overview" })
 await new Promise((resolve) => setTimeout(resolve, 20))
@@ -827,5 +902,5 @@ if (correctionQueryCount !== queryCountBeforeDispose) {
   throw new Error("Correction card queried after its retry boundary timer was disposed")
 }
 
-console.log("21 VibeLingo UI states and tool-card interactions rendered successfully")
+console.log("24 VibeLingo UI states and tool-card interactions rendered successfully")
 GlobalRegistrator.unregister()

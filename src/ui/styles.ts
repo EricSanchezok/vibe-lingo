@@ -164,6 +164,8 @@ export const dashboardStyles = `
 .vld-review-progress-row{display:grid;grid-template-columns:max-content minmax(180px,710px);align-items:center;gap:16px;margin:0 0 28px;color:var(--text-weak);font-size:12px;font-weight:620}
 .vld-progress-track{height:5px;border-radius:999px;background:var(--surface-inset-base);overflow:hidden}
 .vld-progress-fill{height:100%;border-radius:inherit;background:var(--vibe-sage-action)}
+.vld-review-activity{display:flex;width:min(100%,710px);min-height:42px;align-items:center;gap:11px;margin:-12px 0 20px;border:1px solid color-mix(in srgb,var(--vibe-sage-strong) 24%,var(--border-base));border-radius:9px;background:var(--vibe-sage-surface);color:var(--vibe-sage-ink);padding:10px 13px;font-size:13px;font-weight:620}
+.vld-review-activity-spinner{width:15px;height:15px;flex:0 0 auto;border:2px solid color-mix(in srgb,var(--vibe-sage-strong) 24%,var(--border-base));border-top-color:var(--vibe-sage-action);border-radius:50%;animation:vld-review-spin .8s linear infinite}@keyframes vld-review-spin{to{transform:rotate(360deg)}}
 .vld-review-workspace{display:grid;grid-template-columns:330px minmax(0,1fr);gap:30px;align-items:stretch}
 .vld-review-rail{display:flex;min-width:0;min-height:602px;flex-direction:column;padding:24px}
 .vld-review-rail-title{margin:0;color:var(--text-strong);font-size:18px;line-height:1.45;font-weight:680;letter-spacing:-.01em}
@@ -252,5 +254,5 @@ export const dashboardStyles = `
 @media(max-width:430px){
  .vld-shell{padding:18px 14px 42px}.vld-brand{font-size:20px}.vld-top-actions{gap:6px}.vld-stat{padding:16px 14px}.vld-stat-value{font-size:23px}.vld-week-number{font-size:38px}.vld-panel-pad,.vld-soft-panel{padding:17px}.vld-review-actions{align-items:stretch;flex-direction:column-reverse}.vld-review-actions button{width:100%}.vld-review-steps{grid-template-columns:1fr}.vld-review-rail-actions{grid-template-columns:1fr}.vld-review-comparison>div{padding:15px 14px}.vld-complete-stat{padding:17px 14px}.vld-detail-stats{grid-template-columns:1fr 1fr}.vld-range-tabs{gap:5px}.vld-chip{padding:5px 9px}
 }
-@media(prefers-reduced-motion:reduce){.vld-app *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+@media(prefers-reduced-motion:reduce){.vld-app *{scroll-behavior:auto!important;transition:none!important;animation:none!important}.vld-review-activity-spinner{border-color:var(--vibe-sage-action)}}
 `

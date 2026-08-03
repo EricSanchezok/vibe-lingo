@@ -30,6 +30,11 @@ import {
   outcomeLabel,
   reviewErrorMessage,
 } from "../i18n"
+import {
+  reviewActivityForCommand,
+  reviewActivityLabel,
+  type ReviewActivity,
+} from "../review-activity"
 import { createAbortableResource } from "../resource"
 
 type ReviewData = {
@@ -46,9 +51,14 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
   const dashboard = useDashboard()
   const [stateOverride, setStateOverride] = createSignal<ReviewState>()
   const [answer, setAnswer] = createSignal("")
-  const [busy, setBusy] = createSignal(false)
+  const [activity, setActivity] = createSignal<ReviewActivity>()
   const [error, setError] = createSignal("")
   let retryReceipt: { fingerprint: string; requestId: string } | undefined
+  const busy = () => activity() !== undefined
+  const activityLabel = () => {
+    const current = activity()
+    return current ? reviewActivityLabel(dashboard.locale(), current) : ""
+  }
 
   const resource = createAbortableResource<ReviewData>(
     () => [
@@ -117,7 +127,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
   async function startReview() {
     const profile = dashboard.profile()
     if (!profile || batch().length === 0 || busy()) return
-    setBusy(true)
+    setActivity("preparing_first")
     setError("")
     let alive = true
     onCleanup(() => { alive = false })
@@ -145,7 +155,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
       if (!alive) return
       setError(failure instanceof Error ? failure.message : copy(dashboard.locale(), "generationFailed"))
     } finally {
-      setBusy(false)
+      setActivity(undefined)
     }
   }
 
@@ -154,7 +164,10 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
     const profile = dashboard.profile()
     if (!current || !profile || busy()) return false
     const fingerprint = `${action}:${current.id}:${current.revision}:${submittedAnswer ?? ""}`
-    setBusy(true)
+    setActivity(reviewActivityForCommand(
+      action,
+      action === "next_item" && current.currentIndex + 1 < current.totalItems,
+    ))
     setError("")
     try {
       const result = await dashboard.context.operations.command<CommandResult<ReviewState>>(
@@ -190,7 +203,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
       // Keep the same request ID so a user retry remains idempotent.
       return false
     } finally {
-      setBusy(false)
+      setActivity(undefined)
     }
   }
 
@@ -261,6 +274,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
               />
             }>
               <ReviewProgress current={0} total={batch().length} label={dashboard.locale() === "zh-CN" ? "准备复习" : "Ready to review"} />
+              <ReviewActivityStatus activity={activity()} />
               <div class="vld-review-workspace">
                 <ReviewQueueRail due={batch()} upcoming={resource().data!.queue.upcoming} />
                 <section class="vld-panel vld-review-stage vld-review-start-stage">
@@ -282,7 +296,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                   <Show when={error()}><ReviewError message={error()} onRetry={() => void startReview()} busy={busy()} /></Show>
                   <div class="vld-review-stage-actions">
                     <button class="vld-primary" type="button" disabled={busy()} onClick={() => void startReview()}>
-                      {busy() ? copy(dashboard.locale(), "loading") : copy(dashboard.locale(), "startReview")} <span aria-hidden="true">→</span>
+                      {busy() ? activityLabel() : copy(dashboard.locale(), "startReview")} <span aria-hidden="true">→</span>
                     </button>
                   </div>
                 </section>
@@ -302,6 +316,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                   total={review().totalItems}
                   label={`${dashboard.locale() === "zh-CN" ? "第" : "Step"} ${reviewStep(review())} ${dashboard.locale() === "zh-CN" ? "步 / 5" : "/ 5"}`}
                 />
+                <ReviewActivityStatus activity={activity()} />
                 <div class="vld-review-workspace">
                   <ReviewLearningRail
                     state={review()}
@@ -314,7 +329,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                       <p class="vld-review-kicker">{dashboard.locale() === "zh-CN" ? "进度已保留" : "Your place is saved"}</p>
                       <h2 class="vld-review-question">{dashboard.locale() === "zh-CN" ? "复习已暂停" : "Review paused"}</h2>
                       <p class="vld-review-instruction">{dashboard.locale() === "zh-CN" ? "继续后会回到刚才的位置。" : "Resume to return to the same place."}</p>
-                      <div class="vld-review-stage-actions"><button class="vld-primary" type="button" disabled={busy()} onClick={() => void command("resume")}>{copy(dashboard.locale(), "resumeReview")}</button></div>
+                      <div class="vld-review-stage-actions"><button class="vld-primary" type="button" disabled={busy()} onClick={() => void command("resume")}>{busy() ? activityLabel() : copy(dashboard.locale(), "resumeReview")}</button></div>
                     </section>
                   }>
                     <section class="vld-panel vld-review-stage">
@@ -323,7 +338,7 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                       <Show when={review().currentItem!.stage !== "item_completed"} fallback={
                         <div class="vld-review-stage-actions vld-review-stage-actions-end">
                           <button class="vld-primary" type="button" disabled={busy()} onClick={() => void command("next_item")}>
-                            {review().currentIndex + 1 >= review().totalItems ? copy(dashboard.locale(), "completeReview") : copy(dashboard.locale(), "continue")} <span aria-hidden="true">→</span>
+                            {busy() ? activityLabel() : review().currentIndex + 1 >= review().totalItems ? copy(dashboard.locale(), "completeReview") : copy(dashboard.locale(), "continue")} <span aria-hidden="true">→</span>
                           </button>
                         </div>
                       }>
@@ -342,11 +357,11 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
                           <div class="vld-review-actions">
                             <Show when={review().currentItem!.hintLevel < 2 && review().currentItem!.stage !== "awaiting_repair"} fallback={<span />}>
                               <button class="vld-link-button" type="button" disabled={busy()} onClick={() => void command("request_hint")}>
-                                {review().currentItem!.hintLevel > 0 ? copy(dashboard.locale(), "anotherHint") : copy(dashboard.locale(), "hint")}
+                                {activity() === "preparing_hint" ? activityLabel() : review().currentItem!.hintLevel > 0 ? copy(dashboard.locale(), "anotherHint") : copy(dashboard.locale(), "hint")}
                               </button>
                             </Show>
                             <button class="vld-primary" type="button" disabled={busy() || !answer().trim()} onClick={submit}>
-                              {busy() ? copy(dashboard.locale(), "loading") : review().currentItem!.stage === "awaiting_repair" ? copy(dashboard.locale(), "submitRepair") : review().currentItem!.stage === "awaiting_transfer" ? copy(dashboard.locale(), "submitTransfer") : copy(dashboard.locale(), "submitAnswer")}
+                              {activity() === "evaluating_response" ? activityLabel() : review().currentItem!.stage === "awaiting_repair" ? copy(dashboard.locale(), "submitRepair") : review().currentItem!.stage === "awaiting_transfer" ? copy(dashboard.locale(), "submitTransfer") : copy(dashboard.locale(), "submitAnswer")}
                             </button>
                           </div>
                           <p class="vld-review-privacy">{dashboard.locale() === "zh-CN" ? "只评估当前学习模式；包含敏感信息的回答不会保留。" : "Only this pattern is evaluated; answers containing sensitive information are not retained."}</p>
@@ -361,6 +376,20 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
         </Show>
       </Show>
     </>
+  )
+}
+
+const ReviewActivityStatus: Component<{ activity?: ReviewActivity }> = (props) => {
+  const dashboard = useDashboard()
+  return (
+    <Show when={props.activity}>
+      {(activity) => (
+        <div class="vld-review-activity" role="status" aria-live="polite" aria-atomic="true" aria-busy="true">
+          <span class="vld-review-activity-spinner" aria-hidden="true" />
+          <span>{reviewActivityLabel(dashboard.locale(), activity())}</span>
+        </div>
+      )}
+    </Show>
   )
 }
 
