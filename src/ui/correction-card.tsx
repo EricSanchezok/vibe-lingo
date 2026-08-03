@@ -132,12 +132,12 @@ function stateFromStatus(
   if (queryFailed) return "status_unavailable"
   if (!status) return metadata.status === "analyzing" ? "analyzing" : "saving"
   if (!status.found) return "status_unavailable"
-  if (status.status === "failed") return "analysis_failed"
   if (status.status === "analyzed" && status.patternKeys.length > 0) return "pattern_updated"
   if (status.status === "analyzed" || status.status === "recorded_only") return "recorded"
   if (status.recovery === "waiting") return "analyzing"
   if (status.recovery === "retry_available") return "analysis_interrupted"
   if (status.recovery === "retry_unavailable") return "retry_unavailable"
+  if (status.status === "failed") return "analysis_failed"
   return "status_unavailable"
 }
 

@@ -116,6 +116,7 @@ describe("review state machine", () => {
       agent: {
         async call(input) {
           calls.push(input.agent)
+          expect(input.timeoutMs).toBe(120_000)
           if (input.agent === "vibe-lingo-review-builder") return { text: JSON.stringify(content) }
           return {
             text: JSON.stringify({

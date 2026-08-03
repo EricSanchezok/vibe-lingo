@@ -17,7 +17,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.7.4",
+      version: "0.7.5",
       compatibility: { synergy: ">=3.0.11" },
       repository: "https://github.com/EricSanchezok/vibe-lingo",
       capabilities: [
@@ -29,7 +29,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
         {
           id: "agent.call",
           constraints: {
-            maxRuntimeMs: 15_000,
+            maxRuntimeMs: 120_000,
             maxInputChars: 8_000,
             maxOutputChars: 8_000,
             modelRoles: ["nano", "mini", "mid", "thinking", "long", "creative"],

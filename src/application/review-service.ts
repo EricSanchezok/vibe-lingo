@@ -16,6 +16,7 @@ import {
   parseReviewContent,
   parseReviewEvaluation,
 } from "./review-contracts"
+import { AGENT_CALL_TIMEOUT_MS } from "../agent-runtime"
 
 type ReviewPatternInput = {
   patternKey: string
@@ -219,7 +220,7 @@ export class ReviewService {
         agent: REVIEW_BUILDER_AGENT_NAME,
         modelRole: await modelRoleFromContext(context, "review"),
         text: `Create the review item from this JSON:\n${request}`,
-        timeoutMs: 15_000,
+        timeoutMs: AGENT_CALL_TIMEOUT_MS,
         maxOutputChars: 5_000,
       })
       const content = parseReviewContent(response.text)
@@ -254,7 +255,7 @@ export class ReviewService {
           rubric,
           response: answer,
         })}`,
-        timeoutMs: 15_000,
+        timeoutMs: AGENT_CALL_TIMEOUT_MS,
         maxOutputChars: 3_000,
       })
       const evaluation = parseReviewEvaluation(response.text)

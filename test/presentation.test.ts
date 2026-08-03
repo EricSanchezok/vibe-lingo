@@ -55,6 +55,7 @@ describe("localized pattern presentations", () => {
         async call(input) {
           calls += 1
           expect(input.agent).toBe("vibe-lingo-pattern-presenter")
+          expect(input.timeoutMs).toBe(120_000)
           return {
             text: JSON.stringify({
               items: [{

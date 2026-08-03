@@ -74,6 +74,7 @@ describe("nano language classification", () => {
           async call(input) {
             expect(input.agent).toBe(LANGUAGE_CLASSIFIER_AGENT_NAME)
             expect(input.modelRole).toBe("nano")
+            expect(input.timeoutMs).toBe(60_000)
             calls++
             return {
               text: calls === 1 ? "not json" : '{"isTargetLanguageAttempt":true}',
@@ -165,6 +166,7 @@ describe("lightweight asynchronous teaching analysis", () => {
         },
         async start(input) {
           started = input
+          expect(input.timeoutMs).toBe(120_000)
           return { callId: "usage-call" }
         },
       },
@@ -306,6 +308,7 @@ describe("lightweight asynchronous teaching analysis", () => {
       agent: {
         async start(input) {
           request = input
+          expect(input.timeoutMs).toBe(120_000)
           return { callId: "correction-call" }
         },
       },

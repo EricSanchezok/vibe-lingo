@@ -163,6 +163,7 @@ export class CorrectionRepository {
          WHERE id = ? AND scope_id = ? AND correlation_id = ?
            AND (
              analysis_status = 'pending'
+             OR analysis_status = 'failed'
              OR (
                analysis_status = 'queued'
                AND (queued_at IS NULL OR queued_at <= ?)

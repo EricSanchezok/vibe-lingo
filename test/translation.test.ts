@@ -47,6 +47,32 @@ afterEach(() => {
 })
 
 describe("translation service", () => {
+  test("uses the full plugin Agent runtime budget", async () => {
+    const { repository } = setup()
+    let timeoutMs: number | undefined
+    const service = new TranslationService(repository)
+    const result = await service.translate(
+      {
+        profile,
+        selection: selection("hello"),
+        destination: "adaptive",
+        historyEnabled: false,
+        modelRole: "mini",
+      },
+      invocationContext({
+        agent: {
+          async call(input) {
+            timeoutMs = input.timeoutMs
+            return { text: JSON.stringify({ translation: "你好", sourceLanguage: "en" }) }
+          },
+        },
+      }),
+    )
+
+    expect(result.status).toBe("translated")
+    expect(timeoutMs).toBe(120_000)
+  })
+
   test("accepts the minimal translator contract and infers a missing source tag for distinct scripts", async () => {
     const { repository } = setup()
     const callTranslator = mock(async () =>

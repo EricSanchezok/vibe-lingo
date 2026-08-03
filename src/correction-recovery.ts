@@ -66,6 +66,12 @@ export function projectCorrectionStatus(
       recovery: input.retryAvailable ? "retry_available" : "retry_unavailable",
     }
   }
+  if (batch.status === "failed") {
+    return {
+      ...base,
+      recovery: input.retryAvailable ? "retry_available" : "retry_unavailable",
+    }
+  }
   return { ...base, recovery: "none" }
 }
 

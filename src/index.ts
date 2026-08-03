@@ -47,6 +47,7 @@ import {
   translationHistoryTool,
   type TranslationHistoryInput,
 } from "./translation-history"
+import { AGENT_CALL_TIMEOUT_MS } from "./agent-runtime"
 
 const ProgressInputJsonSchema: Record<string, unknown> = {
   type: "object",
@@ -79,7 +80,7 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.7.4",
+  version: "0.7.5",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   compatibility: { synergy: ">=3.0.11" },
   author: "Eric Sanchez",
@@ -93,7 +94,7 @@ export default definePlugin({
     capability("ui.hostActions"),
     capability("selection.read"),
     capability("agent.call", {
-      maxRuntimeMs: 15_000,
+      maxRuntimeMs: AGENT_CALL_TIMEOUT_MS,
       maxInputChars: 8_000,
       maxOutputChars: 8_000,
       modelRoles: ["nano", "mini", "mid", "thinking", "long", "creative"],

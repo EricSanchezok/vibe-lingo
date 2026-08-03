@@ -109,6 +109,19 @@ and review. Plugins never select a concrete provider or model ID.
 **Why:** workload intent belongs to the plugin while model availability,
 provider configuration, and fallback belong to Synergy.
 
+## Bounded but network-tolerant Agent calls
+
+Learning analysis, translation, review, and localized presentation use the
+host's 120-second plugin-Agent ceiling. Language classification uses 60 seconds
+per attempt and keeps one immediate in-memory retry. Asynchronous correction
+analysis gets another 30 seconds of delivery headroom before the UI offers an
+explicit retry. SQLite lock waits and interface-only timers keep their shorter,
+domain-specific bounds.
+
+**Why:** remote model latency is variable, but blindly extending database locks
+or stacking plugin retries on top of the host's provider retry would make
+failures slower and less predictable.
+
 ## Deliberate non-goals
 
 The current product does not include Composer completion, submission blocking,

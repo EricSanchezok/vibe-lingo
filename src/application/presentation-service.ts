@@ -11,6 +11,7 @@ import {
   PATTERN_PRESENTER_AGENT_NAME,
   parsePatternPresentations,
 } from "./presentation-contracts"
+import { AGENT_CALL_TIMEOUT_MS } from "../agent-runtime"
 
 export type PatternPresentation = PatternPresentationSource & {
   source: "localized" | "canonical_fallback"
@@ -83,7 +84,7 @@ export class PatternPresentationService {
         targetLanguage: canonicalLanguageTag(profile.targetLanguage) ?? profile.targetLanguage,
         patterns: sources,
       })}`,
-      timeoutMs: 15_000,
+      timeoutMs: AGENT_CALL_TIMEOUT_MS,
       maxOutputChars: 7_000,
     })
     const allowed = new Map(sources.map((source) => [source.patternKey, source]))

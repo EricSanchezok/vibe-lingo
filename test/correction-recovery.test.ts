@@ -117,10 +117,10 @@ describe("correction recovery projection", () => {
       status: "queued",
       patternKeys: [],
       recovery: "waiting",
-      retryAt: 40_000,
+      retryAt: 160_000,
     })
 
-    setNow(40_001)
+    setNow(160_001)
     expect(await correctionStatus(batch.id, context, dependencies)).toMatchObject({
       found: true,
       status: "queued",
@@ -137,7 +137,7 @@ describe("correction recovery projection", () => {
     const { services, dependencies, create, setNow } = setup()
     const batch = create()
     queueBatch(services, batch, 10_000)
-    setNow(40_001)
+    setNow(160_001)
     let starts = 0
     const context = invocationContext({
       agent: {
@@ -203,5 +203,35 @@ describe("correction recovery projection", () => {
       status: "pending",
       recovery: "retry_available",
     })
+  })
+
+  test("allows a failed analysis to be retried explicitly", async () => {
+    const { services, dependencies, create } = setup()
+    const batch = create()
+    services.corrections.failAnalysisAttempt({
+      batchId: batch.id,
+      scopeId: batch.scopeId,
+      correlationId: batch.correlationId,
+    })
+    let starts = 0
+    const context = invocationContext({
+      agent: {
+        async start(input) {
+          starts++
+          expect(input.timeoutMs).toBe(120_000)
+          return { callId: "failed-retry-call" }
+        },
+      },
+    })
+
+    expect(await correctionStatus(batch.id, context, dependencies)).toMatchObject({
+      status: "failed",
+      recovery: "retry_available",
+    })
+    expect(await retryCorrectionAnalysis(batch.id, context, dependencies)).toMatchObject({
+      status: "queued",
+      recovery: "waiting",
+    })
+    expect(starts).toBe(1)
   })
 })

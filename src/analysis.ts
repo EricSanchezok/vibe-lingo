@@ -18,12 +18,17 @@ import { hasCompatibleTargetScript, languageDisplayName } from "./language"
 import { hasUserFacingRootSession } from "./session"
 import { configuredProfile, modelRoleFor, readSettings, type LearningProfile, type VibeLingoSettings } from "./settings"
 import type { CorrectionBatch } from "./infrastructure/correction-repository"
+import {
+  AGENT_CALL_TIMEOUT_MS,
+  CORRECTION_ANALYSIS_GRACE_MS,
+  LANGUAGE_CLASSIFIER_TIMEOUT_MS,
+} from "./agent-runtime"
+
+export { CORRECTION_ANALYSIS_GRACE_MS } from "./agent-runtime"
 
 export const LANGUAGE_CLASSIFIER_AGENT_NAME = "vibe-lingo-language-classifier"
 export const USAGE_ANALYZER_AGENT_NAME = "vibe-lingo-usage-analyzer"
 export const CORRECTION_ANALYZER_AGENT_NAME = "vibe-lingo-correction-analyzer"
-
-export const CORRECTION_ANALYSIS_GRACE_MS = 30_000
 
 function nextCorrectionCorrelation(batch: CorrectionBatch): string {
   return batch.status === "queued" ? `correction:${batch.id}:${crypto.randomUUID()}` : batch.correlationId
@@ -137,7 +142,7 @@ async function classifyTargetLanguage(
         agent: LANGUAGE_CLASSIFIER_AGENT_NAME,
         text: classifierRequest(message, profile),
         modelRole: modelRoleFor(settings, "language_detection"),
-        timeoutMs: 8_000,
+        timeoutMs: LANGUAGE_CLASSIFIER_TIMEOUT_MS,
         maxOutputChars: 100,
       })
       return LanguageClassificationSchema.parse(JSON.parse(response.text)).isTargetLanguageAttempt
@@ -252,7 +257,7 @@ export async function enqueueCorrectionAnalysis(
       ),
       correlationId,
       modelRole: modelRoleFor(settings ?? (await dependencies.readSettings(context)), "learning_analysis"),
-      timeoutMs: 12_000,
+      timeoutMs: AGENT_CALL_TIMEOUT_MS,
       maxOutputChars: 6_000,
     })
     if (
@@ -352,7 +357,7 @@ export async function processUserMessage(
         text: usageRequest(input.message.text, profile, knownPatterns),
         correlationId,
         modelRole: modelRoleFor(settings, "learning_analysis"),
-        timeoutMs: 12_000,
+        timeoutMs: AGENT_CALL_TIMEOUT_MS,
         maxOutputChars: 2_000,
       })
       learning.markUsageQueued(profile.targetLanguage, input.message.id, correlationId, call.callId)

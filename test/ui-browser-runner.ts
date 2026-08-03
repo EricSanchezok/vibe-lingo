@@ -683,7 +683,7 @@ if (expandButton.getAttribute("aria-expanded") !== "true") {
 
 correctionStatus = {
   found: true,
-  status: "queued",
+  status: "failed",
   patternKeys: [],
   recovery: "retry_available",
 }

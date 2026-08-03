@@ -19,6 +19,7 @@ import {
   languageDisplayName,
 } from "../language"
 import type { TranslationRepository } from "../infrastructure/translation-repository"
+import { AGENT_CALL_TIMEOUT_MS } from "../agent-runtime"
 
 export const TRANSLATOR_AGENT_NAME = "vibe-lingo-translator"
 export const TRANSLATOR_PROMPT = `You translate a selected passage for VibeLingo.
@@ -79,7 +80,7 @@ export class TranslationService {
             agent: TRANSLATOR_AGENT_NAME,
             text: prompt,
             modelRole,
-            timeoutMs: 15_000,
+            timeoutMs: AGENT_CALL_TIMEOUT_MS,
             maxOutputChars: MAX_TRANSLATION_CODEPOINTS + 1_000,
           })
           .then((result) => result.text))

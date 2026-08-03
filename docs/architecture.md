@@ -33,7 +33,12 @@ no finding.
 Saved foreground corrections and known-pattern usage are analyzed by owned,
 hidden Agents. Sessionless `agent.start()` calls keep this work outside the
 foreground response. `agent.call.after` validates and commits results
-idempotently. Analysis failures are isolated from the main Session.
+idempotently. Learning, translation, review, and presentation calls use the
+host's 120-second plugin-Agent ceiling; the small classifier uses 60 seconds per
+attempt. The correction card waits 150 seconds before treating a missing
+terminal delivery as interrupted, and terminal correction failures retain an
+explicit idempotent retry. Analysis failures remain isolated from the main
+Session.
 
 ### Learning and review
 
@@ -93,6 +98,8 @@ limits.
 
 - System transformation and observers fail soft.
 - Agent calls happen outside SQLite transactions.
+- Synergy owns provider fallback and one lower-level Agent retry; VibeLingo
+  bounds its classifier retry and correction-card retry independently.
 - Writes are short, transactional, and idempotent.
 - Operation queries are abortable and use stable keyset pagination.
 - Trusted UI failures do not alter domain state.
