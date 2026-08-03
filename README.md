@@ -18,7 +18,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Target-language writing that is both correct and natural for its context, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.7.6` gives remote language analysis enough time to survive ordinary provider and network latency: learning analysis, translation, review, and presentation can use the host's full 120-second plugin budget. A transient correction-analysis failure receives one automatic retry, and the saved card still offers an explicit retry if both attempts fail. Contextual naturalness suggestions can appear alongside objective corrections, and mixed feedback cards remain aligned at narrow widths. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
+VibeLingo `0.7.7` restores model-backed review and brings the complete review experience in line with the product design. Review now uses a stable learning rail and work stage across recall, hints, feedback and repair, transfer, pause, and completion; it preserves the learner's submitted expression for the feedback comparison and collapses cleanly at narrow widths. Review operations explicitly declare their settings and Agent capabilities, so the host provides the configured review model instead of returning a false unavailable state. Infrastructure errors are localized and actionable. The 120-second model budget and resilient correction-analysis behavior introduced in `0.7.6` remain unchanged.
 
 ## Install for Local Development
 
@@ -36,7 +36,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.7.6` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Stop the old Synergy/plugin generation before starting the new version.
+Version `0.7.7` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Synergy atomically replaces the active plugin generation when the package is updated or reloaded.
 
 ## First-Time Setup
 

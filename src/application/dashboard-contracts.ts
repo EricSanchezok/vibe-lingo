@@ -223,6 +223,7 @@ export const ReviewStateSchema = z.object({
     explanation: z.string().optional(),
     referenceAnswer: z.string().optional(),
     transferChallenge: z.string().optional(),
+    latestAnswer: z.string().optional(),
     latestFeedback: z.string().optional(),
     latestNaturalAnswer: z.string().optional(),
     outcome: ReviewOutcomeSchema.optional(),

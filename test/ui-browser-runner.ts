@@ -403,6 +403,7 @@ const screens: Array<[string, string, any?]> = [
     "view=review",
     "用正确形式再写一次",
     review("awaiting_repair", {
+      latestAnswer: "Add button.",
       latestFeedback: "缺少冠词。",
       referenceAnswer: "Add a button.",
     }),
@@ -468,6 +469,26 @@ for (const [route, expected, state] of screens) {
     assertText(mounted.target, "刷新")
   }
   if (state?.status === "completed") assertText(mounted.target, "查看学习记录")
+  if (route === "view=review" && state?.status === "active") {
+    const workspace = mounted.target.querySelector<HTMLElement>(".vld-review-workspace")
+    if (!workspace || !workspace.firstElementChild?.classList.contains("vld-review-rail")) {
+      throw new Error("Review workspace did not render the learning rail before the practice stage")
+    }
+    assertText(workspace, "学习状态")
+    if (state.currentItem.stage !== "awaiting_transfer") assertText(workspace, "真实工作场景")
+    if (state.currentItem.stage === "awaiting_repair") {
+      assertText(workspace, "你的表达")
+      assertText(workspace, "更自然的表达")
+      assertText(workspace, "为什么")
+    }
+    if (state.currentItem.stage === "awaiting_transfer") {
+      assertText(workspace, "新场景迁移")
+    }
+  }
+  if (state?.status === "completed") {
+    assertText(mounted.target, "没有学习分数")
+    assertText(mounted.target, "接下来的安排")
+  }
   if (route === "view=settings") assertText(mounted.target, "自然表达建议")
   if (route === "view=review") {
     context.host.openPluginPage("learning", { view: "overview" })
@@ -492,6 +513,16 @@ if (!naturalnessSwitch.disabled || naturalnessSwitch.getAttribute("aria-checked"
 }
 await context.settings.replace(configuredSettings)
 await new Promise((resolve) => setTimeout(resolve, 20))
+
+currentReview = undefined
+context.host.openPluginPage("learning", { view: "review" })
+await new Promise((resolve) => setTimeout(resolve, 35))
+const reviewLanding = mounted.target.querySelector<HTMLElement>(".vld-review-workspace")
+if (!reviewLanding || !reviewLanding.firstElementChild?.classList.contains("vld-review-rail")) {
+  throw new Error("Review landing did not preserve the two-column learning workspace")
+}
+assertText(reviewLanding, "本次复习")
+assertText(reviewLanding, "主动回忆")
 
 context.host.openPluginPage("learning", { view: "overview" })
 await new Promise((resolve) => setTimeout(resolve, 20))

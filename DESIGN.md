@@ -26,6 +26,15 @@ The implementation keeps these roles separate from Synergy's generic success col
 - Critical host tokens: failed actions and destructive states only.
 - Every state includes text or an icon; color is never the only signal.
 
+## Review workspace
+
+- Review keeps one stable two-column scaffold: a 330px learning rail followed by the flexible work stage.
+- Before a review starts, the rail previews the ordered queue and the stage explains the recall-feedback-transfer method. It never collapses to a sparse centered card when only one pattern is due.
+- During practice, the rail shows the four learner actions—write, hint, repair, and transfer—while the stage owns the current real-work scenario and one primary action.
+- Feedback preserves the learner's expression, the preferred expression, and the reason as separately labelled content. Color reinforces those roles but never replaces their labels.
+- Below 980px the rail becomes a compact horizontal summary above the work stage; below 720px the queue, steps, actions, and completion summary stack without horizontal scrolling.
+- Completion reports observed behavior and the next schedule. It never displays a score or unsupported mastery claim.
+
 ## Accessibility
 
 - Preserve Synergy focus rings and semantic text colors.

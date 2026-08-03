@@ -151,6 +151,7 @@ describe("review state machine", () => {
     expect(recall.data.currentItem).toMatchObject({
       stage: "awaiting_transfer",
       referenceAnswer: content.referenceAnswer,
+      latestAnswer: "Add a button.",
       latestFeedback: "很好。",
     })
 

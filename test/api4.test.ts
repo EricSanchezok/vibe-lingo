@@ -17,7 +17,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.7.6",
+      version: "0.7.7",
       compatibility: { synergy: ">=3.0.11" },
       repository: "https://github.com/EricSanchezok/vibe-lingo",
       capabilities: [
@@ -272,6 +272,16 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       requires: ["settings.read", "agent.call"],
     })
     expect(contribution("operation", "correction-retry")).toMatchObject({
+      type: "command",
+      expose: ["ui"],
+      requires: ["settings.read", "agent.call"],
+    })
+    expect(contribution("operation", "review-start")).toMatchObject({
+      type: "command",
+      expose: ["ui"],
+      requires: ["settings.read", "agent.call"],
+    })
+    expect(contribution("operation", "review-command")).toMatchObject({
       type: "command",
       expose: ["ui"],
       requires: ["settings.read", "agent.call"],

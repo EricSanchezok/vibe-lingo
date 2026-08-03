@@ -27,6 +27,7 @@ import {
 } from "../components"
 import {
   copy,
+  reviewErrorMessage,
   formatDate,
   formatRelativeDate,
   outcomeLabel,
@@ -336,7 +337,7 @@ export const PatternDetailView: Component<{ patternKey: string }> = (props) => {
         "pattern-command",
         { ...input, targetLanguage: dashboard.profile()?.targetLanguage },
       )
-      if (!result.ok) throw new Error(result.error.message)
+      if (!result.ok) throw new Error(reviewErrorMessage(dashboard.locale(), result.error.code, result.error.message))
       if (input.action === "delete" || input.action === "not_error" || input.action === "merge") {
         dashboard.navigate({ view: "patterns" })
       } else {

@@ -267,6 +267,7 @@ export type ReviewStateItem = {
   explanation?: string
   referenceAnswer?: string
   transferChallenge?: string
+  latestAnswer?: string
   latestFeedback?: string
   latestNaturalAnswer?: string
   outcome?: ReviewOutcome

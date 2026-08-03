@@ -63,6 +63,23 @@ uses a deterministic interval ladder.
 progress claims. A transparent schedule is easier to audit than an adaptive
 algorithm without enough local review data.
 
+## Review is one continuous learning workspace
+
+Review uses the same learning rail and work stage from preparation through
+recall, hints, repair, transfer, pause, and completion. The feedback stage shows
+the learner's retained safe answer beside the preferred expression and reason;
+completion reports behavior and the next schedule rather than a score. The
+layout stacks progressively for narrow host panes without changing the learning
+sequence.
+
+Review operations explicitly declare `settings.read` and `agent.call`. Model
+availability is therefore resolved by the host before the operation runs, and
+user-facing failures are localized without exposing raw runtime messages.
+
+**Why:** a stable scaffold makes the learning sequence legible, while explicit
+capability requirements prevent the UI from misdiagnosing a missing injected
+service as a model outage.
+
 ## One learning workspace, no nested navigation
 
 VibeLingo contributes one sidebar page with horizontal Overview, Review,

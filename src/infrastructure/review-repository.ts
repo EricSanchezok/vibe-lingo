@@ -194,16 +194,18 @@ export class ReviewRepository {
       if (!item) return snapshot
       const latestAttempt = current.latestAttemptId
         ? this.db().query<{
+            answer: string | null
             feedback: string | null
             natural_answer: string | null
           }, [string]>(
-          "SELECT feedback, natural_answer FROM review_attempts WHERE id = ?",
+          "SELECT answer, feedback, natural_answer FROM review_attempts WHERE id = ?",
         ).get(current.latestAttemptId)
         : this.db().query<{
+        answer: string | null
         feedback: string | null
         natural_answer: string | null
       }, [string, number]>(
-        `SELECT feedback, natural_answer FROM review_attempts
+        `SELECT answer, feedback, natural_answer FROM review_attempts
          WHERE item_id = ? AND created_at <= ?
          ORDER BY created_at DESC, id DESC LIMIT 1`,
       ).get(current.id, receipt.created_at)
@@ -224,6 +226,7 @@ export class ReviewRepository {
             current.stage === "awaiting_transfer" || current.stage === "item_completed"
               ? item.transfer_challenge ?? undefined
               : undefined,
+          latestAnswer: latestAttempt?.answer ?? undefined,
           latestFeedback: latestAttempt?.feedback ?? undefined,
           latestNaturalAnswer: latestAttempt?.natural_answer ?? undefined,
         },
@@ -602,10 +605,11 @@ export class ReviewRepository {
     const current = items.find((item) => item.ordinal === numberValue(row.current_index))
     const latestAttempt = current
       ? this.db().query<{
+          answer: string | null
           feedback: string | null
           natural_answer: string | null
         }, [string]>(
-          `SELECT feedback, natural_answer FROM review_attempts
+          `SELECT answer, feedback, natural_answer FROM review_attempts
            WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
         ).get(current.id)
       : undefined
@@ -660,6 +664,7 @@ export class ReviewRepository {
           current.stage === "awaiting_transfer" || current.stage === "item_completed"
             ? current.transfer_challenge ?? undefined
             : undefined,
+        latestAnswer: latestAttempt?.answer ?? undefined,
         latestFeedback: latestAttempt?.feedback ?? undefined,
         latestNaturalAnswer: latestAttempt?.natural_answer ?? undefined,
         outcome: current.outcome ?? undefined,

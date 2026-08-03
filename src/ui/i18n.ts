@@ -1,4 +1,5 @@
 import type {
+  CommandErrorCode,
   LearningEventType,
   PatternDisplayStatus,
   ReviewOutcome,
@@ -139,6 +140,7 @@ const COPY = {
     actionFailed: "The action could not be completed.",
     generationFailed: "The review item could not be prepared. Try again without losing your place.",
     evaluationFailed: "The answer could not be evaluated confidently. Try again.",
+    reviewModelUnavailable: "The review model is not available for this profile. Check the review model in Settings and try again.",
     translationHistory: "Translation history",
     translationHistoryHelp: "Your selected source text and translations, stored locally for reuse and easy reference.",
     searchTranslations: "Search translations",
@@ -281,6 +283,7 @@ const COPY = {
     actionFailed: "操作未能完成。",
     generationFailed: "复习内容暂时无法生成，你的位置不会丢失，可以重试。",
     evaluationFailed: "暂时无法可靠评估这个答案，请重试。",
+    reviewModelUnavailable: "当前学习档案的复习模型暂时不可用，请检查设置中的复习模型后重试。",
     translationHistory: "翻译记录",
     translationHistoryHelp: "你主动请求过的原文和译文会保存在本机，便于重复读取和快速查找。",
     searchTranslations: "搜索翻译记录",
@@ -296,6 +299,18 @@ const COPY = {
 } as const
 
 export type CopyKey = keyof typeof COPY.en
+
+export function reviewErrorMessage(
+  locale: UiLocale,
+  code: CommandErrorCode,
+  fallback: string,
+): string {
+  if (code === "AGENT_UNAVAILABLE") return copy(locale, "reviewModelUnavailable")
+  if (code === "GENERATION_FAILED") return copy(locale, "generationFailed")
+  if (code === "EVALUATION_FAILED") return copy(locale, "evaluationFailed")
+  if (code === "CONFLICT") return copy(locale, "conflict")
+  return fallback
+}
 
 export function localeForSettings(settings: VibeLingoSettings): UiLocale {
   if (settings.nativeLanguage) {

@@ -25,6 +25,7 @@ import {
   formatRelativeDate,
   greeting,
   practiceActivityLabel,
+  reviewErrorMessage,
 } from "../i18n"
 import { createAbortableResource } from "../resource"
 
@@ -117,7 +118,7 @@ export const OverviewView: Component = () => {
       )
       if (!alive) return
       if (!result.ok) {
-        setStartError(result.error.message)
+        setStartError(reviewErrorMessage(dashboard.locale(), result.error.code, result.error.message))
         return
       }
       if (dashboard.route() !== fromRoute) return

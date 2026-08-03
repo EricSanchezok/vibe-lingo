@@ -370,6 +370,7 @@ const reviewStartOperation = operation({
   id: "review-start",
   type: "command",
   expose: ["ui"],
+  requires: ["settings.read", "agent.call"],
   input: z.object({
     targetLanguage: OptionalLanguageSchema,
     patternKeys: z
@@ -437,6 +438,7 @@ const reviewCommandOperation = operation({
   id: "review-command",
   type: "command",
   expose: ["ui"],
+  requires: ["settings.read", "agent.call"],
   input: ReviewCommandInputSchema,
   output: ReviewCommandResultSchema,
   async handler(input, context) {
