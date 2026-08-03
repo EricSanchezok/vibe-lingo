@@ -24,12 +24,18 @@ afterEach(() => {
 const input = {
   restatement: "Add a button to the settings page.",
   corrections: [{
+    kind: "correction" as const,
     originalFragment: "add button",
     correctedFragment: "add a button",
   }],
 }
 
-function context(options: { tracking?: boolean; assistantMessageId?: string } = {}) {
+function context(options: {
+  tracking?: boolean
+  naturalness?: boolean
+  mode?: "focused" | "strict"
+  assistantMessageId?: string
+} = {}) {
   return invocationContext({
     actor: {
       type: "agent",
@@ -44,7 +50,8 @@ function context(options: { tracking?: boolean; assistantMessageId?: string } = 
           nativeLanguage: "zh-Hans",
           targetLanguage: "en",
           proficiency: "intermediate",
-          correctionMode: "focused",
+          correctionMode: options.mode ?? "focused",
+          naturalnessSuggestionsEnabled: options.naturalness ?? true,
           trackingEnabled: options.tracking ?? true,
           recurringFocusEnabled: true,
         }
@@ -132,7 +139,7 @@ describe("foreground correction tool", () => {
     const duplicate = await recordCorrectionTool(input, ctx, service)
     const conflict = await recordCorrectionTool({
       restatement: "Add a panel.",
-      corrections: [{ originalFragment: "add panel", correctedFragment: "add a panel" }],
+      corrections: [{ kind: "correction", originalFragment: "add panel", correctedFragment: "add a panel" }],
     }, ctx, service)
     expect(first.metadata).toMatchObject({ vibeLingo: { status: "analyzing" } })
     expect(duplicate.metadata).toMatchObject({ vibeLingo: { status: "analyzing" } })
@@ -142,12 +149,89 @@ describe("foreground correction tool", () => {
     ).get()?.count).toBe(1)
   })
 
-  test("enforces focused bounds and requires the host-provided source user message", async () => {
+  test("accepts up to eight mixed items regardless of correction mode", async () => {
     const service = services()
+    const corrections = Array.from({ length: 8 }, (_, index) =>
+      index === 7
+        ? {
+            kind: "naturalness" as const,
+            originalFragment: "I allow you to continue cleaning",
+            correctedFragment: "go ahead and continue the cleanup",
+            explanation: "这里用 allow 会显得正式，像是在上对下授权。",
+          }
+        : {
+            kind: "correction" as const,
+            originalFragment: `original ${index}`,
+            correctedFragment: `corrected ${index}`,
+          })
+    await expect(recordCorrectionTool(
+      { restatement: "Use the corrected wording.", corrections },
+      context({ tracking: false }),
+      service,
+    )).resolves.toMatchObject({ metadata: { vibeLingo: { status: "not_saved" } } })
+    await expect(recordCorrectionTool(
+      { restatement: "Use the corrected wording.", corrections },
+      context({ tracking: false, mode: "strict" }),
+      service,
+    )).resolves.toMatchObject({ metadata: { vibeLingo: { status: "not_saved" } } })
+    await expect(recordCorrectionTool(
+      { restatement: "Use the corrected wording.", corrections: [...corrections, corrections[0]] },
+      context({ tracking: false }),
+      service,
+    )).rejects.toThrow("between one and eight")
+  })
+
+  test("enforces naturalness settings and explanation bounds", async () => {
+    const service = services()
+    const naturalness = {
+      restatement: "Okay, go ahead and continue the cleanup.",
+      corrections: [{
+        kind: "naturalness" as const,
+        originalFragment: "I allow you to continue cleaning",
+        correctedFragment: "go ahead and continue the cleanup",
+        explanation: "这里用 allow 会显得正式，像是在上对下授权。",
+      }],
+    }
+    await expect(recordCorrectionTool(
+      naturalness,
+      context({ naturalness: false, tracking: false }),
+      service,
+    )).rejects.toThrow("Naturalness suggestions are disabled")
+    await expect(recordCorrectionTool({
+      ...naturalness,
+      corrections: [{ ...naturalness.corrections[0], explanation: "" }],
+    }, context({ tracking: false }), service)).rejects.toThrow("requires one short support-language explanation")
+    await expect(recordCorrectionTool({
+      ...naturalness,
+      corrections: [{ ...naturalness.corrections[0], explanation: "x".repeat(201) }],
+    }, context({ tracking: false }), service)).rejects.toThrow("requires one short support-language explanation")
     await expect(recordCorrectionTool({
       ...input,
-      corrections: [input.corrections[0], input.corrections[0]],
-    }, context(), service)).rejects.toThrow("Focused mode requires exactly one correction")
+      corrections: [{ ...input.corrections[0], explanation: "Do not store this." }],
+    }, context({ tracking: false }), service)).rejects.toThrow("Only naturalness items include an explanation")
+  })
+
+  test("does not persist visible naturalness explanations", async () => {
+    const service = services()
+    const explanation = "这里用 allow 会显得正式，像是在上对下授权。"
+    await recordCorrectionTool({
+      restatement: "Okay, go ahead and continue the cleanup.",
+      corrections: [{
+        kind: "naturalness",
+        originalFragment: "I allow you to continue cleaning",
+        correctedFragment: "go ahead and continue the cleanup",
+        explanation,
+      }],
+    }, invocationContext({
+      ...context(),
+      agent: { async start() { return { callId: "naturalness-call" } } },
+    }), service)
+    expect(JSON.stringify(service.database.connection().query("SELECT * FROM correction_batches").all())).not.toContain(explanation)
+    expect(JSON.stringify(service.database.connection().query("SELECT * FROM correction_items").all())).not.toContain(explanation)
+  })
+
+  test("requires the host-provided source user message", async () => {
+    const service = services()
     await expect(recordCorrectionTool(
       input,
       invocationContext({

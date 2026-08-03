@@ -67,6 +67,8 @@ type Copy = {
   strictDescription: string
   off: string
   offDescription: string
+  naturalness: string
+  naturalnessDescription: string
   tracking: string
   trackingDescription: string
   recurring: string
@@ -135,11 +137,14 @@ const COPY: Record<UiLocale, Copy> = {
     coaching: "Coaching",
     coachingDescription: "Control when VibeLingo speaks up and what it remembers.",
     focused: "Focused",
-    focusedDescription: "Only high-value or recurring issues.",
+    focusedDescription: "High-value, clearly unnatural, or recurring issues.",
     strict: "Strict",
-    strictDescription: "Every certain target-language error, up to two at a time.",
+    strictDescription: "Every certain target-language issue.",
     off: "Off",
     offDescription: "No coaching in Agent responses.",
+    naturalness: "Suggest more natural phrasing",
+    naturalnessDescription:
+      "Speak up when grammatical wording has a clearly more conventional form in context, without rewriting for style alone.",
     tracking: "Track recurring patterns",
     trackingDescription: "Analyze eligible messages and store minimal local learning signals.",
     recurring: "Use recurring focus",
@@ -209,11 +214,13 @@ const COPY: Record<UiLocale, Copy> = {
     coaching: "辅导方式",
     coachingDescription: "控制 VibeLingo 何时提醒你，以及记录哪些学习信号。",
     focused: "专注",
-    focusedDescription: "只处理高价值或已经重复出现的问题。",
+    focusedDescription: "只处理高价值、明显不自然或已经重复出现的问题。",
     strict: "严格",
-    strictDescription: "纠正确认存在的目标语言错误，每次最多两条。",
+    strictDescription: "处理所有确认存在的目标语言问题。",
     off: "关闭",
     offDescription: "不在 Agent 回复中提供语言辅导。",
+    naturalness: "自然表达建议",
+    naturalnessDescription: "语法正确但在当前语境中有明显更常用的表达时提醒，不做纯风格改写。",
     tracking: "记录重复模式",
     trackingDescription: "分析符合条件的消息，并在本地保存最少量学习信号。",
     recurring: "使用重复模式",
@@ -920,6 +927,18 @@ export const SettingsView: Component<SurfaceInput> = (input) => {
                   ...current,
                   correctionMode: value as VibeLingoSettings["correctionMode"],
                 })
+              }}
+            />
+            <SettingSwitch
+              label={copy().naturalness}
+              description={copy().naturalnessDescription}
+              checked={settings().naturalnessSuggestionsEnabled}
+              disabled={saveState() === "saving" || settings().correctionMode === "off"}
+              onLabel={copy().on}
+              offLabel={copy().offState}
+              onChange={(naturalnessSuggestionsEnabled) => {
+                const current = settings()
+                void persist({ ...current, naturalnessSuggestionsEnabled })
               }}
             />
             <SettingSwitch

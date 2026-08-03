@@ -131,6 +131,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
           nativeLanguage: { default: "" },
           targetLanguage: { default: "" },
           proficiency: { default: "intermediate" },
+          naturalnessSuggestionsEnabled: { default: true },
           languageDetectionModelRole: { default: "nano" },
           learningAnalysisModelRole: { default: "mini" },
           translationModelRole: { default: "mini" },
@@ -240,6 +241,20 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       exposure: { mode: "resident" },
       display: { toolCard: "visible" },
       requires: ["settings.read", "agent.call"],
+      input: {
+        properties: {
+          corrections: {
+            minItems: 1,
+            maxItems: 8,
+            items: {
+              properties: {
+                kind: { enum: ["correction", "naturalness"] },
+                explanation: { maxLength: 200 },
+              },
+            },
+          },
+        },
+      },
     })
     expect(contribution("ui.messageRenderer", "correction-card")).toMatchObject({
       messageType: "tool",

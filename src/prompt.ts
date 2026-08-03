@@ -26,7 +26,7 @@ function modeRule(mode: VibeLingoSettings["correctionMode"]): string {
 
 Correct every certain, genuine target-language issue, including a clear case where a non-target-language word or phrase fills a normal place in an otherwise target-language expression.
 
-Do not correct intentional bilingual phrasing or any excluded content listed above. Submit one or two correction pairs, selecting the most important issues when more than two are present.`
+Do not correct intentional bilingual phrasing or any excluded content listed above. Submit every certain issue, ordered from most to least useful. Submit at most eight correction items; if more than eight qualify, select the eight most important.`
   }
   return `You are operating in focused correction mode.
 
@@ -34,7 +34,22 @@ Ignore isolated minor slips. Correct only issues that affect meaning, are clearl
 
 For mixed-language expressions, correct a non-target-language fragment only when it noticeably interrupts the target-language expression or matches a recurring focus.
 
-When correction is warranted, submit exactly one correction pair.`
+Submit every issue that meets this threshold, ordered from most to least useful. Submit at most eight correction items; if more than eight qualify, select the eight most important.`
+}
+
+function naturalnessRule(enabled: boolean): string {
+  if (!enabled) {
+    return `Contextual naturalness suggestions are disabled.
+
+Do not submit a naturalness item solely because grammatical wording could be more idiomatic, conventional, polite, or context-appropriate. Continue correcting objective issues in meaning, grammar, word choice, spelling, and genuinely incorrect collocations. Recurring focus never overrides this setting.`
+  }
+  return `Contextual naturalness suggestions are enabled.
+
+Grammar correctness alone is not sufficient. Submit a naturalness item when a typical target-language speaker in the current context would clearly prefer materially different conventional phrasing, collocation, politeness formula, register, or pragmatic relationship.
+
+The alternative must preserve the user's intent, constraints, certainty, and interpersonal stance. Do not rewrite wording merely because another version is also possible or because you personally prefer it.
+
+For every naturalness item, include one short explanation in the support language describing why the original feels less natural in this context. Do not use grammar jargon.`
 }
 
 function proficiencyRule(profile: LearningProfile): string {
@@ -57,6 +72,7 @@ export function buildCoachingContract(
   mode: Exclude<VibeLingoSettings["correctionMode"], "off">,
   profile: LearningProfile,
   recurring: RecurringPattern[],
+  naturalnessSuggestionsEnabled = true,
 ): string {
   const nativeLanguage = languageDisplayName(profile.nativeLanguage, "en")
   const targetLanguage = languageDisplayName(profile.targetLanguage, "en")
@@ -85,13 +101,16 @@ When intent is clear:
 - Execute immediately. Never require the user to rewrite a request merely to improve the target language.
 - If there is no correction-worthy issue, execute with no coaching preface.
 - If there is a correction-worthy issue, your first user-visible action—before any progress update, other tool, or substantive answer—must be a call to plugin__vibe-lingo__record-correction.
-- Give that tool only a one-sentence natural target-language restatement and the minimal original/corrected fragment pairs that the user should see.
+- Give that tool a one-sentence natural target-language restatement and the minimal original/corrected fragment pairs that the user should see.
+- For each item, use kind "correction" for an objective target-language issue or kind "naturalness" for grammatical wording that is clearly less natural in context.
+- A correction item must omit explanation. A naturalness item must include one short explanation in the support language.
+- You may mix correction and naturalness items in one tool call. Submit between one and eight items total.
 - Do not write a duplicate "Got it" or correction block in ordinary assistant text. The tool card is the complete visible correction.
 - After the correction tool returns, continue the real task immediately.
 - Preserve every requirement, constraint, scope boundary, modality, and degree of certainty from the original.
 - Never postpone correction until the task is complete and never repeat it later in progress updates or the final answer.
 - Do not invent or submit pattern keys, categories, severity, rules, confidence, message IDs, or learning metadata. VibeLingo analyzes those separately.
-- Do not comment on correct target-language writing.
+- Do not comment on target-language writing that is both correct and natural for its context.
 
 When different interpretations would materially change the work:
 - Do not guess.
@@ -100,6 +119,8 @@ When different interpretations would materially change the work:
 If the user says "just do it", "skip the lesson", "直接做", or "跳过纠正", perform the task without coaching for that message.
 
 ${proficiencyRule(profile)}
+
+${naturalnessRule(naturalnessSuggestionsEnabled)}
 
 ${modeRule(mode)}
 
@@ -124,7 +145,15 @@ export async function transformSystemPrompt(
       ? dependencies.recurringPatterns(profile.targetLanguage, 3)
       : []
     return {
-      system: [...base, buildCoachingContract(settings.correctionMode, profile, recurring)],
+      system: [
+        ...base,
+        buildCoachingContract(
+          settings.correctionMode,
+          profile,
+          recurring,
+          settings.naturalnessSuggestionsEnabled,
+        ),
+      ],
     }
   } catch {
     return { system: input.system }

@@ -15,12 +15,26 @@ distinguish language mistakes from task ambiguity.
 
 ## Foreground correction is authoritative
 
-The correction Tool card is the record of what the user actually saw. Private
-analysis may attach pattern metadata later, but it cannot rewrite the visible
-original or corrected fragments.
+The language-feedback Tool card is the record of what the user actually saw.
+One call may combine objective corrections and contextual naturalness
+suggestions. Private analysis may attach pattern metadata later, but it cannot
+rewrite the visible original or corrected fragments.
 
 **Why:** foreground and background analysis must not create contradictory
 learning histories.
+
+## Contextual naturalness is independently controllable
+
+Grammatical wording may still merit feedback when speakers in the current
+context would clearly prefer a different convention, collocation, politeness
+formula, register, or pragmatic stance. This behavior is enabled by default but
+has its own setting because it is more subjective than objective correction.
+Focused and Strict control the qualification threshold rather than imposing a
+teaching-count limit; a bounded Tool contract remains a runtime safeguard.
+
+**Why:** naturalness is central to useful language coaching, while an explicit
+control and a strict contextual threshold prevent stylistic rewriting from
+becoming noise.
 
 ## Explicit multilingual profile
 

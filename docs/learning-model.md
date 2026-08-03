@@ -23,10 +23,13 @@ practice visible without manufacturing mistakes or mastery.
 
 ### Corrections create a noticing opportunity
 
-The correction card places the user's fragment beside a more natural form. It
-focuses attention on a concrete gap without turning the main response into a
-grammar lesson. Focused mode selects one consequential, clearly unnatural, or
-recurring issue. Strict mode may show one or two certain issues.
+The language-feedback card places the user's fragment beside an improved form.
+It can combine objective corrections with contextual naturalness suggestions,
+and explains naturalness briefly in the support language without turning the
+main response into a grammar lesson. Focused and Strict define which issues
+qualify, not how many the learner may see. A technical maximum of eight keeps a
+single Tool call and its asynchronous analysis bounded; the card initially
+shows three and lets the learner expand the rest.
 
 ### Review requires retrieval and transfer
 
@@ -62,9 +65,13 @@ correct transfer task advances the interval.
   explanations.
 - **Intermediate** prioritizes transferable high-value corrections.
 - **Advanced** prioritizes naturalness, collocation, register, and nuance.
-- **Focused** ignores isolated minor slips and surfaces one high-value issue.
-- **Strict** addresses every certain genuine issue and surfaces up to two.
+- **Focused** ignores isolated minor slips and surfaces every high-value,
+  clearly unnatural, or recurring issue that qualifies.
+- **Strict** addresses every certain genuine issue.
 - **Off** disables foreground correction without deleting learning history.
+- **Naturalness suggestions** are enabled by default and can be disabled
+  independently. They require a clearly preferred contextual alternative, not
+  a merely different style.
 
 ## Evidence basis
 

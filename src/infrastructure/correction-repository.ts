@@ -8,8 +8,10 @@ import { VibeLingoDatabase } from "./database"
 export type CorrectionInput = {
   restatement: string
   corrections: Array<{
+    kind?: "correction" | "naturalness"
     originalFragment: string
     correctedFragment: string
+    explanation?: string
   }>
 }
 

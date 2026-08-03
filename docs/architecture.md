@@ -10,12 +10,14 @@ separate paths so that language support cannot block the user's real task.
 
 The `chat.system.transform` contribution injects a compact coaching contract
 only for eligible, user-facing root Sessions with a complete language profile.
-When a correction is useful, the primary Agent calls
+When language feedback is useful, the primary Agent calls
 `plugin__vibe-lingo__record-correction` before its substantive response. The
-Tool card is the authoritative correction the user saw.
+Tool card is the authoritative feedback the user saw.
 
-The primary Agent supplies only a natural restatement and the visible fragment
-pairs. It does not invent pattern keys, severity, confidence, or learning rules.
+The primary Agent supplies a natural restatement and up to eight visible items,
+each marked as an objective correction or contextual naturalness suggestion.
+Naturalness items include one short support-language explanation. It does not
+invent pattern keys, severity, confidence, or learning rules.
 
 ### Practice observation and analysis
 
@@ -76,8 +78,9 @@ provenance, not a second learning profile.
 The database never stores complete user messages as part of background
 analysis, Agent responses, Session titles, asynchronous prompts, or raw model
 output. Bounded correction and review fragments are sanitized before
-persistence. Explicit translation history is the single exception: when the
-user enables it and invokes translation, the complete normalized selection and
+persistence; visible naturalness explanations are not copied into the plugin
+database. Explicit translation history is the single exception: when the user
+enables it and invokes translation, the complete normalized selection and
 validated translation artifact are stored locally within their public length
 limits.
 
@@ -98,7 +101,7 @@ The plugin exposes:
 
 - a sidebar learning workspace;
 - a selected-text translation action and result popover;
-- a foreground correction Tool with a custom message renderer;
+- a foreground language-feedback Tool with a custom message renderer;
 - searchable progress and translation-history Tools;
 - typed Dashboard, review, translation, pattern, and cleanup operations;
 - `learning.changed`, `review.changed`, and `translation.changed` invalidation

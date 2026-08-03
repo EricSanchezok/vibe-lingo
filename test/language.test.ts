@@ -27,6 +27,7 @@ describe("multilingual profile", () => {
 
   test("requires two valid, distinct languages before activation", () => {
     const base = VibeLingoSettingsSchema.parse({})
+    expect(base).toMatchObject({ naturalnessSuggestionsEnabled: true })
     expect(configuredProfile(base)).toBeUndefined()
     expect(
       configuredProfile(

@@ -50,6 +50,7 @@ const configuredSettings = {
   targetLanguage: "en",
   proficiency: "intermediate",
   correctionMode: "focused",
+  naturalnessSuggestionsEnabled: true,
   trackingEnabled: true,
   recurringFocusEnabled: true,
 }
@@ -467,11 +468,30 @@ for (const [route, expected, state] of screens) {
     assertText(mounted.target, "刷新")
   }
   if (state?.status === "completed") assertText(mounted.target, "查看学习记录")
+  if (route === "view=settings") assertText(mounted.target, "自然表达建议")
   if (route === "view=review") {
     context.host.openPluginPage("learning", { view: "overview" })
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
+
+const naturalnessSwitch = mounted.target.querySelector<HTMLButtonElement>(
+  'button[role="switch"][aria-label="自然表达建议"]',
+)
+if (
+  !naturalnessSwitch
+  || naturalnessSwitch.disabled
+  || naturalnessSwitch.getAttribute("aria-checked") !== "true"
+) {
+  throw new Error("Naturalness setting was not enabled by default")
+}
+await context.settings.replace({ ...configuredSettings, correctionMode: "off" })
+await new Promise((resolve) => setTimeout(resolve, 20))
+if (!naturalnessSwitch.disabled || naturalnessSwitch.getAttribute("aria-checked") !== "true") {
+  throw new Error("Global coaching off did not disable and preserve the naturalness setting")
+}
+await context.settings.replace(configuredSettings)
+await new Promise((resolve) => setTimeout(resolve, 20))
 
 context.host.openPluginPage("learning", { view: "overview" })
 await new Promise((resolve) => setTimeout(resolve, 20))
@@ -569,8 +589,8 @@ if (!correctionStyles.includes("--vibe-sage-ref-ink:light-dark(#4a613b,#a2b394)"
 if (correctionStyles.includes("--surface-success-strong")) {
   throw new Error("Correction card still derives its learning palette from the host success color")
 }
-assertText(correctionTarget, "更自然的表达")
-assertText(correctionTarget, "正在保存纠正")
+assertText(correctionTarget, "表达建议")
+assertText(correctionTarget, "正在保存语言反馈")
 setCorrectionTool({
   input: {
     restatement: "Add a button to the settings page.",
@@ -590,8 +610,64 @@ setCorrectionTool({
   status: "completed",
 })
 await new Promise((resolve) => setTimeout(resolve, 10))
+assertText(correctionTarget, "需要调整的表达")
+assertText(correctionTarget, "纠正")
 assertText(correctionTarget, "add button")
 assertText(correctionTarget, "正在整理学习记录")
+
+setCorrectionTool("input", {
+  restatement: "Okay, go ahead and continue the cleanup.",
+  corrections: [
+    {
+      kind: "correction",
+      originalFragment: "ok",
+      correctedFragment: "Okay",
+    },
+    {
+      kind: "naturalness",
+      originalFragment: "I allow you to continue cleaning",
+      correctedFragment: "go ahead and continue the cleanup",
+      explanation: "这里用 allow 会显得正式，像是在上对下授权。",
+    },
+    {
+      kind: "correction",
+      originalFragment: "i",
+      correctedFragment: "I",
+    },
+    {
+      kind: "correction",
+      originalFragment: "settings page button",
+      correctedFragment: "button on the settings page",
+    },
+    {
+      kind: "naturalness",
+      originalFragment: "do the cleaning work",
+      correctedFragment: "continue the cleanup",
+      explanation: "这里直接说 cleanup 更简洁自然。",
+    },
+  ],
+})
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(correctionTarget, "表达建议")
+assertText(correctionTarget, "更自然")
+assertText(correctionTarget, "这里用 allow 会显得正式")
+assertText(correctionTarget, "查看其余 2 条")
+if (correctionTarget.textContent?.includes("settings page button")) {
+  throw new Error("Collapsed correction card revealed a hidden item")
+}
+const expandButton = [...correctionTarget.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+  button.textContent?.includes("查看其余 2 条"),
+)
+if (!expandButton || expandButton.getAttribute("aria-expanded") !== "false") {
+  throw new Error("Correction expansion control was not accessible")
+}
+expandButton.click()
+await new Promise((resolve) => setTimeout(resolve, 0))
+assertText(correctionTarget, "settings page button")
+assertText(correctionTarget, "收起")
+if (expandButton.getAttribute("aria-expanded") !== "true") {
+  throw new Error("Correction expansion state was not exposed")
+}
 
 correctionStatus = {
   found: true,

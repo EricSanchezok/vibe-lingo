@@ -379,6 +379,65 @@ describe("lightweight asynchronous teaching analysis", () => {
     })
   })
 
+  test("analyzes all eight visible correction items independently", async () => {
+    const { services, dependencies } = setup()
+    const corrections = Array.from({ length: 8 }, (_, index) => ({
+      kind: index === 7 ? "naturalness" as const : "correction" as const,
+      originalFragment: `original phrase ${index}`,
+      correctedFragment: `corrected phrase ${index}`,
+      ...(index === 7 ? { explanation: "这是一种更符合当前语境的表达。" } : {}),
+    }))
+    const created = services.corrections.create({
+      profile: {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      identity: {
+        messageId: "user-eight",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: 200,
+      },
+      assistantMessageId: "assistant-eight",
+      correction: { restatement: "Use these corrected phrases.", corrections },
+    })
+    if (!created.batch) throw new Error("batch missing")
+
+    const result = {
+      items: corrections.map((_, index) => ({
+        correctionIndex: index,
+        accepted: index !== 3,
+        ...(index === 3
+          ? {}
+          : {
+              patternKey: `pattern_${index}`,
+              category: index === 7 ? "unnatural_phrasing" : "grammar",
+              severity: "high_value",
+              label: `Pattern ${index}`,
+              rule: `Use corrected phrase ${index}.`,
+            }),
+        confidence: 0.98,
+        sensitive: false,
+      })),
+    }
+    await handleAgentCallAfter({
+      call: {
+        callId: "correction-eight",
+        correlationId: created.batch.correlationId,
+        status: "completed",
+        text: JSON.stringify(result),
+        startedAt: 200,
+        completedAt: 201,
+      },
+    }, invocationContext(), dependencies)
+
+    const stored = services.corrections.byId(created.batch.id)
+    expect(stored?.status).toBe("analyzed")
+    expect(stored?.corrections.filter((item) => item.accepted)).toHaveLength(7)
+    expect(stored?.corrections.find((item) => item.index === 3)?.accepted).toBe(false)
+  })
+
   test("preserves a terminal correction result that arrives before agent.start returns", async () => {
     const { services, dependencies } = setup()
     const created = services.corrections.create({

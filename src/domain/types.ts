@@ -66,7 +66,7 @@ export const DemonstrationSchema = z
 
 export const CorrectionAnalysisResultSchema = z
   .object({
-    items: z.array(CorrectionAnalysisItemSchema).max(2),
+    items: z.array(CorrectionAnalysisItemSchema).max(8),
   })
   .strict()
 

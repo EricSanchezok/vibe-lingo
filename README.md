@@ -16,7 +16,7 @@ VibeLingo has three responsibility-specific paths:
 2. A Nano classifier observes ordinary user messages only to count target-language practice. When the primary Agent decides a correction is useful, it calls VibeLingo's resident correction Tool first; that card is the authoritative correction the user saw.
 3. Host-managed, Sessionless asynchronous Agents add bounded metadata to saved correction pairs and detect natural correct use of known patterns. A local learning engine promotes recurring patterns, schedules review, and powers the learning workspace.
 
-Clear tasks continue immediately. Genuine task ambiguity is clarified. Correct target-language writing, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
+Clear tasks continue immediately. Genuine task ambiguity is clarified. Target-language writing that is both correct and natural for its context, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
 VibeLingo `0.7.3` aligns foreground teaching with durable learning history, uses the stable API4 system-context hook, and adds explicit selected-text translation. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
 
@@ -66,6 +66,7 @@ The complete settings shape is:
   "targetLanguage": "en",
   "proficiency": "intermediate", // beginner | intermediate | advanced
   "correctionMode": "focused", // focused | strict | off
+  "naturalnessSuggestionsEnabled": true,
   "trackingEnabled": true,
   "recurringFocusEnabled": true,
   "languageDetectionModelRole": "nano",
@@ -79,9 +80,10 @@ The complete settings shape is:
 - `beginner` prioritizes simple, usable phrasing and foundational corrections.
 - `intermediate` prioritizes clear, transferable high-value feedback.
 - `advanced` prioritizes nuance, collocation, register, and natural phrasing.
-- `focused` ignores isolated minor slips and, when correction is warranted, shows exactly one consequential, clearly unnatural, or recurring issue.
-- `strict` handles every certain target-language issue and shows one or two prioritized corrections.
+- `focused` ignores isolated minor slips and surfaces consequential, clearly unnatural, or recurring issues.
+- `strict` handles every certain target-language issue.
 - `off` disables foreground coaching without deleting or disabling background tracking.
+- Turning naturalness suggestions off limits foreground feedback to objective issues while preserving the setting and existing learning history.
 - Turning tracking off stops new analysis but retains existing local data.
 - Turning recurring focus off stops injecting established patterns but does not delete them.
 - The four model-role settings select a Synergy workload role (`nano`, `mini`, `mid`, `thinking`, `long`, or `creative`) for language detection, learning analysis, translation, and review/presentation. They never select a provider or concrete model ID.
@@ -93,7 +95,7 @@ When a message contains a correction worth surfacing, the main Agent's first vis
 plugin__vibe-lingo__record-correction
 ```
 
-Its input contains only the natural restatement and one or two visible original/corrected fragment pairs. The Tool card renders those exact values immediately; the Agent then continues the real task. Pattern keys, categories, severity, rules, and confidence are assigned later by a private asynchronous Agent. The main Agent must not duplicate the card as ordinary `Got it`/`💡` text or postpone correction until the final answer.
+Its input contains the natural restatement and up to eight visible feedback items. Each item is either an objective `correction` or a contextual `naturalness` suggestion; naturalness items also include one short explanation in the support language. The Tool card renders the first three items immediately and can expand the rest, then the Agent continues the real task. Pattern keys, categories, severity, rules, and confidence are assigned later by a private asynchronous Agent. The main Agent must not duplicate the card as ordinary text or postpone feedback until the final answer.
 
 A message still counts as a target-language attempt when the target language provides its main structure and a short fragment from another language fills an ordinary expression gap. In focused mode, VibeLingo corrects that mixing only when it noticeably interrupts the target-language expression or matches a recurring focus; strict mode corrects every clear instance. Intentional bilingual phrasing, proper names, quotations, code, commands, paths, identifiers, product names, and technical terms normally kept in their original language are left unchanged.
 
@@ -180,7 +182,7 @@ The default is:
 Outside explicit selected-text translation history, the plugin never persists complete user messages, restatements, Agent responses, asynchronous prompts/outputs, or Session titles. It stores:
 
 - normalized pattern metadata grouped by target-language tag;
-- the bounded correction fragment pairs actually shown to the user;
+- the bounded correction and naturalness fragment pairs actually shown to the user, without their visible support-language explanations;
 - error metadata linked to those correction items, without a duplicate error-fragment copy;
 - natural-use and review evidence with timestamps;
 - Scope, Session, and message IDs;

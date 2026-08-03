@@ -15,8 +15,10 @@ import { learningThemeDeclarations } from "./learning-theme"
 type SurfaceInput = PluginToolMessageSurfaceContext | { context: PluginToolMessageSurfaceContext }
 
 type CorrectionPair = {
+  kind: "correction" | "naturalness"
   originalFragment: string
   correctedFragment: string
+  explanation?: string
 }
 
 type CorrectionInput = {
@@ -52,9 +54,14 @@ const styles = `
 .vlc-label{display:block;margin-bottom:3px;color:var(--vibe-sage-ink);font-size:11px;font-weight:680;letter-spacing:.055em;text-transform:uppercase}
 .vlc-list{display:grid;gap:10px;margin-top:14px}
 .vlc-pair{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:8px;align-items:start;border-top:1px solid color-mix(in srgb,var(--border-base) 45%,transparent);padding-top:10px}
+.vlc-kind{display:inline-flex;align-items:center;min-height:20px;margin:0 0 7px;border:1px solid color-mix(in srgb,var(--vibe-warm-border) 72%,transparent);border-radius:999px;color:var(--vibe-sage-ink);padding:1px 7px;font-size:10px;font-weight:680;letter-spacing:.045em;text-transform:uppercase}
 .vlc-fragment{min-width:0;color:var(--text-weak);font-size:13px;line-height:1.52;overflow-wrap:anywhere}
 .vlc-fragment[data-natural=true]{border-radius:7px;background:var(--vibe-sage-surface);color:var(--text-strong);padding:5px 8px;margin:-5px -8px}
+.vlc-explanation{margin:9px 0 0;color:var(--text-weak);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
 .vlc-arrow{color:var(--text-weaker);font-size:13px;line-height:1.52;text-align:center}
+.vlc-expand{margin:12px 0 0;border:0;background:transparent;color:var(--vibe-sage-ink);padding:3px 0;font:inherit;font-size:12px;font-weight:680;cursor:pointer}
+.vlc-expand:hover{text-decoration:underline}
+.vlc-expand:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
 .vlc-footer{display:flex;min-height:39px;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid color-mix(in srgb,var(--vibe-warm-border) 76%,transparent);background:var(--vibe-sage-surface);padding:9px 20px;color:var(--text-weak);font-size:12px}
 .vlc-state{display:flex;min-width:0;align-items:center;gap:8px}
 .vlc-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:var(--text-weaker)}
@@ -84,9 +91,20 @@ function parseInput(value: Record<string, unknown>): CorrectionInput {
           if (!item || typeof item !== "object") return []
           const originalFragment = text((item as Record<string, unknown>).originalFragment)
           const correctedFragment = text((item as Record<string, unknown>).correctedFragment)
-          return originalFragment && correctedFragment ? [{ originalFragment, correctedFragment }] : []
+          const kind = (item as Record<string, unknown>).kind === "naturalness"
+            ? "naturalness" as const
+            : "correction" as const
+          const explanation = text((item as Record<string, unknown>).explanation)
+          return originalFragment && correctedFragment
+            ? [{
+                kind,
+                originalFragment,
+                correctedFragment,
+                ...(kind === "naturalness" && explanation ? { explanation } : {}),
+              }]
+            : []
         })
-        .slice(0, 2)
+        .slice(0, 8)
     : []
   return {
     restatement: text(value.restatement),
@@ -138,31 +156,46 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
   const [queryFailed, setQueryFailed] = createSignal(false)
   const [checking, setChecking] = createSignal(false)
   const [retrying, setRetrying] = createSignal(false)
+  const [expanded, setExpanded] = createSignal(false)
+  const correctionListId = `vlc-list-${context.message.id}`
   let refreshId = 0
   let boundaryTimer: ReturnType<typeof setTimeout> | undefined
   const state = createMemo(() => stateFromStatus(context, status(), queryFailed()))
   const patternKey = createMemo(() => status()?.patternKeys[0])
+  const visibleCorrections = createMemo(() =>
+    expanded() ? input().corrections : input().corrections.slice(0, 3))
+  const hiddenCorrectionCount = createMemo(() => Math.max(0, input().corrections.length - 3))
+  const cardTitle = createMemo(() => {
+    const kinds = new Set(input().corrections.map((item) => item.kind))
+    if (kinds.size === 1 && kinds.has("naturalness")) {
+      return isChinese ? "更自然的表达" : "A more natural expression"
+    }
+    if (kinds.size === 1 && kinds.has("correction")) {
+      return isChinese ? "需要调整的表达" : "Wording to adjust"
+    }
+    return isChinese ? "表达建议" : "Language feedback"
+  })
 
   const stateText = createMemo(() => {
     const labels: Record<CorrectionState, [string, string]> = {
-      saving: ["正在保存纠正…", "Saving correction…"],
+      saving: ["正在保存语言反馈…", "Saving language feedback…"],
       not_saved: ["未加入学习记录（学习追踪已关闭）", "Not added to learning history (tracking is off)"],
       analyzing: ["正在整理学习记录…", "Organizing your learning record…"],
       analysis_interrupted: [
-        "学习记录整理已中断，纠正已保存",
-        "Learning analysis was interrupted; the correction is saved",
+        "学习记录整理已中断，语言反馈已保存",
+        "Learning analysis was interrupted; the language feedback is saved",
       ],
       retry_unavailable: [
-        "纠正已保存，但当前无法重新整理学习记录",
-        "The correction is saved, but learning analysis cannot be retried now",
+        "语言反馈已保存，但当前无法重新整理学习记录",
+        "The language feedback is saved, but learning analysis cannot be retried now",
       ],
       status_unavailable: [
-        "纠正仍可见，暂时无法检查学习记录状态",
-        "The correction remains visible, but its learning status is temporarily unavailable",
+        "语言反馈仍可见，暂时无法检查学习记录状态",
+        "The language feedback remains visible, but its learning status is temporarily unavailable",
       ],
-      recorded: ["纠正已记录", "Correction recorded"],
+      recorded: ["语言反馈已记录", "Language feedback recorded"],
       pattern_updated: ["学习模式已更新", "Learning pattern updated"],
-      analysis_failed: ["纠正已保存，但学习记录整理失败", "The correction is saved, but learning analysis failed"],
+      analysis_failed: ["语言反馈已保存，但学习记录整理失败", "The language feedback is saved, but learning analysis failed"],
     }
     return labels[state()][isChinese ? 0 : 1]
   })
@@ -207,6 +240,11 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
   }
 
   createEffect(() => {
+    input().corrections.length
+    setExpanded(false)
+  })
+
+  createEffect(() => {
     const currentBatchId = batchId()
     refreshId++
     clearBoundaryTimer()
@@ -247,30 +285,55 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
   }
 
   return (
-    <article class="vlc-card" aria-label={isChinese ? "VibeLingo 纠正" : "VibeLingo correction"}>
+    <article class="vlc-card" aria-label={isChinese ? "VibeLingo 语言反馈" : "VibeLingo language feedback"}>
       <style>{styles}</style>
       <div class="vlc-body">
-        <h3 class="vlc-title">{isChinese ? "更自然的表达" : "A more natural expression"}</h3>
+        <h3 class="vlc-title">{cardTitle()}</h3>
         <Show when={input().restatement}>
           <p class="vlc-restatement">
             <span class="vlc-label">Got it</span>“{input().restatement}”
           </p>
         </Show>
-        <div class="vlc-list">
-          <For each={input().corrections}>
+        <div class="vlc-list" id={correctionListId}>
+          <For each={visibleCorrections()}>
             {(correction) => (
               <div class="vlc-pair">
-                <div class="vlc-fragment">“{correction.originalFragment}”</div>
+                <div>
+                  <span class="vlc-kind">
+                    {correction.kind === "naturalness"
+                      ? isChinese ? "更自然" : "More natural"
+                      : isChinese ? "纠正" : "Correction"}
+                  </span>
+                  <div class="vlc-fragment">“{correction.originalFragment}”</div>
+                </div>
                 <div class="vlc-arrow" aria-hidden="true">
                   →
                 </div>
-                <div class="vlc-fragment" data-natural="true">
-                  “{correction.correctedFragment}”
+                <div>
+                  <div class="vlc-fragment" data-natural="true">
+                    “{correction.correctedFragment}”
+                  </div>
+                  <Show when={correction.explanation}>
+                    <p class="vlc-explanation">{correction.explanation}</p>
+                  </Show>
                 </div>
               </div>
             )}
           </For>
         </div>
+        <Show when={hiddenCorrectionCount() > 0}>
+          <button
+            class="vlc-expand"
+            type="button"
+            aria-expanded={expanded()}
+            aria-controls={correctionListId}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded()
+              ? isChinese ? "收起" : "Show less"
+              : isChinese ? `查看其余 ${hiddenCorrectionCount()} 条` : `Show ${hiddenCorrectionCount()} more`}
+          </button>
+        </Show>
       </div>
       <footer class="vlc-footer" aria-live="polite">
         <span class="vlc-state">

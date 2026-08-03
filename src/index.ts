@@ -297,7 +297,7 @@ export default definePlugin({
     tool<RecordCorrectionInput>({
       id: "record-correction",
       description:
-        "Display and record the exact language correction selected by the main Agent. Call this as the first visible action only when the VibeLingo coaching contract requires a correction.",
+        "Display and record the exact objective corrections and contextual naturalness suggestions selected by the main Agent. Call this as the first visible action only when the VibeLingo coaching contract requires language feedback.",
       requires: ["settings.read", "agent.call"],
       exposure: { mode: "resident" },
       display: { toolCard: "visible" },
@@ -308,14 +308,19 @@ export default definePlugin({
           corrections: {
             type: "array",
             minItems: 1,
-            maxItems: 2,
+            maxItems: 8,
             items: {
               type: "object",
               properties: {
+                kind: {
+                  type: "string",
+                  enum: ["correction", "naturalness"],
+                },
                 originalFragment: { type: "string", minLength: 1, maxLength: 160 },
                 correctedFragment: { type: "string", minLength: 1, maxLength: 160 },
+                explanation: { type: "string", minLength: 1, maxLength: 200 },
               },
-              required: ["originalFragment", "correctedFragment"],
+              required: ["kind", "originalFragment", "correctedFragment"],
               additionalProperties: false,
             },
           },
@@ -416,7 +421,14 @@ export default definePlugin({
             enum: ["focused", "strict", "off"],
             default: "focused",
             title: "Correction mode",
-            description: "Focused corrects high-value issues; strict corrects every certain target-language error.",
+            description: "Focused surfaces high-value issues; strict surfaces every certain target-language issue.",
+          },
+          naturalnessSuggestionsEnabled: {
+            type: "boolean",
+            default: true,
+            title: "Suggest more natural phrasing",
+            description:
+              "Suggest clearly more conventional wording in context, even when the original is grammatical.",
           },
           trackingEnabled: {
             type: "boolean",
