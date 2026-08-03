@@ -19,6 +19,11 @@ each marked as an objective correction or contextual naturalness suggestion.
 Naturalness items include one short support-language explanation. It does not
 invent pattern keys, severity, confidence, or learning rules.
 
+The correction card lays out each item as a labeled source-to-target pair. Its
+container width, rather than the host viewport, controls the responsive switch:
+wide cards align source, arrow, and target in one row, while narrow cards keep
+the arrow attached to the target beneath the source.
+
 ### Practice observation and analysis
 
 `session.user-message.after` sends eligible messages to a small language

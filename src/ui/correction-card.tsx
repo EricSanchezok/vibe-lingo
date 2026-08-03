@@ -46,7 +46,7 @@ type CorrectionStatus = {
 }
 
 const styles = `
-.vlc-card{${learningThemeDeclarations}box-sizing:border-box;width:min(680px,100%);margin:8px 0;border:1px solid var(--vibe-warm-border);border-radius:12px;background:color-mix(in srgb,var(--surface-base) 96%,var(--vibe-sage-surface));color:var(--text-base);font-family:var(--font-family-sans,system-ui,-apple-system,sans-serif);overflow:hidden}
+.vlc-card{${learningThemeDeclarations}box-sizing:border-box;width:min(680px,100%);min-width:0;margin:8px 0;border:1px solid var(--vibe-warm-border);border-radius:12px;background:color-mix(in srgb,var(--surface-base) 96%,var(--vibe-sage-surface));color:var(--text-base);font-family:var(--font-family-sans,system-ui,-apple-system,sans-serif);overflow:hidden;container-name:vlc-card;container-type:inline-size}
 .vlc-card *{box-sizing:border-box}
 .vlc-body{padding:18px 20px 16px}
 .vlc-title{margin:0;color:var(--text-strong);font-size:15px;line-height:1.35;font-weight:680}
@@ -54,9 +54,10 @@ const styles = `
 .vlc-label{display:block;margin-bottom:3px;color:var(--vibe-sage-ink);font-size:11px;font-weight:680;letter-spacing:.055em;text-transform:uppercase}
 .vlc-list{display:grid;gap:10px;margin-top:14px}
 .vlc-pair{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:8px;align-items:start;border-top:1px solid color-mix(in srgb,var(--border-base) 45%,transparent);padding-top:10px}
-.vlc-kind{display:inline-flex;align-items:center;min-height:20px;margin:0 0 7px;border:1px solid color-mix(in srgb,var(--vibe-warm-border) 72%,transparent);border-radius:999px;color:var(--vibe-sage-ink);padding:1px 7px;font-size:10px;font-weight:680;letter-spacing:.045em;text-transform:uppercase}
+.vlc-kind{display:inline-flex;grid-column:1/-1;justify-self:start;align-items:center;min-height:20px;margin:0;border:1px solid color-mix(in srgb,var(--vibe-warm-border) 72%,transparent);border-radius:999px;color:var(--vibe-sage-ink);padding:1px 7px;font-size:10px;font-weight:680;letter-spacing:.045em;text-transform:uppercase}
+.vlc-source,.vlc-target{min-width:0}
 .vlc-fragment{min-width:0;color:var(--text-weak);font-size:13px;line-height:1.52;overflow-wrap:anywhere}
-.vlc-fragment[data-natural=true]{border-radius:7px;background:var(--vibe-sage-surface);color:var(--text-strong);padding:5px 8px;margin:-5px -8px}
+.vlc-fragment[data-natural=true]{border-radius:7px;background:var(--vibe-sage-surface);color:var(--text-strong);padding:5px 8px;margin:-5px 0}
 .vlc-explanation{margin:9px 0 0;color:var(--text-weak);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
 .vlc-arrow{color:var(--text-weaker);font-size:13px;line-height:1.52;text-align:center}
 .vlc-expand{margin:12px 0 0;border:0;background:transparent;color:var(--vibe-sage-ink);padding:3px 0;font:inherit;font-size:12px;font-weight:680;cursor:pointer}
@@ -64,6 +65,7 @@ const styles = `
 .vlc-expand:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
 .vlc-footer{display:flex;min-height:39px;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid color-mix(in srgb,var(--vibe-warm-border) 76%,transparent);background:var(--vibe-sage-surface);padding:9px 20px;color:var(--text-weak);font-size:12px}
 .vlc-state{display:flex;min-width:0;align-items:center;gap:8px}
+.vlc-state>span:last-child{min-width:0;overflow-wrap:anywhere}
 .vlc-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:var(--text-weaker)}
 .vlc-dot[data-state=saving],.vlc-dot[data-state=analyzing],.vlc-dot[data-state=analysis_interrupted],.vlc-dot[data-state=status_unavailable]{background:var(--vibe-amber-strong)}
 .vlc-dot[data-state=recorded],.vlc-dot[data-state=pattern_updated]{background:var(--vibe-sage-strong)}
@@ -73,7 +75,8 @@ const styles = `
 .vlc-action:hover:not(:disabled){text-decoration:underline}
 .vlc-action:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
 .vlc-action:disabled{cursor:default;opacity:.62}
-@media(max-width:560px){.vlc-body{padding:16px}.vlc-footer{padding-inline:16px}.vlc-pair{grid-template-columns:1fr}.vlc-arrow{text-align:left}.vlc-arrow::after{content:"";}.vlc-arrow{height:12px}}
+@container vlc-card (max-width:560px){.vlc-body{padding:16px}.vlc-footer{padding-inline:16px}.vlc-pair{grid-template-columns:18px minmax(0,1fr);column-gap:8px;row-gap:8px}.vlc-kind,.vlc-source{grid-column:1/-1}.vlc-arrow{grid-column:1}.vlc-target{grid-column:2}}
+@container vlc-card (max-width:360px){.vlc-body{padding:14px}.vlc-footer{align-items:flex-start;flex-direction:column;gap:6px;padding:9px 14px}.vlc-actions{align-self:stretch;justify-content:flex-start}.vlc-action{white-space:normal;text-align:left}}
 `
 
 function resolveContext(input: SurfaceInput): PluginToolMessageSurfaceContext {
@@ -298,18 +301,18 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
           <For each={visibleCorrections()}>
             {(correction) => (
               <div class="vlc-pair">
-                <div>
-                  <span class="vlc-kind">
-                    {correction.kind === "naturalness"
-                      ? isChinese ? "更自然" : "More natural"
-                      : isChinese ? "纠正" : "Correction"}
-                  </span>
+                <span class="vlc-kind">
+                  {correction.kind === "naturalness"
+                    ? isChinese ? "更自然" : "More natural"
+                    : isChinese ? "纠正" : "Correction"}
+                </span>
+                <div class="vlc-source">
                   <div class="vlc-fragment">“{correction.originalFragment}”</div>
                 </div>
                 <div class="vlc-arrow" aria-hidden="true">
                   →
                 </div>
-                <div>
+                <div class="vlc-target">
                   <div class="vlc-fragment" data-natural="true">
                     “{correction.correctedFragment}”
                   </div>

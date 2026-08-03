@@ -614,6 +614,18 @@ assertText(correctionTarget, "需要调整的表达")
 assertText(correctionTarget, "纠正")
 assertText(correctionTarget, "add button")
 assertText(correctionTarget, "正在整理学习记录")
+const correctionPair = correctionTarget.querySelector(".vlc-pair")
+if (!correctionPair) throw new Error("Correction pair was not rendered")
+const correctionPairSections = [...correctionPair.children].map((child) => child.className)
+if (correctionPairSections.join("|") !== "vlc-kind|vlc-source|vlc-arrow|vlc-target") {
+  throw new Error(`Correction pair did not expose stable alignment rows: ${correctionPairSections.join("|")}`)
+}
+if (!correctionStyles.includes("container-type:inline-size")) {
+  throw new Error("Correction card responsiveness was not based on its own rendered width")
+}
+if (!correctionStyles.includes(".vlc-arrow{grid-column:1}.vlc-target{grid-column:2}")) {
+  throw new Error("Narrow correction layout did not keep the arrow attached to the corrected fragment")
+}
 
 setCorrectionTool("input", {
   restatement: "Okay, go ahead and continue the cleanup.",
