@@ -54,7 +54,7 @@ const articleFinding = {
   sensitive: false,
 }
 
-describe("current destructive schema", () => {
+describe("schema lifecycle", () => {
   test("creates one current schema with WAL, foreign keys, and a busy timeout", () => {
     const { service } = services()
     const db = service.database.connection()
@@ -85,6 +85,44 @@ describe("current destructive schema", () => {
         .get()?.present,
     ).toBe(0)
     expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(SCHEMA_VERSION)
+  })
+
+  test("migrates schema 9 failure tracking without deleting learning data", () => {
+    const { filename, service } = services()
+    service.learning.recordObservation(identity(0), profile, "target_attempt", "target_attempt")
+    const created = service.corrections.create({
+      profile,
+      identity: identity(1),
+      assistantMessageId: "assistant-schema-nine",
+      correction: {
+        restatement: "Add a button.",
+        corrections: [{ originalFragment: "add button", correctedFragment: "add a button" }],
+      },
+    })
+    if (!created.batch) throw new Error("correction batch missing")
+    service.corrections.failAnalysisAttempt({
+      batchId: created.batch.id,
+      scopeId: created.batch.scopeId,
+      correlationId: created.batch.correlationId,
+      reason: "timeout",
+    })
+    service.database.close()
+
+    const schemaNine = new Database(filename)
+    schemaNine.exec(`
+      ALTER TABLE correction_batches DROP COLUMN analysis_attempt_count;
+      ALTER TABLE correction_batches DROP COLUMN analysis_failure_reason;
+      PRAGMA user_version = 9;
+    `)
+    schemaNine.close()
+
+    service.database.initialize()
+    expect(service.corrections.byId(created.batch.id)).toMatchObject({
+      status: "failed",
+      attemptCount: 1,
+    })
+    expect(service.corrections.byId(created.batch.id)?.failureReason).toBeUndefined()
+    expect(service.learning.profileList()).toHaveLength(1)
   })
 
   test("recreates a version-matching database when required structure is missing", () => {

@@ -118,6 +118,7 @@ describe("correction recovery projection", () => {
       patternKeys: [],
       recovery: "waiting",
       retryAt: 160_000,
+      attemptCount: 1,
     })
 
     setNow(160_001)
@@ -178,6 +179,7 @@ describe("correction recovery projection", () => {
       status: "pending",
       patternKeys: [],
       recovery: "retry_unavailable",
+      attemptCount: 0,
     })
   })
 
@@ -226,6 +228,8 @@ describe("correction recovery projection", () => {
 
     expect(await correctionStatus(batch.id, context, dependencies)).toMatchObject({
       status: "failed",
+      failureReason: "unknown",
+      attemptCount: 0,
       recovery: "retry_available",
     })
     expect(await retryCorrectionAnalysis(batch.id, context, dependencies)).toMatchObject({

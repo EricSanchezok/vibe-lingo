@@ -39,6 +39,7 @@ function setup() {
     async hasEligibleSession() {
       return true
     },
+    async waitBeforeRetry() {},
   }
   return { services, settings, dependencies }
 }
@@ -503,7 +504,7 @@ describe("lightweight asynchronous teaching analysis", () => {
     })
   })
 
-  test("marks invalid or failed completion without throwing or creating evidence", async () => {
+  test("automatically retries one transient timeout and records its safe terminal reason", async () => {
     const { services, dependencies } = setup()
     const created = services.corrections.create({
       profile: {
@@ -524,21 +525,126 @@ describe("lightweight asynchronous teaching analysis", () => {
       },
     })
     if (!created.batch) throw new Error("batch missing")
+    const starts: Array<{ callId: string; correlationId: string }> = []
+    const context = invocationContext({
+      agent: {
+        async start(input) {
+          const callId = `failed-${starts.length + 1}`
+          starts.push({ callId, correlationId: input.correlationId })
+          return { callId }
+        },
+      },
+    })
+    await enqueueCorrectionAnalysis(
+      created.batch,
+      {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      context,
+      dependencies,
+    )
     await handleAgentCallAfter(
       {
         call: {
-          callId: "failed",
-          correlationId: created.batch.correlationId,
-          status: "completed",
-          text: "not json",
+          callId: starts[0]!.callId,
+          correlationId: starts[0]!.correlationId,
+          status: "error",
+          error: { code: "PLUGIN_AGENT_TIMEOUT", message: "private provider detail" },
           startedAt: 100,
           completedAt: 101,
         },
       },
-      invocationContext(),
+      context,
       dependencies,
     )
-    expect(services.corrections.byId(created.batch.id)?.status).toBe("failed")
+    expect(starts).toHaveLength(2)
+    expect(services.corrections.byId(created.batch.id)).toMatchObject({
+      status: "queued",
+      attemptCount: 2,
+    })
+    expect(services.corrections.byId(created.batch.id)?.failureReason).toBeUndefined()
+
+    await handleAgentCallAfter(
+      {
+        call: {
+          callId: starts[1]!.callId,
+          correlationId: starts[1]!.correlationId,
+          status: "error",
+          error: { code: "PLUGIN_AGENT_TIMEOUT", message: "another private detail" },
+          startedAt: 102,
+          completedAt: 103,
+        },
+      },
+      context,
+      dependencies,
+    )
+    expect(services.corrections.byId(created.batch.id)).toMatchObject({
+      status: "failed",
+      failureReason: "timeout",
+      attemptCount: 2,
+    })
+    expect(
+      JSON.stringify(services.database.connection().query("SELECT * FROM correction_batches").all()),
+    ).not.toContain("private detail")
     expect(services.learning.patternDetail("en", "missing_article")).toBeUndefined()
+  })
+
+  test("automatically retries a transient start failure without persisting provider details", async () => {
+    const { services, dependencies } = setup()
+    const created = services.corrections.create({
+      profile: {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      identity: {
+        messageId: "user-start-failed",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: 200,
+      },
+      assistantMessageId: "assistant-start-failed",
+      correction: {
+        restatement: "Add a panel.",
+        corrections: [{ originalFragment: "add panel", correctedFragment: "add a panel" }],
+      },
+    })
+    if (!created.batch) throw new Error("batch missing")
+    let starts = 0
+    const status = await enqueueCorrectionAnalysis(
+      created.batch,
+      {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      invocationContext({
+        agent: {
+          async start() {
+            starts++
+            if (starts === 1) {
+              throw Object.assign(new Error("private model detail"), {
+                code: "PLUGIN_AGENT_MODEL_UNAVAILABLE",
+              })
+            }
+            return { callId: "start-retry-call" }
+          },
+        },
+      }),
+      dependencies,
+    )
+
+    expect(status).toBe("queued")
+    expect(starts).toBe(2)
+    expect(services.corrections.byId(created.batch.id)).toMatchObject({
+      status: "queued",
+      attemptCount: 2,
+      callId: "start-retry-call",
+    })
+    expect(
+      JSON.stringify(services.database.connection().query("SELECT * FROM correction_batches").all()),
+    ).not.toContain("private model detail")
   })
 })

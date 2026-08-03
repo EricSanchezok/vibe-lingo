@@ -8,9 +8,14 @@ import {
 } from "./analysis"
 import { defaultServices, type VibeLingoServices } from "./application/services"
 import type { CorrectionBatch } from "./infrastructure/correction-repository"
+import { CORRECTION_ANALYSIS_FAILURE_REASONS } from "./infrastructure/correction-repository"
 import { readSettings, type VibeLingoSettings } from "./settings"
 
 export const CorrectionRecoverySchema = z.enum(["none", "waiting", "retry_available", "retry_unavailable"])
+export const CorrectionFailureReasonSchema = z.enum([
+  ...CORRECTION_ANALYSIS_FAILURE_REASONS,
+  "delivery_lost",
+])
 
 export const CorrectionStatusOutputSchema = z.object({
   found: z.boolean(),
@@ -18,6 +23,8 @@ export const CorrectionStatusOutputSchema = z.object({
   patternKeys: z.array(z.string()),
   recovery: CorrectionRecoverySchema,
   retryAt: z.number().int().nonnegative().optional(),
+  failureReason: CorrectionFailureReasonSchema.optional(),
+  attemptCount: z.number().int().nonnegative().optional(),
 })
 
 export type CorrectionStatusOutput = z.infer<typeof CorrectionStatusOutputSchema>
@@ -51,12 +58,14 @@ export function projectCorrectionStatus(
     found: true as const,
     status: batch.status,
     patternKeys: patternKeys(batch),
+    attemptCount: batch.attemptCount,
   }
   if (batch.status === "queued") {
     const retryAt = (batch.queuedAt ?? 0) + CORRECTION_ANALYSIS_GRACE_MS
     if (retryAt > input.now) return { ...base, recovery: "waiting", retryAt }
     return {
       ...base,
+      failureReason: "delivery_lost" as const,
       recovery: input.retryAvailable ? "retry_available" : "retry_unavailable",
     }
   }
@@ -69,6 +78,7 @@ export function projectCorrectionStatus(
   if (batch.status === "failed") {
     return {
       ...base,
+      failureReason: batch.failureReason ?? "unknown",
       recovery: input.retryAvailable ? "retry_available" : "retry_unavailable",
     }
   }

@@ -17,10 +17,15 @@ import {
 import { hasCompatibleTargetScript, languageDisplayName } from "./language"
 import { hasUserFacingRootSession } from "./session"
 import { configuredProfile, modelRoleFor, readSettings, type LearningProfile, type VibeLingoSettings } from "./settings"
-import type { CorrectionBatch } from "./infrastructure/correction-repository"
+import type {
+  CorrectionAnalysisFailureReason,
+  CorrectionBatch,
+} from "./infrastructure/correction-repository"
 import {
   AGENT_CALL_TIMEOUT_MS,
   CORRECTION_ANALYSIS_GRACE_MS,
+  CORRECTION_AUTO_RETRY_DELAY_MS,
+  CORRECTION_MAX_AUTOMATIC_ATTEMPTS,
   LANGUAGE_CLASSIFIER_TIMEOUT_MS,
 } from "./agent-runtime"
 
@@ -31,7 +36,7 @@ export const USAGE_ANALYZER_AGENT_NAME = "vibe-lingo-usage-analyzer"
 export const CORRECTION_ANALYZER_AGENT_NAME = "vibe-lingo-correction-analyzer"
 
 function nextCorrectionCorrelation(batch: CorrectionBatch): string {
-  return batch.status === "queued" ? `correction:${batch.id}:${crypto.randomUUID()}` : batch.correlationId
+  return batch.attemptCount > 0 ? `correction:${batch.id}:${crypto.randomUUID()}` : batch.correlationId
 }
 
 export const LANGUAGE_CLASSIFIER_PROMPT = `You are VibeLingo's private language classifier.
@@ -82,6 +87,23 @@ export type AnalysisDependencies = {
   services: VibeLingoServices
   readSettings(context: PluginInvocationContext): Promise<VibeLingoSettings>
   hasEligibleSession(sessionId: string | undefined, context: PluginInvocationContext): Promise<boolean>
+  waitBeforeRetry?(milliseconds: number, signal: AbortSignal): Promise<void>
+}
+
+function waitBeforeRetry(milliseconds: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, milliseconds)
+    function done() {
+      signal.removeEventListener("abort", aborted)
+      resolve()
+    }
+    function aborted() {
+      clearTimeout(timer)
+      reject(signal.reason)
+    }
+    signal.addEventListener("abort", aborted, { once: true })
+  })
 }
 
 function defaultDependencies(): AnalysisDependencies {
@@ -89,7 +111,30 @@ function defaultDependencies(): AnalysisDependencies {
     services: defaultServices(),
     readSettings,
     hasEligibleSession: hasUserFacingRootSession,
+    waitBeforeRetry,
   }
+}
+
+function failureReasonFromCall(call: PluginAgentCallAfterInput["call"]): CorrectionAnalysisFailureReason {
+  if (call.status === "cancelled") return "cancelled"
+  if (call.error?.code === "PLUGIN_AGENT_TIMEOUT") return "timeout"
+  if (call.error?.code === "PLUGIN_AGENT_MODEL_UNAVAILABLE") return "model_unavailable"
+  if (call.error?.code === "PLUGIN_AGENT_CANCELLED") return "cancelled"
+  if (call.error?.code === "PLUGIN_AGENT_CALL_FAILED") return "provider_error"
+  return "unknown"
+}
+
+function failureReasonFromError(error: unknown): CorrectionAnalysisFailureReason {
+  const code = (error as { code?: string })?.code
+  if (code === "PLUGIN_AGENT_TIMEOUT") return "timeout"
+  if (code === "PLUGIN_AGENT_MODEL_UNAVAILABLE") return "model_unavailable"
+  if (code === "PLUGIN_AGENT_CANCELLED") return "cancelled"
+  if (code === "PLUGIN_AGENT_CALL_FAILED") return "provider_error"
+  return "unknown"
+}
+
+function isTransientFailure(reason: CorrectionAnalysisFailureReason): boolean {
+  return ["timeout", "model_unavailable", "provider_error", "invalid_response"].includes(reason)
 }
 
 export function profileForTarget(
@@ -280,12 +325,42 @@ export async function enqueueCorrectionAnalysis(
       })
       return services.corrections.byIdForScope(batch.id, context.scopeId)?.status ?? "pending"
     }
+    const reason = failureReasonFromError(error)
     services.corrections.failAnalysisAttempt({
       batchId: batch.id,
       scopeId: context.scopeId,
       correlationId,
+      reason,
     })
+    await retryTransientCorrection(batch.id, reason, context, dependencies)
     return services.corrections.byIdForScope(batch.id, context.scopeId)?.status ?? "failed"
+  }
+}
+
+async function retryTransientCorrection(
+  batchId: string,
+  reason: CorrectionAnalysisFailureReason,
+  context: PluginInvocationContext,
+  dependencies: AnalysisDependencies,
+): Promise<void> {
+  if (!isTransientFailure(reason)) return
+  try {
+    const failed = dependencies.services.corrections.byIdForScope(batchId, context.scopeId)
+    if (
+      !failed
+      || failed.status !== "failed"
+      || failed.attemptCount >= CORRECTION_MAX_AUTOMATIC_ATTEMPTS
+    ) return
+    const settings = await dependencies.readSettings(context)
+    if (!settings.trackingEnabled) return
+    const profile = profileForTarget(settings, failed.targetLanguage, dependencies.services)
+    if (!profile) return
+    await (dependencies.waitBeforeRetry ?? waitBeforeRetry)(CORRECTION_AUTO_RETRY_DELAY_MS, context.signal)
+    const current = dependencies.services.corrections.byIdForScope(batchId, context.scopeId)
+    if (!current || current.status !== "failed" || current.correlationId !== failed.correlationId) return
+    await enqueueCorrectionAnalysis(current, profile, context, dependencies, settings)
+  } catch {
+    return
   }
 }
 
@@ -386,15 +461,30 @@ export async function handleAgentCallAfter(
       )
         return
       if (input.call.status !== "completed" || !input.call.text) {
+        const reason = failureReasonFromCall(input.call)
         services.corrections.failAnalysisAttempt({
           batchId: batch.id,
           scopeId: batch.scopeId,
           correlationId: batch.correlationId,
           callId: input.call.callId,
+          reason,
         })
+        await retryTransientCorrection(batch.id, reason, context, dependencies)
       } else {
-        const result = CorrectionAnalysisResultSchema.parse(JSON.parse(input.call.text))
-        services.learning.recordCorrectionAnalysis(batch.id, result)
+        try {
+          const result = CorrectionAnalysisResultSchema.parse(JSON.parse(input.call.text))
+          services.learning.recordCorrectionAnalysis(batch.id, result)
+        } catch {
+          const reason = "invalid_response" as const
+          services.corrections.failAnalysisAttempt({
+            batchId: batch.id,
+            scopeId: batch.scopeId,
+            correlationId: batch.correlationId,
+            callId: input.call.callId,
+            reason,
+          })
+          await retryTransientCorrection(batch.id, reason, context, dependencies)
+        }
       }
       await publishLearningChanged(context, batch.targetLanguage, "correction-analysis", services)
       return
@@ -434,6 +524,7 @@ export async function handleAgentCallAfter(
         scopeId: batch.scopeId,
         correlationId: batch.correlationId,
         callId: input.call.callId,
+        reason: "unknown",
       })
     } else dependencies.services.learning.markUsageFailed(input.call.correlationId)
   }

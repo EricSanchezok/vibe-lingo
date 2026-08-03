@@ -36,9 +36,13 @@ foreground response. `agent.call.after` validates and commits results
 idempotently. Learning, translation, review, and presentation calls use the
 host's 120-second plugin-Agent ceiling; the small classifier uses 60 seconds per
 attempt. The correction card waits 150 seconds before treating a missing
-terminal delivery as interrupted, and terminal correction failures retain an
-explicit idempotent retry. Analysis failures remain isolated from the main
-Session.
+terminal delivery as interrupted. Classified transient correction failures get
+one delayed automatic retry; a second failure retains an explicit idempotent
+retry. The database stores only an allowlisted failure category and attempt
+count, never provider messages or raw model output. The card distinguishes
+timeouts, unavailable models, provider failures, cancellation, invalid output,
+and lost terminal delivery without exposing infrastructure detail. Analysis
+failures remain isolated from the main Session.
 
 ### Learning and review
 
@@ -98,8 +102,9 @@ limits.
 
 - System transformation and observers fail soft.
 - Agent calls happen outside SQLite transactions.
-- Synergy owns provider fallback and one lower-level Agent retry; VibeLingo
-  bounds its classifier retry and correction-card retry independently.
+- Synergy owns provider fallback and its lower-level Agent retry; VibeLingo
+  bounds language-classifier retries, one asynchronous correction retry, and
+  explicit correction-card retries independently.
 - Writes are short, transactional, and idempotent.
 - Operation queries are abortable and use stable keyset pagination.
 - Trusted UI failures do not alter domain state.

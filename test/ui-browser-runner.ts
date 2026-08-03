@@ -686,9 +686,11 @@ correctionStatus = {
   status: "failed",
   patternKeys: [],
   recovery: "retry_available",
+  failureReason: "timeout",
+  attemptCount: 2,
 }
 await new Promise((resolve) => setTimeout(resolve, 110))
-assertText(correctionTarget, "学习记录整理已中断")
+assertText(correctionTarget, "多次尝试后仍超时")
 const retryButton = [...correctionTarget.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
   button.textContent?.includes("重试整理"),
 )

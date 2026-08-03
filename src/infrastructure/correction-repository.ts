@@ -5,6 +5,17 @@ import type { MessageIdentity } from "../domain/types"
 import type { LearningProfile } from "../settings"
 import { VibeLingoDatabase } from "./database"
 
+export const CORRECTION_ANALYSIS_FAILURE_REASONS = [
+  "timeout",
+  "model_unavailable",
+  "provider_error",
+  "cancelled",
+  "invalid_response",
+  "unknown",
+] as const
+
+export type CorrectionAnalysisFailureReason = typeof CORRECTION_ANALYSIS_FAILURE_REASONS[number]
+
 export type CorrectionInput = {
   restatement: string
   corrections: Array<{
@@ -27,6 +38,8 @@ export type CorrectionBatch = {
   correlationId: string
   callId?: string
   queuedAt?: number
+  failureReason?: CorrectionAnalysisFailureReason
+  attemptCount: number
   corrections: Array<{
     index: number
     originalFragment?: string
@@ -159,7 +172,9 @@ export class CorrectionRepository {
     const result = this.db()
       .query(
         `UPDATE correction_batches
-         SET analysis_status = 'queued', correlation_id = ?, call_id = NULL, queued_at = ?
+         SET analysis_status = 'queued', correlation_id = ?, call_id = NULL, queued_at = ?,
+             analysis_failure_reason = NULL,
+             analysis_attempt_count = analysis_attempt_count + 1
          WHERE id = ? AND scope_id = ? AND correlation_id = ?
            AND (
              analysis_status = 'pending'
@@ -189,7 +204,8 @@ export class CorrectionRepository {
     const result = this.db()
       .query(
         `UPDATE correction_batches
-         SET analysis_status = 'pending', call_id = NULL, queued_at = NULL
+         SET analysis_status = 'pending', call_id = NULL, queued_at = NULL,
+             analysis_attempt_count = MAX(0, analysis_attempt_count - 1)
          WHERE id = ? AND scope_id = ? AND correlation_id = ?
            AND analysis_status = 'queued'`,
       )
@@ -197,15 +213,22 @@ export class CorrectionRepository {
     return Number(result.changes) === 1
   }
 
-  failAnalysisAttempt(input: { batchId: string; scopeId: string; correlationId: string; callId?: string }): boolean {
+  failAnalysisAttempt(input: {
+    batchId: string
+    scopeId: string
+    correlationId: string
+    callId?: string
+    reason?: CorrectionAnalysisFailureReason
+  }): boolean {
     const result = this.db()
       .query(
-        `UPDATE correction_batches SET analysis_status = 'failed'
+        `UPDATE correction_batches
+         SET analysis_status = 'failed', analysis_failure_reason = ?
          WHERE id = ? AND scope_id = ? AND correlation_id = ?
            AND analysis_status IN ('pending', 'queued')
            AND (call_id IS NULL OR call_id = ?)`,
       )
-      .run(input.batchId, input.scopeId, input.correlationId, input.callId ?? null)
+      .run(input.reason ?? null, input.batchId, input.scopeId, input.correlationId, input.callId ?? null)
     return Number(result.changes) === 1
   }
 
@@ -231,7 +254,8 @@ export class CorrectionRepository {
   markRecordedOnly(id: string): void {
     this.db()
       .query(
-        `UPDATE correction_batches SET analysis_status = 'recorded_only'
+        `UPDATE correction_batches
+         SET analysis_status = 'recorded_only', analysis_failure_reason = NULL
          WHERE id = ? AND analysis_status IN ('pending', 'queued')`,
       )
       .run(id)
@@ -273,6 +297,10 @@ export class CorrectionRepository {
       correlationId: String(row.correlation_id),
       ...(typeof row.call_id === "string" ? { callId: row.call_id } : {}),
       ...(typeof row.queued_at === "number" ? { queuedAt: row.queued_at } : {}),
+      ...(typeof row.analysis_failure_reason === "string"
+        ? { failureReason: row.analysis_failure_reason as CorrectionAnalysisFailureReason }
+        : {}),
+      attemptCount: Number(row.analysis_attempt_count),
       corrections,
     }
   }

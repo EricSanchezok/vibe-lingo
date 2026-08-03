@@ -453,7 +453,8 @@ export class LearningRepository {
         this.trimEvidence(batch.target_language, canonical)
       }
       db.query(
-        `UPDATE correction_batches SET analysis_status = ?
+        `UPDATE correction_batches
+         SET analysis_status = ?, analysis_failure_reason = NULL
          WHERE id = ?`,
       ).run(acceptedCount > 0 ? "analyzed" : "recorded_only", batchId)
       this.bumpRevision(batch.target_language)

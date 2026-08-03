@@ -43,6 +43,15 @@ type CorrectionStatus = {
   patternKeys: string[]
   recovery: "none" | "waiting" | "retry_available" | "retry_unavailable"
   retryAt?: number
+  failureReason?:
+    | "timeout"
+    | "model_unavailable"
+    | "provider_error"
+    | "cancelled"
+    | "invalid_response"
+    | "unknown"
+    | "delivery_lost"
+  attemptCount?: number
 }
 
 const styles = `
@@ -141,6 +150,40 @@ function stateFromStatus(
   return "status_unavailable"
 }
 
+function failureText(status: CorrectionStatus | undefined): [string, string] {
+  const saved = "语言反馈已保存"
+  const savedEnglish = "The language feedback is saved"
+  switch (status?.failureReason) {
+    case "timeout":
+      return (status.attemptCount ?? 0) >= 2
+        ? [`多次尝试后仍超时，${saved}`, `Learning analysis still timed out after multiple attempts; ${savedEnglish.toLowerCase()}`]
+        : [`学习记录整理超时，${saved}`, `Learning analysis timed out; ${savedEnglish.toLowerCase()}`]
+    case "model_unavailable":
+      return [`分析模型暂时不可用，${saved}`, `The analysis model is temporarily unavailable; ${savedEnglish.toLowerCase()}`]
+    case "provider_error":
+      return [`分析服务暂时出错，${saved}`, `The analysis service encountered an error; ${savedEnglish.toLowerCase()}`]
+    case "cancelled":
+      return [`学习记录整理已取消，${saved}`, `Learning analysis was cancelled; ${savedEnglish.toLowerCase()}`]
+    case "invalid_response":
+      return [`分析结果格式无效，${saved}`, `The analysis result had an invalid format; ${savedEnglish.toLowerCase()}`]
+    case "delivery_lost":
+      return [`未收到学习记录整理结果，${saved}`, `No learning-analysis result was received; ${savedEnglish.toLowerCase()}`]
+    default:
+      return [`这条学习记录未完成，${saved}`, `This learning record was not completed; ${savedEnglish.toLowerCase()}`]
+  }
+}
+
+function retryUnavailableText(status: CorrectionStatus | undefined): [string, string] {
+  if (!status?.failureReason) {
+    return [
+      "语言反馈已保存，但当前无法重新整理学习记录",
+      "The language feedback is saved, but learning analysis cannot be retried now",
+    ]
+  }
+  const failure = failureText(status)
+  return [`${failure[0]}；当前无法重试整理`, `${failure[1]}; retry is currently unavailable`]
+}
+
 const CorrectionCard: Component<SurfaceInput> = (props) => {
   const context = resolveContext(props)
   const input = createMemo(() => parseInput(context.tool.input))
@@ -184,14 +227,8 @@ const CorrectionCard: Component<SurfaceInput> = (props) => {
       saving: ["正在保存语言反馈…", "Saving language feedback…"],
       not_saved: ["未加入学习记录（学习追踪已关闭）", "Not added to learning history (tracking is off)"],
       analyzing: ["正在整理学习记录…", "Organizing your learning record…"],
-      analysis_interrupted: [
-        "学习记录整理已中断，语言反馈已保存",
-        "Learning analysis was interrupted; the language feedback is saved",
-      ],
-      retry_unavailable: [
-        "语言反馈已保存，但当前无法重新整理学习记录",
-        "The language feedback is saved, but learning analysis cannot be retried now",
-      ],
+      analysis_interrupted: failureText(status()),
+      retry_unavailable: retryUnavailableText(status()),
       status_unavailable: [
         "语言反馈仍可见，暂时无法检查学习记录状态",
         "The language feedback remains visible, but its learning status is temporarily unavailable",

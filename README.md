@@ -18,7 +18,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Target-language writing that is both correct and natural for its context, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.7.5` gives remote language analysis enough time to survive ordinary provider and network latency: learning analysis, translation, review, and presentation can use the host's full 120-second plugin budget, while failed correction analysis remains explicitly retryable. It also includes contextual naturalness suggestions alongside objective corrections and keeps mixed feedback cards aligned at narrow widths. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
+VibeLingo `0.7.6` gives remote language analysis enough time to survive ordinary provider and network latency: learning analysis, translation, review, and presentation can use the host's full 120-second plugin budget. A transient correction-analysis failure receives one automatic retry, and the saved card still offers an explicit retry if both attempts fail. Contextual naturalness suggestions can appear alongside objective corrections, and mixed feedback cards remain aligned at narrow widths. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
 
 ## Install for Local Development
 
@@ -36,7 +36,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.7.5` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 9 and performs a destructive reset: every earlier local learning and translation database is deleted instead of migrated. Stop the old Synergy/plugin generation before starting the new version.
+Version `0.7.6` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Stop the old Synergy/plugin generation before starting the new version.
 
 ## First-Time Setup
 
@@ -115,7 +115,7 @@ When the user explicitly asks about language progress, recurring mistakes, or hi
 plugin__vibe-lingo__progress
 ```
 
-The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It distinguishes target-language practice, visible corrections, accepted pattern evidence, natural correct use, and review evidence. It also reports pending/failed correction analysis without exposing models, confidence, or a technical queue. It does not call a no-correction message “correct,” estimate proficiency, or claim permanent mastery.
+The tool defaults to the active target language and accepts an optional BCP-47 `language` override. It distinguishes target-language practice, visible corrections, accepted pattern evidence, natural correct use, and review evidence. It also reports pending/failed correction analysis without exposing models, confidence, provider messages, or a technical queue. It does not call a no-correction message “correct,” estimate proficiency, or claim permanent mastery.
 
 In Synergy clients with trusted Tool renderers, Progress appears as a compact learning card rather than raw Markdown. The card summarizes today's authentic practice, active days, due review, verified evidence, and up to three leading patterns; internal keys and provenance remain out of the primary view. The full Markdown result remains available as the portable Tool output for the primary Agent and clients without the renderer.
 
@@ -159,7 +159,7 @@ An accepted correction analysis at confidence `0.85` or above creates a visible 
 
 `verified` is an evidence state, not a language level or a permanent mastery claim.
 
-The Nano language classifier makes one immediate in-memory retry after a timeout, unavailable model, or invalid response. Correction metadata is submitted through `agent.start()` only after the visible pair is committed; a later `agent.call.after` hook validates and writes the result idempotently. A fresh attempt is shown as waiting for 150 seconds, covering the complete 120-second Agent budget plus terminal-delivery headroom. If an attempt fails or loses its terminal delivery, the saved card changes to an interrupted state and offers one explicit, atomically claimed retry; a later user-message observer in the same Scope remains an opportunistic recovery path for pending or orphaned queued work. Turning foreground coaching off does not strand an already-saved correction while tracking remains enabled. Usage analysis is privacy-first and is not retried across a Synergy restart because VibeLingo does not persist the complete source message needed to recreate it.
+The Nano language classifier makes one immediate in-memory retry after a timeout, unavailable model, or invalid response. Correction metadata is submitted through `agent.start()` only after the visible pair is committed; a later `agent.call.after` hook validates and writes the result idempotently. A timeout, unavailable model, provider failure, or invalid response receives one delayed automatic retry. A fresh attempt is shown as waiting for 150 seconds, covering the complete 120-second Agent budget plus terminal-delivery headroom. If both attempts fail or terminal delivery is lost, the saved card explains the safe failure category and offers an explicit, atomically claimed retry. Provider messages and raw model output are never persisted. A later user-message observer in the same Scope remains an opportunistic recovery path for pending or orphaned queued work. Turning foreground coaching off does not strand an already-saved correction while tracking remains enabled. Usage analysis is privacy-first and is not retried across a Synergy restart because VibeLingo does not persist the complete source message needed to recreate it.
 
 The UI uses typed plugin operations for profiles, summary curves, journey records, pattern lists and details, due queue, resumable reviews, localized presentations, pattern controls, and cleanup. Review state includes per-item outcomes, independent-recall and transfer totals, each pattern's next due time, and the completion journey-event ID. The frontend renders these facts but does not reproduce lifecycle, scheduling, or evidence calculations.
 
@@ -197,7 +197,7 @@ Translation cache identity uses SHA-256 over the normalized selection, language 
 
 Learning records aggregate by target language across Scopes where VibeLingo is enabled, but settings remain Scope-specific. Scope filters change the evidence view, not the global learning state or schedule. Cross-Scope fragments are never injected into the coaching prompt. A Session title is resolved only on demand in its current Scope; it is never copied into SQLite.
 
-The current build has one schema-9 path and no migration/repair adapters. If the database version or required structure differs, VibeLingo closes it, removes the SQLite/WAL/SHM files, and creates the current schema.
+The current build uses schema 10. A structurally valid schema-9 database is migrated in place by adding safe correction-analysis failure metadata; other version or structure mismatches close and replace the SQLite/WAL/SHM files with the current schema.
 
 A normal plugin uninstall deletes the VibeLingo data directory. Synergy force uninstall skips lifecycle cleanup and may leave the directory behind.
 

@@ -114,13 +114,16 @@ provider configuration, and fallback belong to Synergy.
 Learning analysis, translation, review, and localized presentation use the
 host's 120-second plugin-Agent ceiling. Language classification uses 60 seconds
 per attempt and keeps one immediate in-memory retry. Asynchronous correction
-analysis gets another 30 seconds of delivery headroom before the UI offers an
-explicit retry. SQLite lock waits and interface-only timers keep their shorter,
-domain-specific bounds.
+analysis gets another 30 seconds of delivery headroom. A classified transient
+failure receives one delayed automatic retry; a second failure or missing
+terminal delivery leaves an explicit card retry. Only an allowlisted failure
+category and attempt count are persisted. SQLite lock waits and interface-only
+timers keep their shorter, domain-specific bounds.
 
-**Why:** remote model latency is variable, but blindly extending database locks
-or stacking plugin retries on top of the host's provider retry would make
-failures slower and less predictable.
+**Why:** remote model latency is variable and a saved correction is valuable
+enough to justify one bounded recovery attempt. Capping it at one avoids an
+unbounded retry stack, while short database and UI operations retain limits
+appropriate to their own failure modes.
 
 ## Deliberate non-goals
 

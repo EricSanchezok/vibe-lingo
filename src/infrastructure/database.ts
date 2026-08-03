@@ -3,7 +3,8 @@ import fs from "fs"
 import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
+const PREVIOUS_SCHEMA_VERSION = 9
 
 const REQUIRED_TABLES = [
   "learning_profiles",
@@ -41,6 +42,8 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
     "correlation_id",
     "call_id",
     "queued_at",
+    "analysis_failure_reason",
+    "analysis_attempt_count",
     "input_digest",
   ],
   correction_items: [
@@ -115,10 +118,13 @@ function tableNames(database: Database): Set<string> {
   )
 }
 
-function hasCurrentStructure(database: Database): boolean {
+function hasStructure(
+  database: Database,
+  requiredColumns: Record<string, string[]> = REQUIRED_COLUMNS,
+): boolean {
   const tables = tableNames(database)
   if (!REQUIRED_TABLES.every((table) => tables.has(table))) return false
-  for (const [table, required] of Object.entries(REQUIRED_COLUMNS)) {
+  for (const [table, required] of Object.entries(requiredColumns)) {
     const columns = new Set(
       database
         .query<{ name: string }, []>(`PRAGMA table_info(${table})`)
@@ -138,6 +144,13 @@ function hasCurrentStructure(database: Database): boolean {
   return REQUIRED_INDEXES.every((index) => indexes.has(index))
 }
 
+const PREVIOUS_REQUIRED_COLUMNS: Record<string, string[]> = {
+  ...REQUIRED_COLUMNS,
+  correction_batches: REQUIRED_COLUMNS.correction_batches.filter(
+    (column) => !["analysis_failure_reason", "analysis_attempt_count"].includes(column),
+  ),
+}
+
 export class VibeLingoDatabase {
   #database?: Database
 
@@ -148,11 +161,15 @@ export class VibeLingoDatabase {
     fs.mkdirSync(path.dirname(this.filename), { recursive: true })
     let database = new Database(this.filename, { create: true })
     configure(database)
-    const version =
+    let version =
       database.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version ?? 0
     const tables = tableNames(database)
     const fresh = version === 0 && tables.size === 0
-    const current = version === SCHEMA_VERSION && hasCurrentStructure(database)
+    if (version === PREVIOUS_SCHEMA_VERSION && hasStructure(database, PREVIOUS_REQUIRED_COLUMNS)) {
+      this.migrateFromPreviousSchema(database)
+      version = SCHEMA_VERSION
+    }
+    const current = version === SCHEMA_VERSION && hasStructure(database)
 
     if (!fresh && !current) {
       database.close()
@@ -229,6 +246,16 @@ export class VibeLingoDatabase {
         correlation_id TEXT NOT NULL UNIQUE,
         call_id TEXT,
         queued_at INTEGER,
+        analysis_failure_reason TEXT
+          CHECK(analysis_failure_reason IN (
+            'timeout',
+            'model_unavailable',
+            'provider_error',
+            'cancelled',
+            'invalid_response',
+            'unknown'
+          )),
+        analysis_attempt_count INTEGER NOT NULL DEFAULT 0,
         input_digest TEXT NOT NULL,
         UNIQUE (target_language, assistant_message_id)
       );
@@ -489,7 +516,28 @@ export class VibeLingoDatabase {
       CREATE INDEX translation_occurrences_time
         ON translation_occurrences(translation_id, used_at DESC);
 
-      PRAGMA user_version = 9;
+      PRAGMA user_version = 10;
+      COMMIT;
+    `)
+  }
+
+  private migrateFromPreviousSchema(database: Database): void {
+    database.exec(`
+      BEGIN EXCLUSIVE;
+      ALTER TABLE correction_batches ADD COLUMN analysis_failure_reason TEXT
+        CHECK(analysis_failure_reason IN (
+          'timeout',
+          'model_unavailable',
+          'provider_error',
+          'cancelled',
+          'invalid_response',
+          'unknown'
+        ));
+      ALTER TABLE correction_batches ADD COLUMN analysis_attempt_count INTEGER NOT NULL DEFAULT 0;
+      UPDATE correction_batches
+        SET analysis_attempt_count = 1
+        WHERE analysis_status IN ('queued', 'analyzed', 'recorded_only', 'failed');
+      PRAGMA user_version = 10;
       COMMIT;
     `)
   }
