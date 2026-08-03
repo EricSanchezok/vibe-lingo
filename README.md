@@ -18,7 +18,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Target-language writing that is both correct and natural for its context, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.7.3` aligns foreground teaching with durable learning history, uses the stable API4 system-context hook, and adds explicit selected-text translation. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
+VibeLingo `0.7.4` adds contextual naturalness suggestions alongside objective corrections and keeps mixed feedback cards aligned at narrow widths. It also aligns foreground teaching with durable learning history, uses the stable API4 system-context hook, and provides explicit selected-text translation. Synergy composes VibeLingo's action with other plugin actions, owns the menu and result-popover interaction, and passes VibeLingo an immutable selection snapshot. Translation creates cache/history records but never counts as independent target-language practice, creates a pattern, or enters review. VibeLingo still does not send automatic review invitations or notifications, and it does not provide Composer completion, submission interception, inline editor decorations, a vocabulary book, or FSRS.
 
 ## Install for Local Development
 
@@ -36,7 +36,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.7.3` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 9 and performs a destructive reset: every earlier local learning and translation database is deleted instead of migrated. Stop the old Synergy/plugin generation before starting the new version.
+Version `0.7.4` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 9 and performs a destructive reset: every earlier local learning and translation database is deleted instead of migrated. Stop the old Synergy/plugin generation before starting the new version.
 
 ## First-Time Setup
 
