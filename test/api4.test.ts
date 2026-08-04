@@ -17,7 +17,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.7.8",
+      version: "0.7.9",
       compatibility: { synergy: ">=3.0.11" },
       repository: "https://github.com/EricSanchezok/vibe-lingo",
       capabilities: [

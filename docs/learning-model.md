@@ -35,7 +35,9 @@ shows three and lets the learner expand the rest.
 
 Review starts with unaided recall. Hints and repair remain useful practice, but
 they do not count as independent success. A separate transfer task checks
-whether the user can apply the pattern in a new work-like context.
+whether the user can apply the pattern in a new work-like context. Repair and
+transfer each allow one feedback-guided retry. A successful retry is assisted;
+a second incorrect attempt is failed and returns the pattern the next day.
 
 ### Progress claims stay evidence-bounded
 

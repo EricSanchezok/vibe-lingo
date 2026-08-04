@@ -434,6 +434,28 @@ const screens: Array<[string, string, any?]> = [
   ],
   [
     "view=review",
+    "还差一点，根据反馈再试一次",
+    review("awaiting_transfer", {
+      latestAttemptPhase: "transfer",
+      latestAnswer: "Create settings panel.",
+      latestFeedback: "还需要一个冠词。",
+      latestNaturalAnswer: "Create a settings panel.",
+      referenceAnswer: "Add a button.",
+    }),
+  ],
+  [
+    "view=review",
+    "本模式结果",
+    review("item_completed", {
+      latestAttemptPhase: "transfer",
+      latestAnswer: "Create settings panel.",
+      latestFeedback: "这次迁移还没有完成。",
+      latestNaturalAnswer: "Create a settings panel.",
+      outcome: "failed",
+    }),
+  ],
+  [
+    "view=review",
     "本次复习完成",
     {
       ...reviewBase,
@@ -499,6 +521,12 @@ for (const [route, expected, state] of screens) {
     }
     if (state.currentItem.stage === "awaiting_transfer") {
       assertText(workspace, "新场景迁移")
+    }
+    if (state.currentItem.stage === "item_completed") {
+      if (state.currentItem.outcome === "failed") assertText(workspace, "明天再练")
+      if (workspace.textContent?.includes("第 5 步 / 5")) {
+        throw new Error("Completed review items were still presented as a fifth learning step")
+      }
     }
   }
   if (state?.status === "completed") {

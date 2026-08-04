@@ -312,9 +312,11 @@ export const ReviewView: Component<{ reviewId?: string }> = (props) => {
             }>
               <Show when={review().status !== "completed"} fallback={<ReviewComplete state={review()} />}>
                 <ReviewProgress
-                  current={review().currentIndex + reviewStep(review()) / 5}
+                  current={review().currentIndex + reviewStep(review()) / 4}
                   total={review().totalItems}
-                  label={`${dashboard.locale() === "zh-CN" ? "第" : "Step"} ${reviewStep(review())} ${dashboard.locale() === "zh-CN" ? "步 / 5" : "/ 5"}`}
+                  label={review().currentItem?.stage === "item_completed"
+                    ? dashboard.locale() === "zh-CN" ? "本模式结果" : "Pattern result"
+                    : `${dashboard.locale() === "zh-CN" ? "第" : "Step"} ${reviewStep(review())} ${dashboard.locale() === "zh-CN" ? "步 / 4" : "/ 4"}`}
                 />
                 <ReviewActivityStatus activity={activity()} />
                 <div class="vld-review-workspace">
@@ -395,8 +397,10 @@ const ReviewActivityStatus: Component<{ activity?: ReviewActivity }> = (props) =
 
 function reviewStep(state: ReviewState): number {
   const item = state.currentItem
-  if (!item) return 5
-  if (item.stage === "item_completed") return 5
+  if (!item) return 4
+  if (item.stage === "item_completed") {
+    return item.latestAttemptPhase === "repair" ? 3 : 4
+  }
   if (item.stage === "awaiting_transfer") return 4
   if (item.stage === "awaiting_repair") return 3
   return item.hintLevel > 0 ? 2 : 1
@@ -467,20 +471,30 @@ const ReviewLearningRail: Component<{
       <div class="vld-review-steps">
         <For each={stages()}>{(label, index) => {
           const stageNumber = () => index() + 1
-          const completed = () => step() > stageNumber()
-          const current = () => step() === stageNumber()
+          const terminal = () => props.state.currentItem?.stage === "item_completed"
+          const failed = () => terminal()
+            && props.state.currentItem?.outcome === "failed"
+            && ((stageNumber() === 3 && props.state.currentItem?.latestAttemptPhase === "repair")
+              || (stageNumber() === 4 && props.state.currentItem?.latestAttemptPhase === "transfer"))
+          const completed = () => !failed()
+            && (step() > stageNumber() || (terminal() && step() === stageNumber()))
+          const current = () => !terminal() && step() === stageNumber()
           const skippedHint = () => stageNumber() === 2 && step() > 2 && props.state.currentItem?.hintLevel === 0
           return (
-            <div class="vld-review-step" data-current={current()} data-completed={completed()}>
-              <span class="vld-review-step-mark" aria-hidden="true">{completed() ? "✓" : stageNumber()}</span>
+            <div class="vld-review-step" data-current={current()} data-completed={completed()} data-failed={failed()}>
+              <span class="vld-review-step-mark" aria-hidden="true">{completed() ? "✓" : failed() ? "!" : stageNumber()}</span>
               <strong>{label}</strong>
-              <small>{current()
+              <small>{failed()
+                ? dashboard.locale() === "zh-CN" ? "明天再练" : "Try again tomorrow"
+                : current()
                 ? dashboard.locale() === "zh-CN" ? "进行中" : "In progress"
                 : completed()
                   ? skippedHint()
                     ? dashboard.locale() === "zh-CN" ? "未使用" : "Not used"
                     : dashboard.locale() === "zh-CN" ? "已完成" : "Complete"
-                  : dashboard.locale() === "zh-CN" ? "待完成" : "Up next"}</small>
+                  : terminal()
+                    ? dashboard.locale() === "zh-CN" ? "未进行" : "Not reached"
+                    : dashboard.locale() === "zh-CN" ? "待完成" : "Up next"}</small>
             </div>
           )
         }}</For>
@@ -551,8 +565,25 @@ const ReviewCurrentItem: Component<{ state: ReviewState }> = (props) => {
       <Show when={item().stage === "awaiting_transfer" && (item().latestFeedback || naturalAnswer())}>
         <div class="vld-review-previous-note"><strong>{dashboard.locale() === "zh-CN" ? "上一轮反馈" : "Previous feedback"}</strong><p>{item().latestFeedback}</p><Show when={naturalAnswer()}><small>{naturalAnswer()}</small></Show></div>
       </Show>
+      <Show when={
+        (item().stage === "awaiting_repair" && item().latestAttemptPhase === "repair")
+        || (item().stage === "awaiting_transfer" && item().latestAttemptPhase === "transfer")
+      }>
+        <p class="vld-review-retry-note">
+          {dashboard.locale() === "zh-CN"
+            ? "还差一点，根据反馈再试一次。"
+            : "Almost there. Use the feedback and try once more."}
+        </p>
+      </Show>
       <Show when={item().stage === "item_completed"}>
-        <div class="vld-review-feedback" data-kind="success"><strong>{outcomeLabel(dashboard.locale(), item().outcome!)}</strong><p>{item().latestFeedback}</p><Show when={naturalAnswer()}><small>{naturalAnswer()}</small></Show></div>
+        <div class="vld-review-feedback" data-kind={item().outcome === "failed" ? "failed" : "success"}>
+          <strong>{outcomeLabel(dashboard.locale(), item().outcome!)}</strong>
+          <p>{item().latestFeedback}</p>
+          <Show when={naturalAnswer()}><small>{naturalAnswer()}</small></Show>
+          <Show when={item().outcome === "failed"}>
+            <small>{dashboard.locale() === "zh-CN" ? "明天再练" : "Try again tomorrow"}</small>
+          </Show>
+        </div>
       </Show>
     </>
   )

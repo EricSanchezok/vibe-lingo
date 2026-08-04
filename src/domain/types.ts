@@ -226,6 +226,7 @@ export type ReviewItemStage =
 export type ReviewSessionStatus = z.infer<typeof ReviewSessionStatusSchema>
 export type ReviewVerdict = "incorrect" | "partially_correct" | "correct"
 export type ReviewOutcome = z.infer<typeof ReviewOutcomeSchema>
+export type ReviewAttemptPhase = "recall" | "repair" | "transfer"
 
 export type ReviewContent = {
   challenge: string
@@ -270,6 +271,7 @@ export type ReviewStateItem = {
   latestAnswer?: string
   latestFeedback?: string
   latestNaturalAnswer?: string
+  latestAttemptPhase?: ReviewAttemptPhase
   outcome?: ReviewOutcome
 }
 

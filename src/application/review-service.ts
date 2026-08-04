@@ -17,6 +17,7 @@ import {
   parseReviewEvaluation,
 } from "./review-contracts"
 import { AGENT_CALL_TIMEOUT_MS } from "../agent-runtime"
+import { modelLanguageDescriptor } from "./model-language"
 
 type ReviewPatternInput = {
   patternKey: string
@@ -201,8 +202,8 @@ export class ReviewService {
   ): Promise<CommandResult<ReviewContent>> {
     if (!context.agent?.call) return failure("AGENT_UNAVAILABLE", "The review model is unavailable.", true)
     const request = JSON.stringify({
-      supportLanguage: profile.nativeLanguage,
-      targetLanguage: profile.targetLanguage,
+      supportLanguage: modelLanguageDescriptor(profile.nativeLanguage),
+      targetLanguage: modelLanguageDescriptor(profile.targetLanguage),
       proficiency: profile.proficiency,
       pattern: {
         key: pattern.patternKey,
@@ -247,8 +248,8 @@ export class ReviewService {
         agent: REVIEW_EVALUATOR_AGENT_NAME,
         modelRole: await modelRoleFromContext(context, "review"),
         text: `Evaluate this JSON:\n${JSON.stringify({
-          supportLanguage: profile.nativeLanguage,
-          targetLanguage: profile.targetLanguage,
+          supportLanguage: modelLanguageDescriptor(profile.nativeLanguage),
+          targetLanguage: modelLanguageDescriptor(profile.targetLanguage),
           proficiency: profile.proficiency,
           phase,
           challenge,

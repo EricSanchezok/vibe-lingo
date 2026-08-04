@@ -56,6 +56,10 @@ describe("localized pattern presentations", () => {
           calls += 1
           expect(input.agent).toBe("vibe-lingo-pattern-presenter")
           expect(input.timeoutMs).toBe(120_000)
+          expect(JSON.parse(input.text.slice(input.text.indexOf("\n") + 1))).toMatchObject({
+            supportLanguage: { tag: "zh-Hans", name: "Chinese, Simplified" },
+            targetLanguage: { tag: "en", name: "English" },
+          })
           return {
             text: JSON.stringify({
               items: [{

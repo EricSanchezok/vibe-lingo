@@ -108,6 +108,50 @@ describe("review state machine", () => {
     })
   })
 
+  test("sends named canonical language descriptors to review agents", async () => {
+    const service = services()
+    seedPracticing(service)
+    const requests: unknown[] = []
+    const context = invocationContext({
+      agent: {
+        async call(input) {
+          requests.push(JSON.parse(input.text.slice(input.text.indexOf("\n") + 1)))
+          if (input.agent === "vibe-lingo-review-builder") {
+            return { text: JSON.stringify(content) }
+          }
+          return {
+            text: JSON.stringify({
+              verdict: "correct",
+              feedback: "正确。",
+              naturalAnswer: "Add a button.",
+              confidence: 0.99,
+              sensitive: false,
+            }),
+          }
+        },
+      },
+    })
+    const started = await service.reviewService.start({
+      profile,
+      scopeId: "scope-a",
+    }, context)
+    if (!started.ok) throw new Error("review did not start")
+    await service.reviewService.command({
+      action: "submit_answer",
+      reviewId: started.data.id,
+      requestId: "language-contract-recall",
+      expectedRevision: started.revision,
+      answer: "Add a button.",
+    }, profile, context)
+
+    for (const request of requests) {
+      expect(request).toMatchObject({
+        supportLanguage: { tag: "zh-Hans", name: "Chinese, Simplified" },
+        targetLanguage: { tag: "en", name: "English" },
+      })
+    }
+  })
+
   test("keeps answers hidden, evaluates recall and transfer, and completes idempotently", async () => {
     const service = services()
     seedPracticing(service)
@@ -305,6 +349,207 @@ describe("review state machine", () => {
     if (!transfer || transfer === "conflict" || transfer === "invalid") return
     service.reviews.nextItem(state.id, "complete", transfer.revision, 10_004)
     expect(service.learning.upcomingReviewQueue("en", 3, 10_003)).toHaveLength(1)
+  })
+
+  test("allows one repair retry before failing the item for tomorrow", () => {
+    const service = services()
+    seedPracticing(service)
+    const state = service.reviews.create({
+      targetLanguage: "en",
+      scopeId: "scope-a",
+      patternKeys: ["missing_article"],
+      firstContent: content,
+      now: 30_000,
+    })
+    const incorrect = {
+      verdict: "incorrect" as const,
+      feedback: "The article is still missing.",
+      naturalAnswer: "Add a button.",
+      confidence: 0.99,
+      sensitive: false,
+    }
+    const recall = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "retry-recall",
+      expectedRevision: state.revision,
+      answer: "Add button.",
+      evaluation: incorrect,
+      now: 30_001,
+    })
+    expect(recall).toMatchObject({
+      currentItem: { stage: "awaiting_repair", latestAttemptPhase: "recall" },
+    })
+    if (!recall || recall === "conflict" || recall === "invalid") return
+
+    const firstRepair = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "retry-repair-one",
+      expectedRevision: recall.revision,
+      answer: "Add button please.",
+      evaluation: incorrect,
+      now: 30_002,
+    })
+    expect(firstRepair).toMatchObject({
+      currentItem: {
+        stage: "awaiting_repair",
+        latestAttemptPhase: "repair",
+        outcome: undefined,
+      },
+    })
+    if (!firstRepair || firstRepair === "conflict" || firstRepair === "invalid") return
+
+    const secondRepair = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "retry-repair-two",
+      expectedRevision: firstRepair.revision,
+      answer: "Please add button.",
+      evaluation: incorrect,
+      now: 30_003,
+    })
+    expect(secondRepair).toMatchObject({
+      currentItem: {
+        stage: "item_completed",
+        latestAttemptPhase: "repair",
+        outcome: "failed",
+      },
+    })
+    expect(service.learning.patternDetail("en", "missing_article")?.dueAt)
+      .toBe(30_003 + DAY_MS)
+  })
+
+  test("allows one transfer retry and records a later success as assisted", () => {
+    const service = services()
+    seedPracticing(service)
+    const state = service.reviews.create({
+      targetLanguage: "en",
+      scopeId: "scope-a",
+      patternKeys: ["missing_article"],
+      firstContent: content,
+      now: 40_000,
+    })
+    const recall = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "transfer-recall",
+      expectedRevision: state.revision,
+      answer: "Add a button.",
+      evaluation: {
+        verdict: "correct",
+        feedback: "Correct.",
+        naturalAnswer: "Add a button.",
+        confidence: 0.99,
+        sensitive: false,
+      },
+      now: 40_001,
+    })
+    if (!recall || recall === "conflict" || recall === "invalid") {
+      throw new Error("recall failed")
+    }
+    const firstTransfer = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "transfer-one",
+      expectedRevision: recall.revision,
+      answer: "Create settings panel.",
+      evaluation: {
+        verdict: "incorrect",
+        feedback: "The article is missing.",
+        naturalAnswer: "Create a settings panel.",
+        confidence: 0.99,
+        sensitive: false,
+      },
+      now: 40_002,
+    })
+    expect(firstTransfer).toMatchObject({
+      currentItem: {
+        stage: "awaiting_transfer",
+        latestAttemptPhase: "transfer",
+        outcome: undefined,
+      },
+    })
+    if (!firstTransfer || firstTransfer === "conflict" || firstTransfer === "invalid") return
+
+    const correctedTransfer = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "transfer-two",
+      expectedRevision: firstTransfer.revision,
+      answer: "Create a settings panel.",
+      evaluation: {
+        verdict: "correct",
+        feedback: "Correct.",
+        naturalAnswer: "Create a settings panel.",
+        confidence: 0.99,
+        sensitive: false,
+      },
+      now: 40_003,
+    })
+    expect(correctedTransfer).toMatchObject({
+      currentItem: {
+        stage: "item_completed",
+        latestAttemptPhase: "transfer",
+        outcome: "assisted",
+      },
+    })
+    expect(service.learning.patternDetail("en", "missing_article")?.dueAt)
+      .toBe(40_003 + DAY_MS)
+  })
+
+  test("fails a transfer only after its second incorrect answer", () => {
+    const service = services()
+    seedPracticing(service)
+    const state = service.reviews.create({
+      targetLanguage: "en",
+      scopeId: "scope-a",
+      patternKeys: ["missing_article"],
+      firstContent: content,
+      now: 50_000,
+    })
+    const correctRecall = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "failed-transfer-recall",
+      expectedRevision: state.revision,
+      answer: "Add a button.",
+      evaluation: {
+        verdict: "correct",
+        feedback: "Correct.",
+        naturalAnswer: "Add a button.",
+        confidence: 0.99,
+        sensitive: false,
+      },
+      now: 50_001,
+    })
+    if (!correctRecall || correctRecall === "conflict" || correctRecall === "invalid") return
+    const incorrect = {
+      verdict: "incorrect" as const,
+      feedback: "The article is missing.",
+      naturalAnswer: "Create a settings panel.",
+      confidence: 0.99,
+      sensitive: false,
+    }
+    const first = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "failed-transfer-one",
+      expectedRevision: correctRecall.revision,
+      answer: "Create settings panel.",
+      evaluation: incorrect,
+      now: 50_002,
+    })
+    if (!first || first === "conflict" || first === "invalid") return
+    const second = service.reviews.submitEvaluation({
+      reviewId: state.id,
+      requestId: "failed-transfer-two",
+      expectedRevision: first.revision,
+      answer: "Please create settings panel.",
+      evaluation: incorrect,
+      now: 50_003,
+    })
+    expect(second).toMatchObject({
+      currentItem: {
+        stage: "item_completed",
+        latestAttemptPhase: "transfer",
+        outcome: "failed",
+      },
+    })
+    expect(service.learning.patternDetail("en", "missing_article")?.dueAt)
+      .toBe(50_003 + DAY_MS)
   })
 
   test("records incorrect recall honestly and enforces privacy at the repository boundary", () => {

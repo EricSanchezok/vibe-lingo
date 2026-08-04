@@ -226,6 +226,7 @@ export const ReviewStateSchema = z.object({
     latestAnswer: z.string().optional(),
     latestFeedback: z.string().optional(),
     latestNaturalAnswer: z.string().optional(),
+    latestAttemptPhase: z.enum(["recall", "repair", "transfer"]).optional(),
     outcome: ReviewOutcomeSchema.optional(),
   }).optional(),
   completedItems: z.array(z.object({

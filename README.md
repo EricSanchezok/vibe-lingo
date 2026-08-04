@@ -18,7 +18,7 @@ VibeLingo has three responsibility-specific paths:
 
 Clear tasks continue immediately. Genuine task ambiguity is clarified. Target-language writing that is both correct and natural for its context, instructions written only in the support language, child Sessions, small internal calls, and escape-hatch messages stay out of the teaching flow.
 
-VibeLingo `0.7.8` keeps review generation synchronous while making every wait understandable. Initial queue reads still identify themselves as learning-data loading, while starting a review, checking an expression, preparing a fresh scenario, finding a hint, saving a pause, resuming, and wrapping up each use a distinct learner-facing status. The same state drives the live status region and relevant action label, so long model calls no longer look like a stuck data query. The complete review workspace introduced in `0.7.7`, its 120-second model budget, and resilient correction analysis remain unchanged.
+VibeLingo `0.7.9` gives repair and transfer practice one feedback-guided retry before returning an unsuccessful pattern the next day. Successful retries remain assisted rather than independent, and the four-step review rail now distinguishes a retry, a failed step, and the final pattern result without inventing a fifth step. Review requests also carry full, human-readable BCP-47 language descriptors so generated prompts, explanations, and answers preserve the configured language, script, and regional variant without language-specific branches.
 
 ## Install for Local Development
 
@@ -36,7 +36,7 @@ export SYNERGY_HOME="$(mktemp -d)"
 bun run dev -- --server-url http://127.0.0.1:PORT
 ```
 
-Version `0.7.8` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Synergy atomically replaces the active plugin generation when the package is updated or reloaded.
+Version `0.7.9` declares `compatibility.synergy: ">=3.0.11"`; runtime transport revisions are host-owned and are not used as the plugin compatibility contract. The current development line uses schema 10. A valid schema-9 database is upgraded in place with safe analysis-failure metadata; older or malformed databases still use the deliberate reset path. Synergy atomically replaces the active plugin generation when the package is updated or reloaded.
 
 ## First-Time Setup
 
@@ -126,7 +126,7 @@ The settings view intentionally shows only a compact summary for the active targ
 The `VibeLingo` sidebar entry is a single host page with horizontal product tabs rather than a nested sidebar:
 
 - **Overview** shows today's analyzed messages, target-language attempts, active Sessions and findings; the current learning week; activity streak; 30-day activity heatmap; 7/30/90-day evidence curves; recent journey events; due review; and recent natural use.
-- **Review** shows due and upcoming patterns. A review starts only after an explicit user action. When there are fewer than three due items, the user may include patterns due within the next seven days.
+- **Review** shows due and upcoming patterns. A review starts only after an explicit user action. Repair and transfer each allow one feedback-guided retry before an unsuccessful pattern returns the next day. When there are fewer than three due items, the user may include patterns due within the next seven days.
 - **Learning patterns** provides search, status/Scope filters, deterministic sorting, keyset pagination, pattern evidence, review history, scheduling, and lifecycle actions.
 - **Learning journey** provides event/time/Scope filters, keyset pagination, bounded record details, and current-Scope Session navigation when the host can resolve it.
 - **Translations** provides complete locally stored source-and-translation history, direction/search filters, keyset pagination, copy/delete actions, translation-only cleanup, and a manual refresh action.
@@ -154,6 +154,7 @@ An accepted correction analysis at confidence `0.85` or above creates a visible 
 
 - failed, abandoned, or assisted review returns in one day;
 - an independent review requires both unaided recall and a correct transfer task;
+- a corrected repair or transfer retry is assisted rather than independent;
 - a pattern becomes `verified` only after two independent reviews, a later natural correct use, evidence across two Sessions, and at least seven elapsed days;
 - a later confident error records a lapse, returns the pattern to `practicing`, and schedules it for the next day.
 

@@ -52,7 +52,11 @@ depend on Solid, Synergy surface state, or SQLite.
 
 Review content is generated only when a user explicitly starts or continues a
 review. The deterministic interval ladder is `1, 3, 7, 14, 30` days. VibeLingo
-does not send automatic review invitations.
+does not send automatic review invitations. Review model requests carry the
+canonical BCP-47 tag and English display name for both the support and target
+languages so generated content preserves the configured script and regional
+variant. Repair and transfer each allow one retry; a second incorrect attempt
+finishes the item as failed and schedules it for the next day.
 
 ### Selected-text translation
 

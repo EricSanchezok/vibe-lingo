@@ -69,7 +69,9 @@ Review uses the same learning rail and work stage from preparation through
 recall, hints, repair, transfer, pause, and completion. The feedback stage shows
 the learner's retained safe answer beside the preferred expression and reason;
 completion reports behavior and the next schedule rather than a score. The
-layout stacks progressively for narrow host panes without changing the learning
+repair and transfer stages each allow one retry after feedback, while a second
+incorrect attempt returns the pattern the next day. The layout stacks
+progressively for narrow host panes without changing the learning
 sequence.
 
 Review operations explicitly declare `settings.read` and `agent.call`. Model

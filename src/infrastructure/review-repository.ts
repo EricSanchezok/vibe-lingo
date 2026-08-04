@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import { MAX_STORED_EXAMPLES, type ReviewContent, type ReviewEvaluation, type ReviewOutcome, type ReviewSessionStatus, type ReviewState } from "../domain/types"
+import { MAX_STORED_EXAMPLES, type ReviewAttemptPhase, type ReviewContent, type ReviewEvaluation, type ReviewOutcome, type ReviewSessionStatus, type ReviewState } from "../domain/types"
 import { sanitizeReviewText } from "../domain/privacy"
 import { scheduleAfterReview } from "../domain/schedule"
 import { VibeLingoDatabase } from "./database"
@@ -194,18 +194,20 @@ export class ReviewRepository {
       if (!item) return snapshot
       const latestAttempt = current.latestAttemptId
         ? this.db().query<{
+            phase: ReviewAttemptPhase
             answer: string | null
             feedback: string | null
             natural_answer: string | null
           }, [string]>(
-          "SELECT answer, feedback, natural_answer FROM review_attempts WHERE id = ?",
+          "SELECT phase, answer, feedback, natural_answer FROM review_attempts WHERE id = ?",
         ).get(current.latestAttemptId)
         : this.db().query<{
+        phase: ReviewAttemptPhase
         answer: string | null
         feedback: string | null
         natural_answer: string | null
       }, [string, number]>(
-        `SELECT answer, feedback, natural_answer FROM review_attempts
+        `SELECT phase, answer, feedback, natural_answer FROM review_attempts
          WHERE item_id = ? AND created_at <= ?
          ORDER BY created_at DESC, id DESC LIMIT 1`,
       ).get(current.id, receipt.created_at)
@@ -229,6 +231,7 @@ export class ReviewRepository {
           latestAnswer: latestAttempt?.answer ?? undefined,
           latestFeedback: latestAttempt?.feedback ?? undefined,
           latestNaturalAnswer: latestAttempt?.natural_answer ?? undefined,
+          latestAttemptPhase: latestAttempt?.phase,
         },
       }
     } catch {
@@ -364,6 +367,7 @@ export class ReviewRepository {
       )
 
       const correct = input.evaluation.verdict === "correct" && input.evaluation.confidence >= 0.85
+      const phaseAttemptCount = this.reviewAttemptCount(item.id, phase)
       if (phase === "recall") {
         if (correct) {
           db.query(
@@ -390,17 +394,19 @@ export class ReviewRepository {
           evidenceInput,
           now,
         )
+        if (!correct && phaseAttemptCount >= 2) {
+          this.finishReviewItem(item, "failed", false, input, now)
+        }
       } else {
-        const independent = correct && Boolean(item.initial_correct) && item.hint_level === 0
+        const independent = correct
+          && Boolean(item.initial_correct)
+          && item.hint_level === 0
+          && phaseAttemptCount === 1
         const outcome: ReviewOutcome = independent
           ? "independent"
           : correct
             ? "assisted"
             : "failed"
-        db.query(
-          `UPDATE review_items SET stage = 'item_completed', transfer_correct = ?,
-           outcome = ?, completed_at = ? WHERE id = ?`,
-        ).run(correct ? 1 : 0, outcome, now, item.id)
         this.insertReviewEvidence(
           item,
           "review_transfer",
@@ -408,23 +414,9 @@ export class ReviewRepository {
           evidenceInput,
           now,
         )
-        this.finishPatternSchedule(item.target_language, item.pattern_key, outcome, now)
-        db.query(
-          `INSERT OR IGNORE INTO learning_events
-           (id, target_language, event_type, occurred_at, scope_id, session_id,
-            pattern_key, review_id, review_item_id)
-           VALUES (?, ?, 'review_item_completed', ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          crypto.randomUUID(),
-          item.target_language,
-          now,
-          input.scopeId ?? null,
-          input.sessionId ?? null,
-          item.pattern_key,
-          input.reviewId,
-          item.id,
-        )
-        this.learning.recomputeVerified(item.target_language, item.pattern_key, now)
+        if (correct || phaseAttemptCount >= 2) {
+          this.finishReviewItem(item, outcome, correct, input, now)
+        }
       }
       const nextRevision = numberValue(review.revision) + 1
       db.query(
@@ -551,6 +543,43 @@ export class ReviewRepository {
     return transaction.immediate()
   }
 
+  private reviewAttemptCount(itemId: string, phase: ReviewAttemptPhase): number {
+    const row = this.db().query<{ count: number }, [string, ReviewAttemptPhase]>(
+      "SELECT COUNT(*) AS count FROM review_attempts WHERE item_id = ? AND phase = ?",
+    ).get(itemId, phase)
+    return numberValue(row?.count)
+  }
+
+  private finishReviewItem(
+    item: ItemRow,
+    outcome: ReviewOutcome,
+    transferCorrect: boolean,
+    input: { reviewId: string; scopeId?: string; sessionId?: string },
+    now: number,
+  ): void {
+    this.db().query(
+      `UPDATE review_items SET stage = 'item_completed', transfer_correct = ?,
+       outcome = ?, completed_at = ? WHERE id = ?`,
+    ).run(transferCorrect ? 1 : 0, outcome, now, item.id)
+    this.finishPatternSchedule(item.target_language, item.pattern_key, outcome, now)
+    this.db().query(
+      `INSERT OR IGNORE INTO learning_events
+       (id, target_language, event_type, occurred_at, scope_id, session_id,
+        pattern_key, review_id, review_item_id)
+       VALUES (?, ?, 'review_item_completed', ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      crypto.randomUUID(),
+      item.target_language,
+      now,
+      input.scopeId ?? null,
+      input.sessionId ?? null,
+      item.pattern_key,
+      input.reviewId,
+      item.id,
+    )
+    this.learning.recomputeVerified(item.target_language, item.pattern_key, now)
+  }
+
   private finishPatternSchedule(
     targetLanguage: string,
     patternKey: string,
@@ -605,11 +634,12 @@ export class ReviewRepository {
     const current = items.find((item) => item.ordinal === numberValue(row.current_index))
     const latestAttempt = current
       ? this.db().query<{
+          phase: ReviewAttemptPhase
           answer: string | null
           feedback: string | null
           natural_answer: string | null
         }, [string]>(
-          `SELECT answer, feedback, natural_answer FROM review_attempts
+          `SELECT phase, answer, feedback, natural_answer FROM review_attempts
            WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
         ).get(current.id)
       : undefined
@@ -667,6 +697,7 @@ export class ReviewRepository {
         latestAnswer: latestAttempt?.answer ?? undefined,
         latestFeedback: latestAttempt?.feedback ?? undefined,
         latestNaturalAnswer: latestAttempt?.natural_answer ?? undefined,
+        latestAttemptPhase: latestAttempt?.phase,
         outcome: current.outcome ?? undefined,
       } : undefined,
       completedItems,
@@ -736,6 +767,7 @@ export class ReviewRepository {
           hintLevel: state.currentItem.hintLevel,
           visibleHints: [],
           outcome: state.currentItem.outcome,
+          latestAttemptPhase: state.currentItem.latestAttemptPhase,
           latestAttemptId,
         }
       : undefined

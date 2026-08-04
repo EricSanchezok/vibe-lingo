@@ -1,6 +1,5 @@
 import type { PluginInvocationContext } from "@ericsanchezok/synergy-plugin"
 import { containsSensitiveContent } from "../domain/privacy"
-import { canonicalLanguageTag } from "../language"
 import { modelRoleFromContext, type LearningProfile } from "../settings"
 import type { LearningRepository } from "../infrastructure/learning-repository"
 import type {
@@ -12,6 +11,7 @@ import {
   parsePatternPresentations,
 } from "./presentation-contracts"
 import { AGENT_CALL_TIMEOUT_MS } from "../agent-runtime"
+import { modelLanguageDescriptor } from "./model-language"
 
 export type PatternPresentation = PatternPresentationSource & {
   source: "localized" | "canonical_fallback"
@@ -80,8 +80,8 @@ export class PatternPresentationService {
       agent: PATTERN_PRESENTER_AGENT_NAME,
       modelRole: await modelRoleFromContext(context, "review"),
       text: `Localize this JSON:\n${JSON.stringify({
-        supportLanguage: canonicalLanguageTag(profile.nativeLanguage) ?? profile.nativeLanguage,
-        targetLanguage: canonicalLanguageTag(profile.targetLanguage) ?? profile.targetLanguage,
+        supportLanguage: modelLanguageDescriptor(profile.nativeLanguage),
+        targetLanguage: modelLanguageDescriptor(profile.targetLanguage),
         patterns: sources,
       })}`,
       timeoutMs: AGENT_CALL_TIMEOUT_MS,
