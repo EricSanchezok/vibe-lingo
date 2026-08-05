@@ -30,7 +30,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
           id: "agent.call",
           constraints: {
             maxRuntimeMs: 120_000,
-            maxInputChars: 8_000,
+            maxInputChars: 32_000,
             maxOutputChars: 8_000,
             modelRoles: ["nano", "mini", "mid", "thinking", "long", "creative"],
           },

@@ -11,6 +11,7 @@ export const CORRECTION_ANALYSIS_FAILURE_REASONS = [
   "provider_error",
   "cancelled",
   "invalid_response",
+  "input_too_large",
   "unknown",
 ] as const
 

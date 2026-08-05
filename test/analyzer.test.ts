@@ -647,4 +647,135 @@ describe("lightweight asynchronous teaching analysis", () => {
       JSON.stringify(services.database.connection().query("SELECT * FROM correction_batches").all()),
     ).not.toContain("private model detail")
   })
+
+  test("maps an oversized analysis request to input_too_large without retrying", async () => {
+    const { services, dependencies } = setup()
+    const created = services.corrections.create({
+      profile: {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      identity: {
+        messageId: "user-input-too-large",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: 300,
+      },
+      assistantMessageId: "assistant-input-too-large",
+      correction: {
+        restatement: "Add a panel.",
+        corrections: [{ originalFragment: "add panel", correctedFragment: "add a panel" }],
+      },
+    })
+    if (!created.batch) throw new Error("batch missing")
+    let starts = 0
+    const status = await enqueueCorrectionAnalysis(
+      created.batch,
+      {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      invocationContext({
+        agent: {
+          async start() {
+            starts++
+            throw Object.assign(new Error("input exceeds 32000 characters"), {
+              code: "PLUGIN_AGENT_INPUT_TOO_LARGE",
+            })
+          },
+        },
+      }),
+      dependencies,
+    )
+
+    expect(status).toBe("failed")
+    expect(starts).toBe(1)
+    expect(services.corrections.byId(created.batch.id)).toMatchObject({
+      status: "failed",
+      failureReason: "input_too_large",
+      attemptCount: 1,
+    })
+    expect(
+      JSON.stringify(services.database.connection().query("SELECT * FROM correction_batches").all()),
+    ).not.toContain("input exceeds 32000 characters")
+  })
+
+  test("maps an oversized analysis output to invalid_response without retrying", async () => {
+    const { services, dependencies } = setup()
+    const created = services.corrections.create({
+      profile: {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      identity: {
+        messageId: "user-output-too-large",
+        scopeId: "scope-test",
+        sessionId: "session-test",
+        observedAt: 400,
+      },
+      assistantMessageId: "assistant-output-too-large",
+      correction: {
+        restatement: "Add a panel.",
+        corrections: [{ originalFragment: "add panel", correctedFragment: "add a panel" }],
+      },
+    })
+    if (!created.batch) throw new Error("batch missing")
+    const starts: Array<{ callId: string; correlationId: string }> = []
+    const context = invocationContext({
+      agent: {
+        async start(input) {
+          const callId = `output-${starts.length + 1}`
+          starts.push({ callId, correlationId: input.correlationId })
+          return { callId }
+        },
+      },
+    })
+    await enqueueCorrectionAnalysis(
+      created.batch,
+      {
+        nativeLanguage: "zh-Hans",
+        targetLanguage: "en",
+        proficiency: "intermediate",
+      },
+      context,
+      dependencies,
+    )
+    await handleAgentCallAfter(
+      {
+        call: {
+          callId: starts[0]!.callId,
+          correlationId: starts[0]!.correlationId,
+          status: "error",
+          error: { code: "PLUGIN_AGENT_OUTPUT_TOO_LARGE", message: "output exceeds 6000 characters" },
+          startedAt: 401,
+          completedAt: 402,
+        },
+      },
+      context,
+      dependencies,
+    )
+    await handleAgentCallAfter(
+      {
+        call: {
+          callId: starts[1]!.callId,
+          correlationId: starts[1]!.correlationId,
+          status: "error",
+          error: { code: "PLUGIN_AGENT_OUTPUT_TOO_LARGE", message: "output exceeds 6000 characters" },
+          startedAt: 403,
+          completedAt: 404,
+        },
+      },
+      context,
+      dependencies,
+    )
+    expect(starts).toHaveLength(2)
+    expect(services.corrections.byId(created.batch.id)).toMatchObject({
+      status: "failed",
+      failureReason: "invalid_response",
+      attemptCount: 2,
+    })
+  })
 })

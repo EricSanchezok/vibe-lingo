@@ -96,7 +96,7 @@ export default definePlugin({
     capability("selection.read"),
     capability("agent.call", {
       maxRuntimeMs: AGENT_CALL_TIMEOUT_MS,
-      maxInputChars: 8_000,
+      maxInputChars: 32_000,
       maxOutputChars: 8_000,
       modelRoles: ["nano", "mini", "mid", "thinking", "long", "creative"],
     }),

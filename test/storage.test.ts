@@ -125,6 +125,111 @@ describe("schema lifecycle", () => {
     expect(service.learning.profileList()).toHaveLength(1)
   })
 
+
+  test("migrates schema 10 to 11 with the expanded failure reason and preserves history", () => {
+    const { filename, service } = services()
+    service.learning.recordObservation(identity(0), profile, "target_attempt", "target_attempt")
+    const created = service.corrections.create({
+      profile,
+      identity: identity(1),
+      assistantMessageId: "assistant-schema-ten",
+      correction: {
+        restatement: "Add a button.",
+        corrections: [{ originalFragment: "add button", correctedFragment: "add a button" }],
+      },
+    })
+    if (!created.batch) throw new Error("correction batch missing")
+    const batchId = created.batch.id
+    service.corrections.claimAnalysisAttempt({
+      batchId,
+      scopeId: created.batch.scopeId,
+      expectedCorrelationId: created.batch.correlationId,
+      correlationId: created.batch.correlationId,
+      now: 1_500,
+    })
+    service.corrections.failAnalysisAttempt({
+      batchId,
+      scopeId: created.batch.scopeId,
+      correlationId: created.batch.correlationId,
+      reason: "timeout",
+    })
+    service.database.close()
+
+    const schemaTen = new Database(filename)
+    schemaTen.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE correction_batches_v10 (
+        id TEXT PRIMARY KEY,
+        target_language TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        user_message_id TEXT NOT NULL,
+        assistant_message_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        analysis_status TEXT NOT NULL
+          CHECK(analysis_status IN ('pending', 'queued', 'analyzed', 'recorded_only', 'failed')),
+        correlation_id TEXT NOT NULL UNIQUE,
+        call_id TEXT,
+        queued_at INTEGER,
+        analysis_failure_reason TEXT
+          CHECK(analysis_failure_reason IN (
+            'timeout',
+            'model_unavailable',
+            'provider_error',
+            'cancelled',
+            'invalid_response',
+            'unknown'
+          )),
+        analysis_attempt_count INTEGER NOT NULL DEFAULT 0,
+        input_digest TEXT NOT NULL,
+        UNIQUE (target_language, assistant_message_id)
+      );
+      INSERT INTO correction_batches_v10
+        (id, target_language, scope_id, session_id, user_message_id, assistant_message_id,
+         created_at, analysis_status, correlation_id, call_id, queued_at,
+         analysis_failure_reason, analysis_attempt_count, input_digest)
+        SELECT id, target_language, scope_id, session_id, user_message_id, assistant_message_id,
+               created_at, analysis_status, correlation_id, call_id, queued_at,
+               analysis_failure_reason, analysis_attempt_count, input_digest
+        FROM correction_batches;
+      DROP TABLE correction_batches;
+      CREATE INDEX corrections_language_time
+        ON correction_batches_v10(target_language, created_at DESC);
+      CREATE INDEX corrections_status_time
+        ON correction_batches_v10(analysis_status, created_at);
+      ALTER TABLE correction_batches_v10 RENAME TO correction_batches;
+      PRAGMA user_version = 10;
+      PRAGMA foreign_keys = ON;
+    `)
+    schemaTen.close()
+
+    service.database.initialize()
+    expect(service.corrections.byId(batchId)).toMatchObject({
+      status: "failed",
+      failureReason: "timeout",
+      attemptCount: 1,
+    })
+    service.corrections.claimAnalysisAttempt({
+      batchId,
+      scopeId: created.batch.scopeId,
+      expectedCorrelationId: created.batch.correlationId,
+      correlationId: created.batch.correlationId,
+      now: 2_000,
+    })
+    service.corrections.failAnalysisAttempt({
+      batchId,
+      scopeId: created.batch.scopeId,
+      correlationId: created.batch.correlationId,
+      reason: "input_too_large",
+    })
+    expect(service.corrections.byId(batchId)?.failureReason).toBe("input_too_large")
+    expect(service.learning.profileList()).toHaveLength(1)
+    const schema = service.database
+      .connection()
+      .query<{ sql: string }, []>("SELECT sql FROM sqlite_master WHERE name='correction_batches'")
+      .get()?.sql ?? ""
+    expect(schema).toContain("'input_too_large'")
+  })
   test("recreates a version-matching database when required structure is missing", () => {
     const { filename, service } = services()
     const current = service.database.connection()

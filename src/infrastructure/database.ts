@@ -3,8 +3,8 @@ import fs from "fs"
 import path from "path"
 import { synergyRoot } from "@ericsanchezok/synergy-plugin/paths"
 
-export const SCHEMA_VERSION = 10
-const PREVIOUS_SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 11
+const PREVIOUS_SCHEMA_VERSION = 10
 
 const REQUIRED_TABLES = [
   "learning_profiles",
@@ -161,12 +161,16 @@ export class VibeLingoDatabase {
     fs.mkdirSync(path.dirname(this.filename), { recursive: true })
     let database = new Database(this.filename, { create: true })
     configure(database)
+    const tables = tableNames(database)
     let version =
       database.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version ?? 0
-    const tables = tableNames(database)
     const fresh = version === 0 && tables.size === 0
-    if (version === PREVIOUS_SCHEMA_VERSION && hasStructure(database, PREVIOUS_REQUIRED_COLUMNS)) {
-      this.migrateFromPreviousSchema(database)
+    if (version === 9 && hasStructure(database, PREVIOUS_REQUIRED_COLUMNS)) {
+      this.migrateAddFailureColumns(database)
+      version = 10
+    }
+    if (version === PREVIOUS_SCHEMA_VERSION && hasStructure(database)) {
+      this.migrateExpandFailureReasons(database)
       version = SCHEMA_VERSION
     }
     const current = version === SCHEMA_VERSION && hasStructure(database)
@@ -253,6 +257,7 @@ export class VibeLingoDatabase {
             'provider_error',
             'cancelled',
             'invalid_response',
+            'input_too_large',
             'unknown'
           )),
         analysis_attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -516,12 +521,12 @@ export class VibeLingoDatabase {
       CREATE INDEX translation_occurrences_time
         ON translation_occurrences(translation_id, used_at DESC);
 
-      PRAGMA user_version = 10;
+      PRAGMA user_version = 11;
       COMMIT;
     `)
   }
 
-  private migrateFromPreviousSchema(database: Database): void {
+  private migrateAddFailureColumns(database: Database): void {
     database.exec(`
       BEGIN EXCLUSIVE;
       ALTER TABLE correction_batches ADD COLUMN analysis_failure_reason TEXT
@@ -540,6 +545,72 @@ export class VibeLingoDatabase {
       PRAGMA user_version = 10;
       COMMIT;
     `)
+  }
+
+  private migrateExpandFailureReasons(database: Database): void {
+    // SQLite cannot ALTER a CHECK constraint, so rebuild correction_batches
+    // with the expanded failure-reason enum. Foreign keys must be disabled
+    // while the parent table is dropped, otherwise ON DELETE CASCADE would
+    // silently delete correction_items and learning_events history; the
+    // rebuild is re-verified before foreign keys are re-enabled.
+    database.exec("PRAGMA foreign_keys = OFF")
+    database.exec(`
+      BEGIN EXCLUSIVE;
+      CREATE TABLE correction_batches_v11 (
+        id TEXT PRIMARY KEY,
+        target_language TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        user_message_id TEXT NOT NULL,
+        assistant_message_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        analysis_status TEXT NOT NULL
+          CHECK(analysis_status IN ('pending', 'queued', 'analyzed', 'recorded_only', 'failed')),
+        correlation_id TEXT NOT NULL UNIQUE,
+        call_id TEXT,
+        queued_at INTEGER,
+        analysis_failure_reason TEXT
+          CHECK(analysis_failure_reason IN (
+            'timeout',
+            'model_unavailable',
+            'provider_error',
+            'cancelled',
+            'invalid_response',
+            'input_too_large',
+            'unknown'
+          )),
+        analysis_attempt_count INTEGER NOT NULL DEFAULT 0,
+        input_digest TEXT NOT NULL,
+        UNIQUE (target_language, assistant_message_id)
+      );
+      INSERT INTO correction_batches_v11
+        (id, target_language, scope_id, session_id, user_message_id, assistant_message_id,
+         created_at, analysis_status, correlation_id, call_id, queued_at,
+         analysis_failure_reason, analysis_attempt_count, input_digest)
+        SELECT id, target_language, scope_id, session_id, user_message_id, assistant_message_id,
+               created_at, analysis_status, correlation_id, call_id, queued_at,
+               analysis_failure_reason, analysis_attempt_count, input_digest
+        FROM correction_batches;
+      DROP TABLE correction_batches;
+      ALTER TABLE correction_batches_v11 RENAME TO correction_batches;
+      CREATE INDEX corrections_language_time
+        ON correction_batches(target_language, created_at DESC);
+      CREATE INDEX corrections_status_time
+        ON correction_batches(analysis_status, created_at);
+      PRAGMA user_version = 11;
+      COMMIT;
+    `)
+    const violations = database
+      .query<{ table: string }, []>("PRAGMA foreign_key_check")
+      .all()
+    if (violations.length > 0) {
+      throw new Error(
+        `VibeLingo schema 11 migration left foreign key violations in: ${
+          [...new Set(violations.map((row) => row.table))].join(", ")
+        }`,
+      )
+    }
+    database.exec("PRAGMA foreign_keys = ON")
   }
 }
 

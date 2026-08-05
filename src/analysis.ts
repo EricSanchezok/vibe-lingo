@@ -121,6 +121,8 @@ function failureReasonFromCall(call: PluginAgentCallAfterInput["call"]): Correct
   if (call.error?.code === "PLUGIN_AGENT_MODEL_UNAVAILABLE") return "model_unavailable"
   if (call.error?.code === "PLUGIN_AGENT_CANCELLED") return "cancelled"
   if (call.error?.code === "PLUGIN_AGENT_CALL_FAILED") return "provider_error"
+  if (call.error?.code === "PLUGIN_AGENT_INPUT_TOO_LARGE") return "input_too_large"
+  if (call.error?.code === "PLUGIN_AGENT_OUTPUT_TOO_LARGE") return "invalid_response"
   return "unknown"
 }
 
@@ -130,6 +132,8 @@ function failureReasonFromError(error: unknown): CorrectionAnalysisFailureReason
   if (code === "PLUGIN_AGENT_MODEL_UNAVAILABLE") return "model_unavailable"
   if (code === "PLUGIN_AGENT_CANCELLED") return "cancelled"
   if (code === "PLUGIN_AGENT_CALL_FAILED") return "provider_error"
+  if (code === "PLUGIN_AGENT_INPUT_TOO_LARGE") return "input_too_large"
+  if (code === "PLUGIN_AGENT_OUTPUT_TOO_LARGE") return "invalid_response"
   return "unknown"
 }
 
