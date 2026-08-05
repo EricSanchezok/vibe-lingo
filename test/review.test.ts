@@ -7,6 +7,7 @@ import { DAY_MS, type ReviewContent } from "../src/domain/types"
 import { scheduleAfterReview } from "../src/domain/schedule"
 import { VibeLingoDatabase } from "../src/infrastructure/database"
 import { invocationContext, seedCorrection } from "./helpers"
+import { languageDisplayName } from "../src/language"
 
 const temporaryDirectories: string[] = []
 
@@ -146,7 +147,7 @@ describe("review state machine", () => {
 
     for (const request of requests) {
       expect(request).toMatchObject({
-        supportLanguage: { tag: "zh-Hans", name: "Chinese, Simplified" },
+        supportLanguage: { tag: "zh-Hans", name: languageDisplayName("zh-Hans", "en") },
         targetLanguage: { tag: "en", name: "English" },
       })
     }

@@ -5,6 +5,7 @@ import path from "path"
 import { createServices } from "../src/application/services"
 import { VibeLingoDatabase } from "../src/infrastructure/database"
 import { invocationContext, seedCorrection } from "./helpers"
+import { languageDisplayName } from "../src/language"
 
 const temporaryDirectories: string[] = []
 
@@ -57,7 +58,7 @@ describe("localized pattern presentations", () => {
           expect(input.agent).toBe("vibe-lingo-pattern-presenter")
           expect(input.timeoutMs).toBe(120_000)
           expect(JSON.parse(input.text.slice(input.text.indexOf("\n") + 1))).toMatchObject({
-            supportLanguage: { tag: "zh-Hans", name: "Chinese, Simplified" },
+            supportLanguage: { tag: "zh-Hans", name: languageDisplayName("zh-Hans", "en") },
             targetLanguage: { tag: "en", name: "English" },
           })
           return {
