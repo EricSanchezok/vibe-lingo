@@ -8,7 +8,7 @@ import { configuredProfile, readSettings } from "./settings"
 import { hasUserFacingRootSession } from "./session"
 import type { RecurringPattern } from "./domain/types"
 
-export const COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V4]"
+export const COACHING_MARKER = "[VIBE_LINGO_CONTRACT_V5]"
 
 export type PromptDependencies = {
   readSettings(context: PluginInvocationContext): Promise<VibeLingoSettings>
@@ -32,7 +32,6 @@ Do not correct intentional bilingual phrasing or any excluded content listed abo
 
 Ignore isolated minor slips. Correct only issues that affect meaning, are clearly unnatural, or match a recurring focus.
 
-For mixed-language expressions, correct a non-target-language fragment only when it noticeably interrupts the target-language expression or matches a recurring focus.
 
 Submit every issue that meets this threshold, ordered from most to least useful. Submit at most eight correction items; if more than eight qualify, select the eight most important.`
 }
@@ -50,6 +49,21 @@ Grammar correctness alone is not sufficient. Submit a naturalness item when a ty
 The alternative must preserve the user's intent, constraints, certainty, and interpersonal stance. Do not rewrite wording merely because another version is also possible or because you personally prefer it.
 
 For every naturalness item, include one short explanation in the support language describing why the original feels less natural in this context. Do not use grammar jargon.`
+}
+
+function expressionRule(enabled: boolean): string {
+  if (!enabled) {
+    return `Target-language expression suggestions are disabled.
+
+If the user explicitly asks how to say something in the target language, answer directly with a short example in ordinary text; do not call plugin__vibe-lingo__suggest-expression.`
+  }
+  return `When the user is not attempting the target language but the message expresses a substantive idea, request, question, or update that can be said in the target language:
+- Your first user-visible action must be a call to plugin__vibe-lingo__suggest-expression, then continue the real task immediately.
+- Give the tool the user's expression and one natural target-language version. A short note in the support language is optional; keep it useful and brief.
+- Do not call it for code, commands, paths, identifiers, pasted text, quotations, short acknowledgements, or messages where nothing meaningful would be expressed in the target language.
+- Do not call it for target-language attempts; use plugin__vibe-lingo__record-correction there instead.
+- Do not write a duplicate example in ordinary assistant text. The tool card is the complete visible example.
+- Escape phrases ("just do it", "skip the lesson", "直接做", "跳过纠正") suppress this card too.`
 }
 
 function proficiencyRule(profile: LearningProfile): string {
@@ -73,6 +87,7 @@ export function buildCoachingContract(
   profile: LearningProfile,
   recurring: RecurringPattern[],
   naturalnessSuggestionsEnabled = true,
+  expressionSuggestionsEnabled = true,
 ): string {
   const nativeLanguage = languageDisplayName(profile.nativeLanguage, "en")
   const targetLanguage = languageDisplayName(profile.targetLanguage, "en")
@@ -111,6 +126,8 @@ When intent is clear:
 - Never postpone correction until the task is complete and never repeat it later in progress updates or the final answer.
 - Do not invent or submit pattern keys, categories, severity, rules, confidence, message IDs, or learning metadata. VibeLingo analyzes those separately.
 - Do not comment on target-language writing that is both correct and natural for its context.
+
+${expressionRule(expressionSuggestionsEnabled)}
 
 When different interpretations would materially change the work:
 - Do not guess.
@@ -152,6 +169,7 @@ export async function transformSystemPrompt(
           profile,
           recurring,
           settings.naturalnessSuggestionsEnabled,
+          settings.expressionSuggestionsEnabled,
         ),
       ],
     }

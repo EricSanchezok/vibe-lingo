@@ -17,7 +17,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
     expect(plugin).toMatchObject({
       id: "vibe-lingo",
       name: "VibeLingo",
-      version: "0.7.9",
+      version: "0.8.0",
       compatibility: { synergy: ">=3.0.11" },
       repository: "https://github.com/EricSanchezok/vibe-lingo",
       capabilities: [
@@ -74,6 +74,8 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       "hook:complete-teaching-analysis",
       "tool:record-correction",
       "ui.messageRenderer:correction-card",
+      "tool:suggest-expression",
+      "ui.messageRenderer:expression-card",
       "tool:progress",
       "ui.messageRenderer:progress-card",
       "tool:translation-history",
@@ -104,6 +106,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
       "hook:analyze-user-message",
       "hook:complete-teaching-analysis",
       "tool:record-correction",
+      "tool:suggest-expression",
       "tool:progress",
       "tool:translation-history",
       "lifecycle.uninstall:cleanup-data",
@@ -132,6 +135,7 @@ describe("VibeLingo Plugin API 4 descriptor", () => {
           targetLanguage: { default: "" },
           proficiency: { default: "intermediate" },
           naturalnessSuggestionsEnabled: { default: true },
+          expressionSuggestionsEnabled: { default: true },
           languageDetectionModelRole: { default: "nano" },
           learningAnalysisModelRole: { default: "mini" },
           translationModelRole: { default: "mini" },

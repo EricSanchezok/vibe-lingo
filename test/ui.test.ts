@@ -21,6 +21,6 @@ test("renders product states and correction recovery through the bundled Solid s
     new Response(child.stderr).text(),
   ])
   expect(stderr).toBe("")
-  expect(stdout).toContain("24 VibeLingo UI states and tool-card interactions rendered successfully")
+  expect(stdout).toContain("25 VibeLingo UI states and tool-card interactions rendered successfully")
   expect(exitCode).toBe(0)
 }, 30_000)

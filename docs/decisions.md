@@ -105,6 +105,44 @@ VibeLingo contributes translation behavior and content only.
 **Why:** plugins should extend the same context menu without replacing one
 another or implementing incompatible floating-surface behavior.
 
+
+## Expression demonstrations are separate from corrections
+
+When the user writes a substantive message in the support language rather than
+attempting the target language, the primary Agent calls
+`plugin__vibe-lingo__suggest-expression` to show the user's original expression
+beside one natural target-language version, with an optional short
+support-language note. The Tool card is display-only: it never writes to
+SQLite, never creates observations, batches, patterns, events, or review items,
+and starts no asynchronous Agent. The `expressionSuggestionsEnabled` setting
+(default on) controls whether the contract instructs the Agent to call it; when
+off, an explicit request for a translation is answered with plain text. Escape
+phrases suppress the card as well.
+
+**Why:** a demonstration is not learner output. Recording it as correction,
+activity, or natural-use evidence would lower the learning record's integrity
+without adding usable signal, and persisting the user's support-language
+message would expand the privacy surface for no learning value. Keeping it
+display-only preserves the rule that only accepted correction, natural-use, and
+review evidence changes a pattern lifecycle.
+
+## Mixed-language mixing is a target-language issue in both modes
+
+In focused and strict modes, a non-target-language word or phrase that fills a
+normal place in an otherwise target-language expression is corrected whenever a
+clear, natural replacement exists in the target language. The focused-mode
+"noticeably interrupts" threshold is removed; focused mode still ignores
+isolated minor slips in the target language itself. Intentional bilingual
+phrasing, proper names, quoted material, code, commands, paths, identifiers,
+product names, and technical terms normally kept in their original language
+remain excluded.
+
+**Why:** real mixed-language messages are ordinary target-language practice,
+and the previous threshold made the Agent hesitate exactly when the user wanted
+feedback. The classifier already counts such messages as target-language
+attempts, so this change only aligns the foreground instruction with the
+existing evidence model without altering background statistics.
+
 ## Translation is assistance, not learner output
 
 Translation has its own cache and history. It never creates target-language

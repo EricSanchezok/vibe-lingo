@@ -29,6 +29,16 @@ if (!correctionRenderer?.component?.exportName) {
   throw new Error("Built correction-card export was not found")
 }
 const CorrectionCard = bundled[correctionRenderer.component.exportName]
+const expressionRenderer = manifest.contributions.find(
+  (item: any) =>
+    item.kind === "ui.messageRenderer" &&
+    item.id === "expression-card" &&
+    item.tool === "plugin__vibe-lingo__suggest-expression",
+)
+if (!expressionRenderer?.component?.exportName) {
+  throw new Error("Built expression-card export was not found")
+}
+const ExpressionCard = bundled[expressionRenderer.component.exportName]
 const progressRenderer = manifest.contributions.find(
   (item: any) =>
     item.kind === "ui.messageRenderer" &&
@@ -51,6 +61,7 @@ const configuredSettings = {
   proficiency: "intermediate",
   correctionMode: "focused",
   naturalnessSuggestionsEnabled: true,
+  expressionSuggestionsEnabled: true,
   trackingEnabled: true,
   recurringFocusEnabled: true,
 }
@@ -851,6 +862,84 @@ assertText(correctionTarget, "查看学习模式")
 disposeCorrection()
 correctionTarget.remove()
 
+const expressionTool = {
+  name: "plugin__vibe-lingo__suggest-expression",
+  input: {
+    sourceExpression: "请帮我把这个按钮加到设置页面。",
+    targetExpression: "Please add this button to the settings page.",
+    notes: "按钮和设置页面在英语里直接用 button 和 settings page 就好。",
+  },
+  metadata: {
+    vibeLingo: {
+      status: "shown",
+      targetLanguage: "en",
+    },
+  },
+  status: "completed",
+}
+const expressionContext: any = {
+  ...context,
+  surface: { kind: "ui.messageRenderer", id: "expression-card" },
+  message: { id: "assistant-expression", role: "assistant" },
+  tool: expressionTool,
+}
+const expressionTarget = document.createElement("div")
+document.body.append(expressionTarget)
+const disposeExpression = web.render(
+  () => solid.createComponent(ExpressionCard, expressionContext),
+  expressionTarget,
+)
+await new Promise((resolve) => setTimeout(resolve, 10))
+const expressionStyles = expressionTarget.querySelector("style")?.textContent ?? ""
+if (!expressionStyles.includes("--vibe-sage-ref-ink:light-dark(#4a613b,#a2b394)")) {
+  throw new Error("Expression card did not use the Figma-aligned sage palette")
+}
+assertText(expressionTarget, "用英语怎么说")
+assertText(expressionTarget, "你的表达")
+assertText(expressionTarget, "请帮我把这个按钮加到设置页面。")
+assertText(expressionTarget, "Please add this button to the settings page.")
+assertText(expressionTarget, "按钮和设置页面在英语里直接用 button 和 settings page 就好。")
+const expressionFooter = expressionTarget.querySelector(".vlc-footer")
+if (!expressionFooter || !expressionFooter.textContent?.includes("英语")) {
+  throw new Error("Expression card footer did not show the target language")
+}
+const expressionPair = expressionTarget.querySelector(".vlc-pair")
+if (!expressionPair) throw new Error("Expression pair was not rendered")
+const expressionPairSections = [...expressionPair.children].map((child) => child.className)
+if (expressionPairSections.join("|") !== "vlc-kind|vlc-source|vlc-arrow|vlc-target") {
+  throw new Error(`Expression pair did not expose stable alignment rows: ${expressionPairSections.join("|")}`)
+}
+if (!expressionStyles.includes("container-type:inline-size")) {
+  throw new Error("Expression card responsiveness was not based on its own rendered width")
+}
+disposeExpression()
+expressionTarget.remove()
+
+document.documentElement.lang = "en"
+const englishExpressionTarget = document.createElement("div")
+document.body.append(englishExpressionTarget)
+const disposeEnglishExpression = web.render(
+  () =>
+    solid.createComponent(ExpressionCard, {
+      ...expressionContext,
+      tool: {
+        ...expressionTool,
+        input: {
+          sourceExpression: "请帮我把这个按钮加到设置页面。",
+          targetExpression: "Please add this button to the settings page.",
+        },
+      },
+    }),
+  englishExpressionTarget,
+)
+await new Promise((resolve) => setTimeout(resolve, 10))
+assertText(englishExpressionTarget, "How to say this in English")
+assertText(englishExpressionTarget, "Your expression")
+assertText(englishExpressionTarget, "Please add this button to the settings page.")
+disposeEnglishExpression()
+englishExpressionTarget.remove()
+document.documentElement.lang = "zh-CN"
+
 const progressContext: any = {
   ...context,
   surface: { kind: "ui.messageRenderer", id: "progress-card" },
@@ -930,5 +1019,5 @@ if (correctionQueryCount !== queryCountBeforeDispose) {
   throw new Error("Correction card queried after its retry boundary timer was disposed")
 }
 
-console.log("24 VibeLingo UI states and tool-card interactions rendered successfully")
+console.log("25 VibeLingo UI states and tool-card interactions rendered successfully")
 GlobalRegistrator.unregister()

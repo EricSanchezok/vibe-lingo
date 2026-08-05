@@ -38,6 +38,7 @@ import {
 } from "./application/presentation-contracts"
 import { deleteDefaultData } from "./infrastructure/database"
 import { recordCorrectionTool, type RecordCorrectionInput } from "./correction"
+import { suggestExpressionTool, type SuggestExpressionInput } from "./suggest-expression"
 import {
   TRANSLATOR_AGENT_NAME,
   TRANSLATOR_PROMPT,
@@ -80,7 +81,7 @@ const ProgressInputJsonSchema: Record<string, unknown> = {
 export default definePlugin({
   id: "vibe-lingo",
   name: "VibeLingo",
-  version: "0.7.9",
+  version: "0.8.0",
   description: "Work-first multilingual coaching, evidence tracking, and private review scheduling for Synergy",
   compatibility: { synergy: ">=3.0.11" },
   author: "Eric Sanchez",
@@ -340,6 +341,34 @@ export default definePlugin({
       tool: "plugin__vibe-lingo__record-correction",
       component: { source: "./src/ui/correction-card.tsx" },
     }),
+    tool<SuggestExpressionInput>({
+      id: "suggest-expression",
+      description:
+        "Display how the user's message would naturally be expressed in the configured target language when the user did not write the message in the target language. Call this as the first visible action only when the VibeLingo coaching contract calls for a target-language example. Do not use it for target-language attempts (use plugin__vibe-lingo__record-correction instead), for code, commands, paths, identifiers, pasted text, quotations, or trivial acknowledgements.",
+      requires: ["settings.read"],
+      exposure: { mode: "resident" },
+      display: { toolCard: "visible" },
+      input: {
+        type: "object",
+        properties: {
+          sourceExpression: { type: "string", minLength: 1, maxLength: 500 },
+          targetExpression: { type: "string", minLength: 1, maxLength: 500 },
+          notes: { type: "string", minLength: 1, maxLength: 200 },
+        },
+        required: ["sourceExpression", "targetExpression"],
+        additionalProperties: false,
+      },
+      async handler(input, context) {
+        return suggestExpressionTool(input, context)
+      },
+    }),
+    messageRenderer({
+      id: "expression-card",
+      label: "VibeLingo target-language example",
+      messageType: "tool",
+      tool: "plugin__vibe-lingo__suggest-expression",
+      component: { source: "./src/ui/suggest-expression-card.tsx" },
+    }),
     tool<ProgressInput>({
       id: "progress",
       description:
@@ -430,6 +459,13 @@ export default definePlugin({
             title: "Suggest more natural phrasing",
             description:
               "Suggest clearly more conventional wording in context, even when the original is grammatical.",
+          },
+          expressionSuggestionsEnabled: {
+            type: "boolean",
+            default: true,
+            title: "Show how to say it in the target language",
+            description:
+              "Suggest a target-language version when you write a message in the support language.",
           },
           trackingEnabled: {
             type: "boolean",

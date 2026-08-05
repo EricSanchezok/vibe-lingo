@@ -69,6 +69,8 @@ type Copy = {
   offDescription: string
   naturalness: string
   naturalnessDescription: string
+  expression: string
+  expressionDescription: string
   tracking: string
   trackingDescription: string
   recurring: string
@@ -145,6 +147,9 @@ const COPY: Record<UiLocale, Copy> = {
     naturalness: "Suggest more natural phrasing",
     naturalnessDescription:
       "Speak up when grammatical wording has a clearly more conventional form in context, without rewriting for style alone.",
+    expression: "Show how to say it in the target language",
+    expressionDescription:
+      "Suggest a target-language version when you write a message in the support language.",
     tracking: "Track recurring patterns",
     trackingDescription: "Analyze eligible messages and store minimal local learning signals.",
     recurring: "Use recurring focus",
@@ -222,6 +227,8 @@ const COPY: Record<UiLocale, Copy> = {
     naturalness: "自然表达建议",
     naturalnessDescription: "语法正确但在当前语境中有明显更常用的表达时提醒，不做纯风格改写。",
     tracking: "记录重复模式",
+    expression: "展示目标语言说法",
+    expressionDescription: "当你用母语发消息时，顺带给出这句话用目标语言怎么说的示例。",
     trackingDescription: "分析符合条件的消息，并在本地保存最少量学习信号。",
     recurring: "使用重复模式",
     recurringDescription: "同一问题再次出现时优先提醒。",
@@ -939,6 +946,18 @@ export const SettingsView: Component<SurfaceInput> = (input) => {
               onChange={(naturalnessSuggestionsEnabled) => {
                 const current = settings()
                 void persist({ ...current, naturalnessSuggestionsEnabled })
+              }}
+            />
+            <SettingSwitch
+              label={copy().expression}
+              description={copy().expressionDescription}
+              checked={settings().expressionSuggestionsEnabled}
+              disabled={saveState() === "saving" || settings().correctionMode === "off"}
+              onLabel={copy().on}
+              offLabel={copy().offState}
+              onChange={(expressionSuggestionsEnabled) => {
+                const current = settings()
+                void persist({ ...current, expressionSuggestionsEnabled })
               }}
             />
             <SettingSwitch

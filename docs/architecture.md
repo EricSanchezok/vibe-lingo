@@ -10,19 +10,40 @@ separate paths so that language support cannot block the user's real task.
 
 The `chat.system.transform` contribution injects a compact coaching contract
 only for eligible, user-facing root Sessions with a complete language profile.
-When language feedback is useful, the primary Agent calls
-`plugin__vibe-lingo__record-correction` before its substantive response. The
-Tool card is the authoritative feedback the user saw.
+Two complementary foreground tools share that contract:
 
-The primary Agent supplies a natural restatement and up to eight visible items,
-each marked as an objective correction or contextual naturalness suggestion.
-Naturalness items include one short support-language explanation. It does not
-invent pattern keys, severity, confidence, or learning rules.
+- `plugin__vibe-lingo__record-correction` handles target-language attempts.
+  When language feedback is useful, the primary Agent calls it before its
+  substantive response, and the Tool card is the authoritative correction the
+  user saw. The primary Agent supplies a natural restatement and up to eight
+  visible items, each marked as an objective correction or contextual
+  naturalness suggestion; naturalness items include one short support-language
+  explanation. Saved corrections are persisted locally and analyzed
+  asynchronously.
+- `plugin__vibe-lingo__suggest-expression` handles messages that are not a
+  target-language attempt but still express something meaningful. The primary
+  Agent calls it to show the user's original expression beside one natural
+  target-language version, with an optional short support-language note. It is
+  display-only: it never writes to SQLite, never creates observations, batches,
+  patterns, events, or review items, and starts no asynchronous Agent. The
+  setting `expressionSuggestionsEnabled` (default on) controls whether the
+  contract instructs the Agent to call it; when off, an explicit user request
+  is answered with a plain-text example instead.
+
+Mixed-language messages whose main structure is the target language are
+treated as target-language attempts in both focused and strict modes: a
+non-target-language word or phrase that fills a normal place in an otherwise
+target-language expression is corrected whenever a clear, natural replacement
+exists. Intentional bilingual phrasing, proper names, quoted material, code,
+commands, paths, identifiers, product names, and technical terms kept in their
+original language remain excluded. Escape phrases suppress both cards.
 
 The correction card lays out each item as a labeled source-to-target pair. Its
 container width, rather than the host viewport, controls the responsive switch:
 wide cards align source, arrow, and target in one row, while narrow cards keep
-the arrow attached to the target beneath the source.
+the arrow attached to the target beneath the source. The expression card uses
+the same visual language for a single source-to-target pair and a footer naming
+the target language, with no status machine because nothing is persisted.
 
 ### Practice observation and analysis
 

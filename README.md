@@ -67,6 +67,7 @@ The complete settings shape is:
   "proficiency": "intermediate", // beginner | intermediate | advanced
   "correctionMode": "focused", // focused | strict | off
   "naturalnessSuggestionsEnabled": true,
+  "expressionSuggestionsEnabled": true,
   "trackingEnabled": true,
   "recurringFocusEnabled": true,
   "languageDetectionModelRole": "nano",
@@ -84,6 +85,7 @@ The complete settings shape is:
 - `strict` handles every certain target-language issue.
 - `off` disables foreground coaching without deleting or disabling background tracking.
 - Turning naturalness suggestions off limits foreground feedback to objective issues while preserving the setting and existing learning history.
+- Turning expression suggestions off stops the Agent from showing a target-language version for support-language messages; an explicit request is answered with a plain-text example instead.
 - Turning tracking off stops new analysis but retains existing local data.
 - Turning recurring focus off stops injecting established patterns but does not delete them.
 - The four model-role settings select a Synergy workload role (`nano`, `mini`, `mid`, `thinking`, `long`, or `creative`) for language detection, learning analysis, translation, and review/presentation. They never select a provider or concrete model ID.
@@ -97,7 +99,15 @@ plugin__vibe-lingo__record-correction
 
 Its input contains the natural restatement and up to eight visible feedback items. Each item is either an objective `correction` or a contextual `naturalness` suggestion; naturalness items also include one short explanation in the support language. The Tool card renders the first three items immediately and can expand the rest, then the Agent continues the real task. Pattern keys, categories, severity, rules, and confidence are assigned later by a private asynchronous Agent. The main Agent must not duplicate the card as ordinary text or postpone feedback until the final answer.
 
-A message still counts as a target-language attempt when the target language provides its main structure and a short fragment from another language fills an ordinary expression gap. In focused mode, VibeLingo corrects that mixing only when it noticeably interrupts the target-language expression or matches a recurring focus; strict mode corrects every clear instance. Intentional bilingual phrasing, proper names, quotations, code, commands, paths, identifiers, product names, and technical terms normally kept in their original language are left unchanged.
+When the user writes in the support language rather than attempting the target language, the main Agent shows a target-language example through:
+
+```text
+plugin__vibe-lingo__suggest-expression
+```
+
+Its input carries the user's original expression, one natural target-language version, and an optional short support-language note. The Tool card is display-only: it never writes to SQLite, never creates observations, batches, patterns, events, or review items, and starts no background analysis. The `expressionSuggestionsEnabled` setting controls this behavior; escape phrases suppress it as well.
+
+A message still counts as a target-language attempt when the target language provides its main structure and a short fragment from another language fills an ordinary expression gap. In both focused and strict modes, VibeLingo corrects that mixing whenever a clear, natural replacement exists in the target language; focused mode still ignores isolated minor slips in the target language itself. Intentional bilingual phrasing, proper names, quotations, code, commands, paths, identifiers, product names, and technical terms normally kept in their original language stay excluded.
 
 Turning tracking off does not suppress foreground teaching: the same Tool card is shown, but it is marked as chat-only and neither SQLite nor a metadata Agent call is used.
 

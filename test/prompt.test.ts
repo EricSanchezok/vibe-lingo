@@ -86,6 +86,14 @@ describe("coaching contract", () => {
     expect(focused).toContain("Do not invent or submit pattern keys")
     expect(focused).not.toContain("After completing the main task")
     expect(focused).not.toContain("optionally add")
+    expect(focused).toContain("plugin__vibe-lingo__suggest-expression")
+    expect(focused).toContain(
+      "Your first user-visible action must be a call to plugin__vibe-lingo__suggest-expression",
+    )
+    expect(focused).toContain(
+      "Do not call it for code, commands, paths, identifiers, pasted text, quotations, short acknowledgements",
+    )
+    expect(focused).toContain("Escape phrases")
   })
 
   test("makes contextual naturalness optional without weakening objective correction", () => {
@@ -113,10 +121,20 @@ describe("coaching contract", () => {
       expect(contract).toContain("isolated target-language technical terms")
       expect(contract).not.toContain("what's there")
       expect(contract).not.toContain("功能")
+      expect(contract).not.toContain("noticeably interrupts")
     }
 
-    expect(focused).toContain("only when it noticeably interrupts the target-language expression")
     expect(strict).toContain("where a non-target-language word or phrase fills a normal place")
+  })
+
+  test("omits the suggestion instruction and keeps a plain-text fallback when disabled", () => {
+    const disabled = buildCoachingContract("focused", profile, [], true, false)
+    const enabled = buildCoachingContract("focused", profile, [])
+
+    expect(enabled).toContain("must be a call to plugin__vibe-lingo__suggest-expression")
+    expect(disabled).not.toContain("must be a call to plugin__vibe-lingo__suggest-expression")
+    expect(disabled).toContain("do not call plugin__vibe-lingo__suggest-expression")
+    expect(disabled).toContain("answer directly with a short example in ordinary text")
   })
 
   test("removes only the current V4 contract entry", () => {
