@@ -351,9 +351,9 @@ export default definePlugin({
       input: {
         type: "object",
         properties: {
-          sourceExpression: { type: "string", minLength: 1, maxLength: 500 },
-          targetExpression: { type: "string", minLength: 1, maxLength: 500 },
-          notes: { type: "string", minLength: 1, maxLength: 200 },
+          sourceExpression: { type: "string", minLength: 1, maxLength: 2_000 },
+          targetExpression: { type: "string", minLength: 1, maxLength: 2_000 },
+          notes: { type: "string", minLength: 1, maxLength: 500 },
         },
         required: ["sourceExpression", "targetExpression"],
         additionalProperties: false,

@@ -60,6 +60,8 @@ If the user explicitly asks how to say something in the target language, answer 
   return `When the user is not attempting the target language but the message expresses a substantive idea, request, question, or update that can be said in the target language:
 - Your first user-visible action must be a call to plugin__vibe-lingo__suggest-expression, then continue the real task immediately.
 - Give the tool the user's expression and one natural target-language version. A short note in the support language is optional; keep it useful and brief.
+- Pass the tool fields exactly as sourceExpression, targetExpression, and notes — lowercase, as named in the tool's input schema.
+- Keep both expressions concise: one natural phrasing of the user's idea, not a full verbatim rewrite of a long message.
 - Do not call it for code, commands, paths, identifiers, pasted text, quotations, short acknowledgements, or messages where nothing meaningful would be expressed in the target language.
 - Do not call it for target-language attempts; use plugin__vibe-lingo__record-correction there instead.
 - Do not write a duplicate example in ordinary assistant text. The tool card is the complete visible example.

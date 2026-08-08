@@ -91,11 +91,43 @@ describe("expression suggestion tool", () => {
     await expect(suggestExpressionTool({ ...input, targetExpression: "" }, context(), service))
       .rejects.toThrow("empty or exceeds VibeLingo's privacy bounds")
     await expect(
-      suggestExpressionTool({ ...input, sourceExpression: "x".repeat(501) }, context(), service),
+      suggestExpressionTool({ ...input, sourceExpression: "x".repeat(2_001) }, context(), service),
     ).rejects.toThrow("empty or exceeds VibeLingo's privacy bounds")
     await expect(
-      suggestExpressionTool({ ...input, notes: "x".repeat(201) }, context(), service),
+      suggestExpressionTool({ ...input, notes: "x".repeat(501) }, context(), service),
     ).rejects.toThrow("empty or exceeds VibeLingo's privacy bounds")
+  })
+
+  test("accepts long real-world expressions and normalizes uppercase field variants", async () => {
+    const service = services()
+    const result = await suggestExpressionTool(
+      {
+        SourceExpression: "In questo nuovo albero di lavoro, esplora il codice sorgente sinergico e indaga.",
+        TargetExpression: "In this new worktree, explore the Synergy source code and investigate.",
+        Note: "compatto, sommario visivo è più vicino alla forma espandibile della scheda UI.",
+      } as never,
+      context(),
+      service,
+    )
+    expect(result.output).toContain(
+      'Your expression: "In questo nuovo albero di lavoro, esplora il codice sorgente sinergico e indaga."',
+    )
+    expect(result.output).toContain(
+      'In en: "In this new worktree, explore the Synergy source code and investigate."',
+    )
+    expect(result.output).toContain(
+      "Note: compatto, sommario visivo è più vicino alla forma espandibile della scheda UI.",
+    )
+
+    const long = await suggestExpressionTool(
+      {
+        sourceExpression: "x".repeat(1_500),
+        targetExpression: "y".repeat(1_200),
+      },
+      context(),
+      service,
+    )
+    expect(long.output).toContain("x".repeat(1_500))
   })
 
   test("rejects when coaching is not configured or disabled", async () => {

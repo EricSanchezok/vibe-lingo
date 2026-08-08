@@ -36,11 +36,19 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function field(value: Record<string, unknown>, ...names: string[]): string {
+  for (const name of names) {
+    const candidate = text(value[name])
+    if (candidate) return candidate
+  }
+  return ""
+}
+
 function parseInput(value: Record<string, unknown>): ExpressionInput {
-  const notes = text(value.notes)
+  const notes = field(value, "notes", "Note", "note")
   return {
-    sourceExpression: text(value.sourceExpression),
-    targetExpression: text(value.targetExpression),
+    sourceExpression: field(value, "sourceExpression", "SourceExpression"),
+    targetExpression: field(value, "targetExpression", "TargetExpression"),
     ...(notes ? { notes } : {}),
   }
 }

@@ -12,6 +12,33 @@ function codePoints(value: string): number {
   return Array.from(value).length
 }
 
+function stringField(
+  input: Record<string, unknown>,
+  ...names: string[]
+): string | undefined {
+  for (const name of names) {
+    const value = input[name]
+    if (typeof value === "string") return value
+  }
+  return undefined
+}
+
+export const SUGGEST_EXPRESSION_MAX_CHARS = 2_000
+export const SUGGEST_EXPRESSION_MAX_NOTE_CHARS = 500
+
+function normalizeInput(raw: SuggestExpressionInput): {
+  sourceExpression: string
+  targetExpression: string
+  notes?: string
+} {
+  const notes = stringField(raw, "notes", "Note", "note")
+  return {
+    sourceExpression: stringField(raw, "sourceExpression", "SourceExpression") ?? "",
+    targetExpression: stringField(raw, "targetExpression", "TargetExpression") ?? "",
+    ...(notes !== undefined ? { notes } : {}),
+  }
+}
+
 function result(
   input: SuggestExpressionInput,
   targetLanguage: string,
@@ -33,18 +60,21 @@ function result(
 }
 
 export async function suggestExpressionTool(
-  input: SuggestExpressionInput,
+  rawInput: SuggestExpressionInput,
   context: PluginInvocationContext,
   _services?: VibeLingoServices,
 ): Promise<ToolResult> {
+  const input = normalizeInput(rawInput)
   if (
     !input.sourceExpression.trim()
     || !input.targetExpression.trim()
-    || codePoints(input.sourceExpression) > 500
-    || codePoints(input.targetExpression) > 500
-    || (input.notes !== undefined && codePoints(input.notes) > 200)
+    || codePoints(input.sourceExpression) > SUGGEST_EXPRESSION_MAX_CHARS
+    || codePoints(input.targetExpression) > SUGGEST_EXPRESSION_MAX_CHARS
+    || (input.notes !== undefined && codePoints(input.notes) > SUGGEST_EXPRESSION_MAX_NOTE_CHARS)
   ) {
-    throw new Error("Expression text is empty or exceeds VibeLingo's privacy bounds.")
+    throw new Error(
+      `Expression text is empty or exceeds VibeLingo's privacy bounds (${SUGGEST_EXPRESSION_MAX_CHARS} characters).`,
+    )
   }
   const settings = await readSettings(context)
   const profile = configuredProfile(settings)
